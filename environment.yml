@@ -1,0 +1,28 @@
+name: quants-lab
+channels:
+  - defaults
+  - conda-forge
+dependencies:
+  - python=3.10
+  - sqlalchemy=1.4
+  - pip
+  - pip:
+      - hummingbot
+      - numpy==1.26.4
+      - plotly
+      - pycoingecko
+      - geckoterminal-py
+      - glom
+      - defillama
+      - statsmodels
+      - pandas_ta==0.3.14b
+      - pyyaml
+      - jupyter
+      - optuna
+      - optuna-dashboard
+      - pathlib
+      - pydantic==1.10.4
+      - scikit-learn
+      - pre-commit
+      - isort
+      - ruff
