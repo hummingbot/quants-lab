@@ -1,5 +1,4 @@
 .ONESHELL:
-.PHONY: run
 .PHONY: uninstall
 .PHONY: install
 
@@ -9,4 +8,3 @@ uninstall:
 
 install:
 	conda env create -f environment.yml
-	pre-commit install
