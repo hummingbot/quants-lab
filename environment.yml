@@ -25,4 +25,4 @@ dependencies:
       - scikit-learn
       - pre-commit
       - isort
-      - ruff
+      - flake8
