@@ -27,3 +27,4 @@ dependencies:
       - isort
       - flake8
       - commlib-py
+      - rich
