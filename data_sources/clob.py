@@ -1,3 +1,4 @@
+import logging
 import time
 from typing import Dict, Tuple
 
@@ -11,6 +12,10 @@ from hummingbot.data_feed.candles_feed.data_types import CandlesConfig, Historic
 from data_handler.ohlc import OHLC
 from data_handler.trading_rules import TradingRules
 
+# Set up logging
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
+
 
 class ClobDataSource:
     CONNECTOR_TYPES = [ConnectorType.CLOB_SPOT, ConnectorType.CLOB_PERP, ConnectorType.Exchange,
@@ -19,6 +24,7 @@ class ClobDataSource:
                            "polkadex", "coinbase_advanced_trade", "kraken"]
 
     def __init__(self):
+        logger.info("Initializing ClobDataSource")
         self.candles_factory = CandlesFactory()
         self.conn_settings = AllConnectorSettings.get_connector_settings()
         self.connectors = {name: self.get_connector(name) for name, settings in self.conn_settings.items()
@@ -41,10 +47,12 @@ class ClobDataSource:
 
         if cache_key in self.candles_cache:
             cached_df = self.candles_cache[cache_key]
-            cached_start_time = cached_df.index.min().timestamp()
-            cached_end_time = cached_df.index.max().timestamp()
+            cached_start_time = int(cached_df.index.min().timestamp())
+            cached_end_time = int(cached_df.index.max().timestamp())
 
             if cached_start_time <= start_time and cached_end_time >= end_time:
+                logger.info(
+                    f"Using cached data for {connector_name} {trading_pair} {interval} from {start_time} to {end_time}")
                 return OHLC(cached_df[(cached_df.index >= pd.to_datetime(start_time, unit='s')) &
                                       (cached_df.index <= pd.to_datetime(end_time, unit='s'))])
             else:
@@ -58,43 +66,50 @@ class ClobDataSource:
             new_start_time = start_time
             new_end_time = end_time
 
-        candle = self.candles_factory.get_candle(CandlesConfig(
-            connector=connector_name,
-            trading_pair=trading_pair,
-            interval=interval
-        ))
-        candles_df = await candle.get_historical_candles(HistoricalCandlesConfig(
-            connector_name=connector_name,
-            trading_pair=trading_pair,
-            start_time=new_start_time,
-            end_time=new_end_time,
-            interval=interval
-        ))
-        candles_df.index = pd.to_datetime(candles_df.timestamp, unit='s')
+        try:
+            logger.info(
+                f"Fetching data for {connector_name} {trading_pair} {interval} from {new_start_time} to {new_end_time}")
+            candle = self.candles_factory.get_candle(CandlesConfig(
+                connector=connector_name,
+                trading_pair=trading_pair,
+                interval=interval
+            ))
+            candles_df = await candle.get_historical_candles(HistoricalCandlesConfig(
+                connector_name=connector_name,
+                trading_pair=trading_pair,
+                start_time=new_start_time,
+                end_time=new_end_time,
+                interval=interval
+            ))
+            candles_df.index = pd.to_datetime(candles_df.timestamp, unit='s')
 
-        if cache_key in self.candles_cache:
-            self.candles_cache[cache_key] = pd.concat(
-                [self.candles_cache[cache_key], candles_df]).drop_duplicates().sort_index()
-        else:
-            self.candles_cache[cache_key] = candles_df
+            if cache_key in self.candles_cache:
+                self.candles_cache[cache_key] = pd.concat(
+                    [self.candles_cache[cache_key], candles_df]).drop_duplicates().sort_index()
+            else:
+                self.candles_cache[cache_key] = candles_df
 
-        return OHLC(self.candles_cache[cache_key][
-                        (self.candles_cache[cache_key].index >= pd.to_datetime(start_time, unit='s')) &
-                        (self.candles_cache[cache_key].index <= pd.to_datetime(end_time, unit='s'))])
+            return OHLC(self.candles_cache[cache_key][
+                            (self.candles_cache[cache_key].index >= pd.to_datetime(start_time, unit='s')) &
+                            (self.candles_cache[cache_key].index <= pd.to_datetime(end_time, unit='s'))])
+        except Exception as e:
+            logger.error(f"Error fetching candles for {connector_name} {trading_pair} {interval}: {e}")
 
     async def get_candles_last_days(self,
                                     connector_name: str,
                                     trading_pair: str,
                                     interval: str,
                                     days: int) -> OHLC:
-        end_time = int(time.time())
+        end_time = int(time.time()) + 60
         start_time = end_time - days * 24 * 60 * 60
         return await self.get_candles(connector_name, trading_pair, interval, start_time, end_time)
 
     def get_connector(self, connector_name: str):
         conn_setting = self.conn_settings.get(connector_name)
         if conn_setting is None:
+            logger.error(f"Connector {connector_name} not found")
             raise Exception(f"Connector {connector_name} not found")
+
         client_config_map = ClientConfigAdapter(ClientConfigMap())
         init_params = conn_setting.conn_init_parameters(
             trading_pairs=[],
@@ -108,6 +123,5 @@ class ClobDataSource:
 
     async def get_trading_rules(self, connector_name: str):
         connector = self.connectors.get(connector_name)
-        exchange_info = await connector._make_trading_rules_request()
-        trading_rules_list = await connector._format_trading_rules(exchange_info)
-        return TradingRules(trading_rules_list)
+        await connector._update_trading_rules()
+        return TradingRules(list(connector.trading_rules.values()))
