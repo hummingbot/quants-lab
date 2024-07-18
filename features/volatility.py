@@ -1,12 +1,16 @@
 import pandas_ta as ta  # noqa: F401
 
-from features.feature_base import FeatureBase
+from features.feature_base import FeatureBase, FeatureConfig
 
 
-class Volatility(FeatureBase):
-    def calculate(self, data_handler):
-        candles = data_handler.data
-        window = self.params.get("window", 100)
+class VolatilityConfig(FeatureConfig):
+    name: str = "volatility"
+    window: int = 100
+
+
+class Volatility(FeatureBase[VolatilityConfig]):
+    def calculate(self, candles):
+        window = self.config.window
         candles["volatility"] = candles["close"].pct_change().rolling(window=window).std()
         candles["natr"] = ta.natr(candles["high"], candles["low"], candles["close"], length=window)
         bbands = ta.bbands(candles["close"], length=window)
