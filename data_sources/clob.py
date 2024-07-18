@@ -2,20 +2,26 @@ import time
 
 from hummingbot.client.config.client_config_map import ClientConfigMap
 from hummingbot.client.config.config_helpers import ClientConfigAdapter, get_connector_class
-from hummingbot.connector.test_support.mock_paper_exchange import AllConnectorSettings
+from hummingbot.client.settings import AllConnectorSettings, ConnectorType
 from hummingbot.data_feed.candles_feed.candles_factory import CandlesFactory
 from hummingbot.data_feed.candles_feed.data_types import CandlesConfig, HistoricalCandlesConfig
 
+from data_handler.ohlc import OHLC
+from data_handler.trading_rules import TradingRules
 
-class MarketData:
+
+class ClobDataSource:
+    CONNECTOR_TYPES = [ConnectorType.CLOB_SPOT, ConnectorType.CLOB_PERP, ConnectorType.Exchange,
+                       ConnectorType.Derivative]
     EXCLUDED_CONNECTORS = ["vega_perpetual", "hyperliquid_perpetual", "dydx_perpetual", "cube",
                            "polkadex", "coinbase_advanced_trade", "kraken"]
 
     def __init__(self):
         self.candles_factory = CandlesFactory()
         self.conn_settings = AllConnectorSettings.get_connector_settings()
-        self.connectors = {name: self.get_connector(name) for name in self.conn_settings.keys()
-                           if name not in self.EXCLUDED_CONNECTORS and "testnet" not in name}
+        self.connectors = {name: self.get_connector(name) for name, settings in self.conn_settings.items()
+                           if settings.type in self.CONNECTOR_TYPES and name not in self.EXCLUDED_CONNECTORS and
+                           "testnet" not in name}
 
     @staticmethod
     def get_connector_config_map(connector_name: str):
@@ -34,13 +40,14 @@ class MarketData:
             trading_pair=trading_pair,
             interval=interval
         ))
-        return await candle.get_historical_candles(HistoricalCandlesConfig(
+        candles_df = await candle.get_historical_candles(HistoricalCandlesConfig(
             connector_name=connector_name,
             trading_pair=trading_pair,
             start_time=start_time,
             end_time=end_time,
             interval=interval
         ))
+        return OHLC(candles_df)
 
     async def get_candles_last_days(self,
                                     connector_name: str,
@@ -70,4 +77,4 @@ class MarketData:
         connector = self.connectors.get(connector_name)
         exchange_info = await connector._make_trading_rules_request()
         trading_rules_list = await connector._format_trading_rules(exchange_info)
-        return trading_rules_list
+        return TradingRules(trading_rules_list)
