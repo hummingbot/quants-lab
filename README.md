@@ -35,6 +35,9 @@ QuantsLab is a Python project designed for quantitative research with Hummingbot
   - Market Stats by Token
   - Market Stats by Exchange
 
+- **Spice (DuneAnalytics)**
+  - Queries
+
 ### Modules
 - **Labeling**
   - Triple Barrier Method
