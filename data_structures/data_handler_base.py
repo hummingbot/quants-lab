@@ -3,8 +3,8 @@ from typing import List
 from features.feature_base import FeatureBase
 
 
-class DataHandlerBase:
-    def __init__(self, data):
+class DataStructureBase:
+    def __init__(self, data, *args, **kwargs):
         self.data = data
 
     def add_feature(self, feature: FeatureBase):
