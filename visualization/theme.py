@@ -1,4 +1,4 @@
-def get_default_layout(title=None, height=800, width=1000):
+def get_default_layout(title=None, height=800, width=1100):
     layout = {
         "template": "plotly_dark",
         "plot_bgcolor": 'rgba(0, 0, 0, 0)',  # Transparent background

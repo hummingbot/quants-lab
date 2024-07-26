@@ -12,34 +12,37 @@ from features.utils.peak_analyzer import PeakAnalyzer
 def generate_report(candles, volatility_config, trend_config, volume_config):
     report = []
     for trading_pair, candle in candles.items():
-        candle.add_features([Volatility(volatility_config), Trend(trend_config), Volume(volume_config)])
-        df = candle.data
+        try:
+            candle.add_features([Volatility(volatility_config), Trend(trend_config), Volume(volume_config)])
+            df = candle.data
 
-        # Summary statistics for volatility
-        mean_volatility = df['volatility'].mean()
-        mean_natr = df['natr'].mean()
-        mean_bb_width = df['bb_width'].mean()
+            # Summary statistics for volatility
+            mean_volatility = df['volatility'].mean()
+            mean_natr = df['natr'].mean()
+            mean_bb_width = df['bb_width'].mean()
 
-        # Latest trend score
-        latest_trend = df['rolling_buy_sell_imbalance_short'].iloc[-1]
+            # Latest trend score
+            latest_trend = df['rolling_buy_sell_imbalance_short'].iloc[-1]
 
-        # Average volume per hour
-        total_volume_usd = df['volume_usd'].sum()
-        total_hours = (df.index[-1] - df.index[0]).total_seconds() / 3600
-        average_volume_per_hour = total_volume_usd / total_hours
+            # Average volume per hour
+            total_volume_usd = df['volume_usd'].sum()
+            total_hours = (df.index[-1] - df.index[0]).total_seconds() / 3600
+            average_volume_per_hour = total_volume_usd / total_hours
 
-        # Calculate score
-        score = (mean_natr * 0.8 + mean_bb_width * 0.2) * average_volume_per_hour
-
-        report.append({
-            'trading_pair': trading_pair,
-            'mean_volatility': mean_volatility,
-            'mean_natr': mean_natr,
-            'mean_bb_width': mean_bb_width,
-            'latest_trend': latest_trend,
-            'average_volume_per_hour': average_volume_per_hour,
-            'score': score
-        })
+            # Calculate score
+            score = (mean_natr * 0.8 + mean_bb_width * 0.2) * average_volume_per_hour
+            report.append({
+                'trading_pair': trading_pair,
+                'mean_volatility': mean_volatility,
+                'mean_natr': mean_natr,
+                'mean_bb_width': mean_bb_width,
+                'latest_trend': latest_trend,
+                'average_volume_per_hour': average_volume_per_hour,
+                'score': score
+            })
+        except Exception as e:
+            print(f"Error processing {trading_pair}: {e}")
+            continue
 
     # Convert report to DataFrame
     report_df = pd.DataFrame(report)
