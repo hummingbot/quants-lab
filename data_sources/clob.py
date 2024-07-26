@@ -9,15 +9,15 @@ from hummingbot.client.settings import AllConnectorSettings, ConnectorType
 from hummingbot.data_feed.candles_feed.candles_factory import CandlesFactory
 from hummingbot.data_feed.candles_feed.data_types import CandlesConfig, HistoricalCandlesConfig
 
-from data_handler.ohlc import OHLC
-from data_handler.trading_rules import TradingRules
+from data_structures.candles import Candles
+from data_structures.trading_rules import TradingRules
 
 # Set up logging
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 
-class ClobDataSource:
+class CLOBDataSource:
     CONNECTOR_TYPES = [ConnectorType.CLOB_SPOT, ConnectorType.CLOB_PERP, ConnectorType.Exchange,
                        ConnectorType.Derivative]
     EXCLUDED_CONNECTORS = ["vega_perpetual", "hyperliquid_perpetual", "dydx_perpetual", "cube",
@@ -42,7 +42,7 @@ class ClobDataSource:
                           trading_pair: str,
                           interval: str,
                           start_time: int,
-                          end_time: int) -> OHLC:
+                          end_time: int) -> Candles:
         cache_key = (connector_name, trading_pair, interval)
 
         if cache_key in self.candles_cache:
@@ -53,8 +53,9 @@ class ClobDataSource:
             if cached_start_time <= start_time and cached_end_time >= end_time:
                 logger.info(
                     f"Using cached data for {connector_name} {trading_pair} {interval} from {start_time} to {end_time}")
-                return OHLC(cached_df[(cached_df.index >= pd.to_datetime(start_time, unit='s')) &
-                                      (cached_df.index <= pd.to_datetime(end_time, unit='s'))])
+                return Candles(candles_df=cached_df[(cached_df.index >= pd.to_datetime(start_time, unit='s')) &
+                                                    (cached_df.index <= pd.to_datetime(end_time, unit='s'))],
+                               connector_name=connector_name, trading_pair=trading_pair, interval=interval)
             else:
                 if start_time < cached_start_time:
                     new_start_time = start_time
@@ -89,9 +90,10 @@ class ClobDataSource:
             else:
                 self.candles_cache[cache_key] = candles_df
 
-            return OHLC(self.candles_cache[cache_key][
-                            (self.candles_cache[cache_key].index >= pd.to_datetime(start_time, unit='s')) &
-                            (self.candles_cache[cache_key].index <= pd.to_datetime(end_time, unit='s'))])
+            return Candles(candles_df=self.candles_cache[cache_key][
+                (self.candles_cache[cache_key].index >= pd.to_datetime(start_time, unit='s')) &
+                (self.candles_cache[cache_key].index <= pd.to_datetime(end_time, unit='s'))],
+                           connector_name=connector_name, trading_pair=trading_pair, interval=interval)
         except Exception as e:
             logger.error(f"Error fetching candles for {connector_name} {trading_pair} {interval}: {e}")
 
@@ -99,8 +101,8 @@ class ClobDataSource:
                                     connector_name: str,
                                     trading_pair: str,
                                     interval: str,
-                                    days: int) -> OHLC:
-        end_time = int(time.time()) + 60
+                                    days: int) -> Candles:
+        end_time = int(time.time())
         start_time = end_time - days * 24 * 60 * 60
         return await self.get_candles(connector_name, trading_pair, interval, start_time, end_time)
 

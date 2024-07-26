@@ -3,10 +3,10 @@ from typing import List
 
 from hummingbot.connector.trading_rule import TradingRule
 
-from data_handler.data_handler_base import DataHandlerBase
+from data_structures.data_handler_base import DataStructureBase
 
 
-class TradingRules(DataHandlerBase):
+class TradingRules(DataStructureBase):
     def __init__(self, trading_rules: List[TradingRule]):
         super().__init__(trading_rules)
 
