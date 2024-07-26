@@ -6,7 +6,7 @@ import plotly.graph_objects as go
 from hummingbot.connector.connector_base import TradeType
 from plotly.subplots import make_subplots
 
-from data_structures.candles import Candles
+from visualization import theme
 from visualization.theme import get_default_layout
 
 
@@ -43,16 +43,23 @@ def get_pnl_trace(executors):
     )
 
 
-def create_backtesting_figure(df, executors, config):
+def get_bt_candlestick_trace(df):
+    df.index = pd.to_datetime(df.timestamp, unit='s')
+    return go.Scatter(x=df.index,
+                      y=df['close'],
+                      mode='lines',
+                      line=dict(color=theme.get_color_scheme()["price"]),
+                      )
+
+
+def create_backtesting_figure(df, executors, config, summary_results):
     # Create subplots
     fig = make_subplots(rows=2, cols=1, shared_xaxes=True,
                         vertical_spacing=0.02, subplot_titles=('Candlestick', 'PNL Quote'),
-                        row_heights=[0.7, 0.3])
-
-    candles = Candles(df, config.get("connector_name"), config.get("trading_pair"))
+                        row_heights=[0.8, 0.2])
 
     # Add candlestick trace
-    fig.add_trace(candles.candles_trace(), row=1, col=1)
+    fig.add_trace(get_bt_candlestick_trace(df), row=1, col=1)
 
     # Add executors trace
     fig = add_executors_trace(fig, executors, row=1, col=1)
@@ -70,4 +77,39 @@ def create_backtesting_figure(df, executors, config):
     fig.update_xaxes(row=2, col=1)
     fig.update_yaxes(title_text="Price", row=1, col=1)
     fig.update_yaxes(title_text="PNL", row=2, col=1)
+
+    # Add annotations for backtesting metrics
+    max_drawdown_usd = summary_results.get('max_drawdown_usd', 0)
+    max_drawdown_pct = summary_results.get('max_drawdown_pct', 0)
+    metrics = [
+        f"Net PNL (Quote): {summary_results.get('net_pnl_quote', 0):.2f} ({summary_results.get('net_pnl', 0):.2%})",
+        f"Max Drawdown (USD): {max_drawdown_usd:.2f} ({max_drawdown_pct:.2%})",
+        f"Total Volume (Quote): {summary_results.get('total_volume', 0):.2f}",
+        f"Sharpe Ratio: {summary_results.get('sharpe_ratio', 0):.2f}",
+        f"Profit Factor: {summary_results.get('profit_factor', 0):.2f}",
+        f"Total Executors with Position: {summary_results.get('total_executors_with_position', 0)}",
+        f"Global Accuracy: {summary_results.get('accuracy', 0):.2%}",
+        f"Total Long: {summary_results.get('total_long', 0)}",
+        f"Total Short: {summary_results.get('total_short', 0)}",
+        f"Accuracy Long: {summary_results.get('accuracy_long', 0):.2%}",
+        f"Accuracy Short: {summary_results.get('accuracy_short', 0):.2%}",
+        f"TAKE PROFIT: {summary_results.get('close_types', {}).get('TAKE_PROFIT', 0)}",
+        f"TRAILING STOP: {summary_results.get('close_types', {}).get('TRAILING_STOP', 0)}",
+        f"STOP LOSS: {summary_results.get('close_types', {}).get('STOP_LOSS', 0)}",
+        f"TIME LIMIT: {summary_results.get('close_types', {}).get('TIME_LIMIT', 0)}",
+        f"EARLY STOP: {summary_results.get('close_types', {}).get('EARLY_STOP', 0)}",
+    ]
+
+    annotations = []
+    for i, metric in enumerate(metrics):
+        annotations.append(dict(
+            xref='paper', yref='paper',
+            x=0.8, y=1.0 - i * 0.02,
+            xanchor='left', yanchor='middle',
+            text=metric,
+            showarrow=False,
+            font=dict(size=10)
+        ))
+
+    fig.update_layout(annotations=annotations)
     return fig
