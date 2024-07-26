@@ -12,7 +12,7 @@ class Candles(DataStructureBase):
         self.trading_pair = trading_pair
         self.interval = interval
 
-    def fig(self, type: str, height=600, width=1200):
+    def fig(self, type: str = "candles", height=600, width=1200):
         if type == 'candles':
             return self.candles_fig(height, width)
         elif type == 'returns':
@@ -20,7 +20,7 @@ class Candles(DataStructureBase):
         else:
             raise ValueError(f"Unknown type {type}")
 
-    def plot(self, type: str, height=600, width=1200):
+    def plot(self, type: str = "candles", height=600, width=1200):
         fig = self.fig(type, height, width)
         fig.show()
 
