@@ -1,4 +1,5 @@
 import logging
+import os
 import time
 from typing import Dict, Tuple
 
@@ -30,12 +31,17 @@ class CLOBDataSource:
         self.connectors = {name: self.get_connector(name) for name, settings in self.conn_settings.items()
                            if settings.type in self.CONNECTOR_TYPES and name not in self.EXCLUDED_CONNECTORS and
                            "testnet" not in name}
-        self.candles_cache: Dict[Tuple[str, str, str], pd.DataFrame] = {}
+        self._candles_cache: Dict[Tuple[str, str, str], pd.DataFrame] = {}
 
     @staticmethod
     def get_connector_config_map(connector_name: str):
         connector_config = AllConnectorSettings.get_connector_config_keys(connector_name)
         return {key: "" for key in connector_config.__fields__.keys() if key != "connector"}
+
+    @property
+    def candles_cache(self):
+        return {key: Candles(candles_df=value, connector_name=key[0], trading_pair=key[1], interval=key[2])
+                for key, value in self._candles_cache.items()}
 
     async def get_candles(self,
                           connector_name: str,
@@ -45,8 +51,8 @@ class CLOBDataSource:
                           end_time: int) -> Candles:
         cache_key = (connector_name, trading_pair, interval)
 
-        if cache_key in self.candles_cache:
-            cached_df = self.candles_cache[cache_key]
+        if cache_key in self._candles_cache:
+            cached_df = self._candles_cache[cache_key]
             cached_start_time = int(cached_df.index.min().timestamp())
             cached_end_time = int(cached_df.index.max().timestamp())
 
@@ -84,15 +90,15 @@ class CLOBDataSource:
             ))
             candles_df.index = pd.to_datetime(candles_df.timestamp, unit='s')
 
-            if cache_key in self.candles_cache:
-                self.candles_cache[cache_key] = pd.concat(
-                    [self.candles_cache[cache_key], candles_df]).drop_duplicates().sort_index()
+            if cache_key in self._candles_cache:
+                self._candles_cache[cache_key] = pd.concat(
+                    [self._candles_cache[cache_key], candles_df]).drop_duplicates().sort_index()
             else:
-                self.candles_cache[cache_key] = candles_df
+                self._candles_cache[cache_key] = candles_df
 
-            return Candles(candles_df=self.candles_cache[cache_key][
-                (self.candles_cache[cache_key].index >= pd.to_datetime(start_time, unit='s')) &
-                (self.candles_cache[cache_key].index <= pd.to_datetime(end_time, unit='s'))],
+            return Candles(candles_df=self._candles_cache[cache_key][
+                (self._candles_cache[cache_key].index >= pd.to_datetime(start_time, unit='s')) &
+                (self._candles_cache[cache_key].index <= pd.to_datetime(end_time, unit='s'))],
                            connector_name=connector_name, trading_pair=trading_pair, interval=interval)
         except Exception as e:
             logger.error(f"Error fetching candles for {connector_name} {trading_pair} {interval}: {e}")
@@ -127,3 +133,17 @@ class CLOBDataSource:
         connector = self.connectors.get(connector_name)
         await connector._update_trading_rules()
         return TradingRules(list(connector.trading_rules.values()))
+
+    def dump_candles_cache(self, path: str = "data"):
+        for key, df in self._candles_cache.items():
+            candles_path = os.path.join(path, "candles")
+            df.to_csv(os.path.join(candles_path, f"{key[0]}|{key[1]}|{key[2]}.csv"), index=False)
+        logger.info("Candles cache dumped")
+
+    def load_candles_cache(self, path: str = "data"):
+        all_files = os.listdir(os.path.join(path, "candles"))
+        for file in all_files:
+            connector_name, trading_pair, interval = file.split(".")[0].split("|")
+            candles = pd.read_csv(f"{path}/candles/{file}")
+            candles.index = pd.to_datetime(candles.timestamp, unit='s')
+            self._candles_cache[(connector_name, trading_pair, interval)] = candles
