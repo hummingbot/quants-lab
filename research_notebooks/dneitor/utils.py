@@ -3,10 +3,10 @@ from typing import Any, Dict, List
 import pandas as pd
 import yaml
 
+from features.candles.peak_analyzer import PeakAnalyzer
 from features.candles.trend import Trend
 from features.candles.volatility import Volatility
 from features.candles.volume import Volume
-from features.utils.peak_analyzer import PeakAnalyzer
 
 
 def generate_report(candles, volatility_config, trend_config, volume_config):
@@ -55,10 +55,10 @@ def generate_report(candles, volatility_config, trend_config, volume_config):
     return report_df
 
 
-def filter_top_markets(report_df, top_x, min_volume_usd=0, min_atr=0, trend_threshold=0.5):
+def filter_top_markets(report_df, top_x, min_volume_usd=0, min_natr=0, trend_threshold=0.5):
     # Filter and sort by criteria
     filtered_df = report_df[(report_df['average_volume_per_hour'] > min_volume_usd) &
-                            (report_df['mean_natr'] > min_atr) &
+                            (report_df['mean_natr'] > min_natr) &
                             (report_df['latest_trend'] > trend_threshold)]
     top_markets_df = filtered_df.sort_values(by='normalized_score', ascending=False).head(top_x)
     return top_markets_df
