@@ -143,7 +143,12 @@ class CLOBDataSource:
     def load_candles_cache(self, path: str = "data"):
         all_files = os.listdir(os.path.join(path, "candles"))
         for file in all_files:
-            connector_name, trading_pair, interval = file.split(".")[0].split("|")
-            candles = pd.read_csv(f"{path}/candles/{file}")
-            candles.index = pd.to_datetime(candles.timestamp, unit='s')
-            self._candles_cache[(connector_name, trading_pair, interval)] = candles
+            if file == ".gitignore":
+                continue
+            try:
+                connector_name, trading_pair, interval = file.split(".")[0].split("|")
+                candles = pd.read_csv(os.path.join(path, "candles", file))
+                candles.index = pd.to_datetime(candles.timestamp, unit='s')
+                self._candles_cache[(connector_name, trading_pair, interval)] = candles
+            except Exception as e:
+                logger.error(f"Error loading {file}: {e}")
