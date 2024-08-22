@@ -1,4 +1,5 @@
-from typing import Dict, Optional
+import time
+from typing import Dict, List, Optional
 
 import pandas as pd
 import requests
@@ -285,3 +286,41 @@ class BackendAPIClient:
         """Get account state history."""
         endpoint = "account-state-history"
         return self.get(endpoint)
+
+    def deploy_script_with_controllers(self,
+                                       bot_name: str, controller_configs: List[str],
+                                       script_name: str = "v2_with_controllers.py",
+                                       image_name: str = "hummingbot/hummingbot:latest",
+                                       credentials: str = "master_account",
+                                       time_to_cash_out: Optional[int] = None,
+                                       max_global_drawdown: Optional[float] = None,
+                                       max_controller_drawdown: Optional[float] = None,
+                                       ):
+        start_time_str = time.strftime("%Y.%m.%d_%H.%M")
+        bot_name = f"{bot_name}-{start_time_str}"
+        script_config = {
+            "name": bot_name,
+            "content": {
+                "markets": {},
+                "candles_config": [],
+                "controllers_config": controller_configs,
+                "config_update_interval": 10,
+                "script_file_name": "v2_with_controllers.py",
+            }
+        }
+        if time_to_cash_out:
+            script_config["content"]["time_to_cash_out"] = time_to_cash_out
+        if max_global_drawdown:
+            script_config["content"]["max_global_drawdown"] = max_global_drawdown
+        if max_controller_drawdown:
+            script_config["content"]["max_controller_drawdown"] = max_controller_drawdown
+
+        self.add_script_config(script_config)
+        deploy_config = {
+            "instance_name": bot_name,
+            "script": script_name,
+            "script_config": bot_name + ".yml",
+            "image": image_name,
+            "credentials_profile": credentials,
+        }
+        self.create_hummingbot_instance(deploy_config)
