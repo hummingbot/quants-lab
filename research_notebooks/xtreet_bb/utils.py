@@ -26,6 +26,7 @@ def generate_report(candles: List[Candles], BOLLINGER_LENGTH: float, BOLLINGER_S
             df["signal"] = df[f"BBP_{BOLLINGER_LENGTH}_{BOLLINGER_STD}"].apply(apply_signal)
             df["out_of_bounds"] = df["signal"].diff().fillna(0)
             df.loc[df["signal"] == 0, "out_of_bounds"] = 0
+            df["volume_usd"] = df["volume"] * df["close"]
 
             # Create df_filtered for values where out_of_bounds is not 0
             df_filtered = df[df["out_of_bounds"] != 0].copy()
@@ -118,7 +119,11 @@ def generate_report(candles: List[Candles], BOLLINGER_LENGTH: float, BOLLINGER_S
                 "n_fake_reversions": n_fake_reversions,
                 "street_cross": street_cross,
                 "n_out_of_bounds": n_out_of_bounds,
-                "risk_ration_mean": risk_ration_mean
+                "risk_ration_mean": risk_ration_mean,
+                "volume_mean": df["volume_usd"].mean(),
+                "volume_median": df["volume_usd"].median(),
+                "returns_std": df['close'].pct_change().std(),
+                "right_fake_ratio": n_right_reversions / n_fake_reversions
             })
         except Exception as e:
             print(f"Error processing {candle.trading_pair}: {e}")
@@ -148,7 +153,7 @@ def distribute_total_amount(top_markets: pd.DataFrame, total_amount: float) -> p
 def generate_config(connector_name: str, intervals: List[str], top_markets: pd.DataFrame, total_amount: float,
                     max_executors_per_side: int, cooldown_time: int, leverage: int,
                     time_limit: int,
-                    bb_lengths: List[int], bb_stds: List[float]):
+                    bb_lengths: List[int], bb_stds: List[float], sl_std_multiplier: float) -> List[dict]:
     # Distribute the total amount based on the score
     top_markets['total_amount_quote'] = distribute_total_amount(top_markets, total_amount)
 
@@ -174,10 +179,15 @@ def generate_config(connector_name: str, intervals: List[str], top_markets: pd.D
                                 if a_1 <= 1:
                                     continue
                                 dca_amounts = [1, a_1]
+                                bep = ((1 * 1 + a_1 * (s1 + 1)) / (1 + a_1)) - 1
+                                if (bep + stop_loss) * 1.05 <= s1:
+                                    print(f"Skipping {trading_pair} due to stop loss closer to get executed:"
+                                          f"BEP: {bep}, SL: {stop_loss}, S1: {s1}")
+                                    continue
                                 # Generate the configuration
                                 id = f"xtreet_bb_{connector_name}_{interval}_{trading_pair}_" \
-                                     f"{round(s0, 3)}_{round(s1, 3)}_{round(r1, 3)}_{round(r2, 3)}_" \
-                                     f"{bb_length}_{bb_std}_{stop_loss}_{take_profit}"
+                                     f"bb{bb_length}_{bb_std}_sl{round(100 * stop_loss, 1)}_tp{round(100 * take_profit, 1)}" \
+                                     f"bep{bep}"
                                 config = {"controller_name": "xtreet_bb", "controller_type": "directional_trading",
                                           "manual_kill_switch": None, "candles_config": [],
                                           "trading_pair": trading_pair, "connector_name": connector_name, "interval": interval,
@@ -198,8 +208,7 @@ def calculate_dca_spreads(row):
     columns = [f"worst_q{i}" for i in range(1, 5)]
     all_spreads = []
     for column in columns:
-        spreads = [0.0]
-        spreads.append(row[column])
+        spreads = [-0.01, row[column]]
         all_spreads.append(spreads)
     return all_spreads
 
