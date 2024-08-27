@@ -4,16 +4,15 @@ import pandas as pd
 import yaml
 
 from features.candles.peak_analyzer import PeakAnalyzer
-from features.candles.trend import Trend
 from features.candles.volatility import Volatility
 from features.candles.volume import Volume
 
 
-def generate_report(candles, volatility_config, trend_config, volume_config):
+def generate_report(candles, volatility_config, volume_config):
     report = []
-    for trading_pair, candle in candles.items():
+    for candle in candles:
         try:
-            candle.add_features([Volatility(volatility_config), Trend(trend_config), Volume(volume_config)])
+            candle.add_features([Volatility(volatility_config), Volume(volume_config)])
             df = candle.data
 
             # Summary statistics for volatility
@@ -32,7 +31,7 @@ def generate_report(candles, volatility_config, trend_config, volume_config):
             # Calculate score
             score = (mean_natr * 0.8 + mean_bb_width * 0.2) * average_volume_per_hour
             report.append({
-                'trading_pair': trading_pair,
+                'trading_pair': candle.trading_pair,
                 'mean_volatility': mean_volatility,
                 'mean_natr': mean_natr,
                 'mean_bb_width': mean_bb_width,
@@ -41,7 +40,7 @@ def generate_report(candles, volatility_config, trend_config, volume_config):
                 'score': score
             })
         except Exception as e:
-            print(f"Error processing {trading_pair}: {e}")
+            print(f"Error processing {candle.trading_pair}: {e}")
             continue
 
     # Convert report to DataFrame
