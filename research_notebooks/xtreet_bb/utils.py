@@ -5,6 +5,56 @@ import pandas_ta as ta  # noqa: F401
 import yaml
 
 from data_structures.candles import Candles
+from data_structures.trading_rules import TradingRules
+from features.candles.volatility import Volatility
+from features.candles.volume import Volume
+
+
+def generate_screener_report(candles, trading_rules: TradingRules, volatility_config, volume_config):
+    report = []
+    for candle in candles:
+        try:
+            candle.add_features([Volatility(volatility_config), Volume(volume_config)])
+            df = candle.data
+
+            # Summary statistics for volatility
+            mean_volatility = df['volatility'].mean()
+            mean_natr = df['natr'].mean()
+            mean_bb_width = df['bb_width'].mean()
+
+            # Average volume per hour
+            total_volume_usd = df['volume_usd'].sum()
+            total_hours = (df.index[-1] - df.index[0]).total_seconds() / 3600
+            average_volume_per_hour = total_volume_usd / total_hours
+            min_price_increment = float(
+                trading_rules.filter_by_trading_pair(candle.trading_pair).data[0].min_price_increment)
+            price_step_pct = min_price_increment / df['close'].iloc[-1]
+
+            # Calculate score
+            score = (mean_natr * 0.8 + mean_bb_width * 0.2) * average_volume_per_hour
+            report.append({
+                'trading_pair': candle.trading_pair,
+                'mean_volatility': mean_volatility,
+                'mean_natr': mean_natr,
+                'mean_bb_width': mean_bb_width,
+                'average_volume_per_hour': average_volume_per_hour,
+                'last_price': df['close'].iloc[-1],
+                'price_step_pct': price_step_pct,
+                'score': score
+            })
+        except Exception as e:
+            print(f"Error processing {candle.trading_pair}: {e}")
+            continue
+
+    # Convert report to DataFrame
+    report_df = pd.DataFrame(report)
+
+    # Normalize the score
+    max_score = report_df['score'].max()
+    report_df['normalized_score'] = report_df['score'] / max_score
+    report_df.drop(columns=['score'], inplace=True)
+
+    return report_df
 
 
 def generate_report(candles: List[Candles], BOLLINGER_LENGTH: float, BOLLINGER_STD: float):
@@ -134,37 +184,28 @@ def generate_report(candles: List[Candles], BOLLINGER_LENGTH: float, BOLLINGER_S
     return report_df
 
 
-def filter_top_markets(report_df, top_x):
-    # Filter and sort by criteria
-    filtered_df = report_df.copy()
-    # filtered_df = report_df[(report_df['average_volume_per_hour'] > min_volume_usd) &
-    #                         (report_df['mean_natr'] > min_atr) &
-    #                         (report_df['latest_trend'] > trend_threshold)]
-    top_markets_df = filtered_df.sort_values(by='risk_ration_mean', ascending=False).head(top_x)
-    return top_markets_df
-
-
-def distribute_total_amount(top_markets: pd.DataFrame, total_amount: float) -> pd.Series:
-    num_markets = len(top_markets)
-    amount_per_market = total_amount / num_markets
-    return amount_per_market
-
-
-def generate_config(connector_name: str, intervals: List[str], top_markets: pd.DataFrame, total_amount: float,
+def generate_config(connector_name: str, intervals: List[str], screener_top_markets: pd.DataFrame,
+                    candles: List[Candles], total_amount: float,
                     max_executors_per_side: int, cooldown_time: int, leverage: int,
                     time_limit: int,
-                    bb_lengths: List[int], bb_stds: List[float], sl_std_multiplier: float) -> List[dict]:
+                    bb_lengths: List[int], bb_stds: List[float], min_distance_between_orders: float,
+                    max_tp_sl_ratio: float, sl_std_multiplier: float) -> List[dict]:
     # Distribute the total amount based on the score
-    top_markets['total_amount_quote'] = distribute_total_amount(top_markets, total_amount)
-
     configs = []
-    for index, row in top_markets.iterrows():
-        for bb_length in bb_lengths:
-            for bb_std in bb_stds:
-                for interval in intervals:
+    for bb_length in bb_lengths:
+        for bb_std in bb_stds:
+            for interval in intervals:
+                markets_report = generate_report(
+                    candles=[candle for candle in candles if candle.interval == interval and
+                             candle.trading_pair in screener_top_markets['trading_pair'].values],
+                    BOLLINGER_LENGTH=bb_length,
+                    BOLLINGER_STD=bb_std,
+                )
+
+                for index, row in markets_report.iterrows():
                     trading_pair = row['trading_pair']
-                    worst_dev_cols = [f"worst_q{i}" for i in range(1, 5)]
-                    for worst_dev_col in worst_dev_cols[1:3]:
+                    worst_dev_cols = [f"worst_q{i}" for i in range(2, 3)]
+                    for worst_dev_col in worst_dev_cols:
                         stop_loss = row[worst_dev_col]
                         all_spreads = calculate_dca_spreads(row)
                         all_reversions = calculate_reversions(row)
@@ -173,14 +214,19 @@ def generate_config(connector_name: str, intervals: List[str], top_markets: pd.D
                             for reversions in all_reversions:
                                 r1, r2 = reversions[0], reversions[1]
                                 take_profit = r1
-                                if stop_loss <= 0 or take_profit <= 0:
-                                    continue
                                 a_1 = (s1 - s0) / (r2 - r1) - 1
-                                if a_1 <= 1:
+                                sl_condition = stop_loss <= 0
+                                tp_condition = take_profit <= 0
+                                a_1_condition = a_1 <= 1
+                                min_distance_condition = s1 - s0 < min_distance_between_orders
+                                tp_sl_ratio_condition = take_profit / stop_loss <= max_tp_sl_ratio
+
+                                if sl_condition or tp_condition or a_1_condition \
+                                        or min_distance_condition or tp_sl_ratio_condition:
                                     continue
                                 dca_amounts = [1, a_1]
                                 bep = ((1 * 1 + a_1 * (s1 + 1)) / (1 + a_1)) - 1
-                                if (bep + stop_loss) * 1.05 <= s1:
+                                if (bep + stop_loss) * (1 + row["returns_std"] * sl_std_multiplier) <= s1:
                                     print(f"Skipping {trading_pair} due to stop loss closer to get executed:"
                                           f"BEP: {bep}, SL: {stop_loss}, S1: {s1}")
                                     continue
@@ -190,12 +236,15 @@ def generate_config(connector_name: str, intervals: List[str], top_markets: pd.D
                                      f"bep{bep}"
                                 config = {"controller_name": "xtreet_bb", "controller_type": "directional_trading",
                                           "manual_kill_switch": None, "candles_config": [],
-                                          "trading_pair": trading_pair, "connector_name": connector_name, "interval": interval,
-                                          "max_executors_per_side": max_executors_per_side, "cooldown_time": cooldown_time,
+                                          "trading_pair": trading_pair, "connector_name": connector_name,
+                                          "interval": interval,
+                                          "max_executors_per_side": max_executors_per_side,
+                                          "cooldown_time": cooldown_time,
                                           "leverage": leverage, "position_mode": "HEDGE", "time_limit": time_limit,
-                                          "dca_spreads": dca_spreads, "dca_amounts_pct": dca_amounts, "bb_length": bb_length,
+                                          "dca_spreads": dca_spreads, "dca_amounts_pct": dca_amounts,
+                                          "bb_length": bb_length,
                                           "bb_std": bb_std, "take_profit": take_profit, "stop_loss": stop_loss,
-                                          "total_amount_quote": row['total_amount_quote'],
+                                          "total_amount_quote": total_amount,
                                           "candles_trading_pair": trading_pair,
                                           "candles_connector": connector_name,
                                           "id": id}
@@ -205,7 +254,7 @@ def generate_config(connector_name: str, intervals: List[str], top_markets: pd.D
 
 
 def calculate_dca_spreads(row):
-    columns = [f"worst_q{i}" for i in range(1, 5)]
+    columns = [f"worst_q{i}" for i in range(2, 4)]
     all_spreads = []
     for column in columns:
         spreads = [-0.01, row[column]]
