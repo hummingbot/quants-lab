@@ -15,19 +15,20 @@ logger = logging.getLogger(__name__)
 
 
 class Backtesting:
-    def __init__(self):
+    def __init__(self, load_cached_data: bool = True, root_path: str = ""):
         self._mm_bt = MarketMakingBacktesting()
         self._dt_bt = DirectionalTradingBacktesting()
-        self.load_candles_cache()
+        if load_cached_data:
+            self._load_candles_cache(root_path)
 
-    def load_candles_cache(self, path: str = "data"):
-        all_files = os.listdir(os.path.join(path, "candles"))
+    def _load_candles_cache(self, root_path: str):
+        all_files = os.listdir(os.path.join(root_path, "data", "candles"))
         for file in all_files:
             if file == ".gitignore":
                 continue
             try:
                 connector_name, trading_pair, interval = file.split(".")[0].split("|")
-                candles = pd.read_csv(os.path.join(path, "candles", file))
+                candles = pd.read_csv(os.path.join(root_path, "data", "candles", file))
                 candles.index = pd.to_datetime(candles.timestamp, unit='s')
                 self._dt_bt.backtesting_data_provider.candles_feeds[
                     f"{connector_name}_{trading_pair}_{interval}"] = candles
@@ -50,10 +51,18 @@ class Backtesting:
             controllers_conf_dir_path=controllers_conf_dir_path,
             controllers_module="controllers")
 
-    async def run_backtesting(self, backtester: BacktestingEngineBase, config: ControllerConfigBase, start: int,
-                              end: int, backtesting_resolution: str, trade_cost: float):
+    async def run_backtesting(self, config: ControllerConfigBase, start: int,
+                              end: int, backtesting_resolution: str, trade_cost: float,
+                              backtester: Optional[BacktestingEngineBase] = None) -> BacktestingResult:
+        if config.controller_type == "market_making":
+            backtester = self._mm_bt
+        elif config.controller_type == "directional_trading":
+            backtester = self._dt_bt
+        else:
+            if backtester is None:
+                raise Exception("Backtester not specified")
         bt_result = await backtester.run_backtesting(config, start, end, backtesting_resolution, trade_cost)
-        return BacktestingResult(bt_result)
+        return BacktestingResult(bt_result, config)
 
     async def backtest_controller_from_yml(self,
                                            config_file: str,
@@ -64,11 +73,4 @@ class Backtesting:
                                            trade_cost: float = 0.0006,
                                            backtester: Optional[BacktestingEngineBase] = None):
         config = self.get_controller_config_instance_from_yml(config_file, controllers_conf_dir_path)
-        if config.controller_type == "market_making":
-            backtester = self._mm_bt
-        elif config.controller_type == "directional_trading":
-            backtester = self._dt_bt
-        else:
-            if backtester is None:
-                raise Exception("Backtester not specified")
-        return await self.run_backtesting(backtester, config, start, end, backtesting_resolution, trade_cost)
+        return await self.run_backtesting(config, start, end, backtesting_resolution, trade_cost, backtester)
