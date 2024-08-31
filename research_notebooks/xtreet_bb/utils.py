@@ -4,10 +4,10 @@ import pandas as pd
 import pandas_ta as ta  # noqa: F401
 import yaml
 
-from data_structures.candles import Candles
-from data_structures.trading_rules import TradingRules
-from features.candles.volatility import Volatility
-from features.candles.volume import Volume
+from core.data_structures.candles import Candles
+from core.data_structures.trading_rules import TradingRules
+from core.features.candles.volatility import Volatility
+from core.features.candles.volume import Volume
 
 
 def generate_screener_report(candles, trading_rules: TradingRules, volatility_config, volume_config):
@@ -189,7 +189,7 @@ def generate_config(connector_name: str, intervals: List[str], screener_top_mark
                     max_executors_per_side: int, cooldown_time: int, leverage: int,
                     time_limit: int,
                     bb_lengths: List[int], bb_stds: List[float], min_distance_between_orders: float,
-                    max_tp_sl_ratio: float, sl_std_multiplier: float) -> List[dict]:
+                    max_ts_sl_ratio: float, sl_std_multiplier: float, ts_delta_multiplier: float) -> List[dict]:
     # Distribute the total amount based on the score
     configs = []
     for bb_length in bb_lengths:
@@ -213,15 +213,16 @@ def generate_config(connector_name: str, intervals: List[str], screener_top_mark
                             s0, s1 = dca_spreads[0], dca_spreads[1]
                             for reversions in all_reversions:
                                 r1, r2 = reversions[0], reversions[1]
-                                take_profit = r1
+                                trailing_stop_activation = r1
+                                trailing_stop_delta = trailing_stop_activation * ts_delta_multiplier
                                 a_1 = (s1 - s0) / (r2 - r1) - 1
                                 sl_condition = stop_loss <= 0
-                                tp_condition = take_profit <= 0
+                                ts_condition = trailing_stop_activation <= 0
                                 a_1_condition = a_1 <= 1
                                 min_distance_condition = s1 - s0 < min_distance_between_orders
-                                tp_sl_ratio_condition = take_profit / stop_loss <= max_tp_sl_ratio
+                                tp_sl_ratio_condition = trailing_stop_activation / stop_loss <= max_ts_sl_ratio
 
-                                if sl_condition or tp_condition or a_1_condition \
+                                if sl_condition or ts_condition or a_1_condition \
                                         or min_distance_condition or tp_sl_ratio_condition:
                                     continue
                                 dca_amounts = [1, a_1]
@@ -232,8 +233,10 @@ def generate_config(connector_name: str, intervals: List[str], screener_top_mark
                                     continue
                                 # Generate the configuration
                                 id = f"xtreet_bb_{connector_name}_{interval}_{trading_pair}_" \
-                                     f"bb{bb_length}_{bb_std}_sl{round(100 * stop_loss, 1)}_tp{round(100 * take_profit, 1)}" \
-                                     f"bep{bep}"
+                                     f"bb{bb_length}_{bb_std}_sl{round(100 * stop_loss, 1)}_" \
+                                     f"ts{round(100 * trailing_stop_activation, 1)}-" \
+                                     f"{round(100 * trailing_stop_delta, 1)}" \
+                                     f"bep{round(bep, 4)}"
                                 config = {"controller_name": "xtreet_bb", "controller_type": "directional_trading",
                                           "manual_kill_switch": None, "candles_config": [],
                                           "trading_pair": trading_pair, "connector_name": connector_name,
@@ -243,7 +246,9 @@ def generate_config(connector_name: str, intervals: List[str], screener_top_mark
                                           "leverage": leverage, "position_mode": "HEDGE", "time_limit": time_limit,
                                           "dca_spreads": dca_spreads, "dca_amounts_pct": dca_amounts,
                                           "bb_length": bb_length,
-                                          "bb_std": bb_std, "take_profit": take_profit, "stop_loss": stop_loss,
+                                          "bb_std": bb_std, "stop_loss": stop_loss, "take_profit": None,
+                                          "trailing_stop": {"activation_price": trailing_stop_activation,
+                                                            "trailing_delta": trailing_stop_delta},
                                           "total_amount_quote": total_amount,
                                           "candles_trading_pair": trading_pair,
                                           "candles_connector": connector_name,
@@ -257,7 +262,7 @@ def calculate_dca_spreads(row):
     columns = [f"worst_q{i}" for i in range(2, 4)]
     all_spreads = []
     for column in columns:
-        spreads = [-0.01, row[column]]
+        spreads = [-0.00001, row[column]]
         all_spreads.append(spreads)
     return all_spreads
 
