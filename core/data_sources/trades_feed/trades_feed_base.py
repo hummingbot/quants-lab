@@ -1,0 +1,24 @@
+import time
+from abc import ABC, abstractmethod
+from typing import Optional
+
+import aiohttp
+
+
+class TradesFeedBase(ABC):
+    def __init__(self, session: Optional[aiohttp.ClientSession] = None):
+        self._session = session or aiohttp.ClientSession()
+
+    @abstractmethod
+    def get_exchange_trading_pair(self, trading_pair: str) -> str:
+        ...
+
+    async def get_historical_trades(self, trading_pair: str, start_time: float, end_time: Optional[float] = None):
+        if not end_time:
+            end_time = time.time()
+        historical_trades = await self._get_historical_trades(trading_pair, start_time, end_time)
+        return historical_trades
+
+    @abstractmethod
+    async def _get_historical_trades(self, trading_pair: str, start_time: float, end_time: float):
+        ...
