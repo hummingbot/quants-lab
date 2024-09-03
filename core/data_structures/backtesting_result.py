@@ -43,9 +43,10 @@ Close Types: Take Profit: {take_profit} | Stop Loss: {stop_loss} | Time Limit: {
              Trailing Stop: {trailing_stop} | Early Stop: {early_stop}
 """
 
+    @property
     def executors_df(self):
-        executors_df = pd.DataFrame(self.executors)
-        executors_df["side"] = executors_df.apply(lambda x: x.config.side, axis=1)
+        executors_df = pd.DataFrame([e.dict() for e in self.executors])
+        executors_df["side"] = executors_df["config"].apply(lambda x: x["side"].name)
         return executors_df
 
     def _get_bt_candlestick_trace(self):
