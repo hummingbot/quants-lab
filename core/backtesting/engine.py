@@ -30,6 +30,7 @@ class BacktestingEngine:
                 connector_name, trading_pair, interval = file.split(".")[0].split("|")
                 candles = pd.read_csv(os.path.join(root_path, "data", "candles", file))
                 candles.index = pd.to_datetime(candles.timestamp, unit='s')
+                candles.index.name = None
                 self._dt_bt.backtesting_data_provider.candles_feeds[
                     f"{connector_name}_{trading_pair}_{interval}"] = candles
                 self._mm_bt.backtesting_data_provider.candles_feeds[

@@ -149,6 +149,7 @@ class CLOBDataSource:
                 connector_name, trading_pair, interval = file.split(".")[0].split("|")
                 candles = pd.read_csv(os.path.join(path, "candles", file))
                 candles.index = pd.to_datetime(candles.timestamp, unit='s')
+                candles.index.name = None
                 self._candles_cache[(connector_name, trading_pair, interval)] = candles
             except Exception as e:
                 logger.error(f"Error loading {file}: {e}")
