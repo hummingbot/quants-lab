@@ -5,6 +5,7 @@ from typing import Dict, Tuple
 
 import pandas as pd
 
+from core.data_sources.trades_feed.connectors.binance_perpetual import BinancePerpetualTradesFeed
 from core.data_structures.candles import Candles
 from core.data_structures.trading_rules import TradingRules
 from hummingbot.client.config.client_config_map import ClientConfigMap
@@ -17,16 +18,33 @@ from hummingbot.data_feed.candles_feed.data_types import CandlesConfig, Historic
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
+INTERVAL_MAPPING = {
+    '1s': 's',  # seconds
+    '1m': 'T',  # minutes
+    '3m': '3T',
+    '5m': '5T',
+    '15m': '15T',
+    '30m': '30T',
+    '1h': 'H',  # hours
+    '2h': '2H',
+    '4h': '4H',
+    '6h': '6H',
+    '12h': '12H',
+    '1d': 'D',  # days
+    '3d': '3D',
+    '1w': 'W'  # weeks
+}
+
 
 class CLOBDataSource:
-    CONNECTOR_TYPES = [ConnectorType.CLOB_SPOT, ConnectorType.CLOB_PERP, ConnectorType.Exchange,
-                       ConnectorType.Derivative]
+    CONNECTOR_TYPES = [ConnectorType.CLOB_SPOT, ConnectorType.CLOB_PERP, ConnectorType.Exchange, ConnectorType.Derivative]
     EXCLUDED_CONNECTORS = ["vega_perpetual", "hyperliquid_perpetual", "dydx_perpetual", "cube",
                            "polkadex", "coinbase_advanced_trade", "kraken", "dydx_v4_perpetual", "hitbtc"]
 
     def __init__(self):
         logger.info("Initializing ClobDataSource")
         self.candles_factory = CandlesFactory()
+        self.trades_feeds = {"binance_perpetual": BinancePerpetualTradesFeed()}
         self.conn_settings = AllConnectorSettings.get_connector_settings()
         self.connectors = {name: self.get_connector(name) for name, settings in self.conn_settings.items()
                            if settings.type in self.CONNECTOR_TYPES and name not in self.EXCLUDED_CONNECTORS and
@@ -48,7 +66,8 @@ class CLOBDataSource:
                           trading_pair: str,
                           interval: str,
                           start_time: int,
-                          end_time: int) -> Candles:
+                          end_time: int,
+                          from_trades: bool = False) -> Candles:
         cache_key = (connector_name, trading_pair, interval)
 
         if cache_key in self._candles_cache:
@@ -74,25 +93,30 @@ class CLOBDataSource:
             new_end_time = end_time
 
         try:
-            logger.info(
-                f"Fetching data for {connector_name} {trading_pair} {interval} from {new_start_time} to {new_end_time}")
-            candle = self.candles_factory.get_candle(CandlesConfig(
-                connector=connector_name,
-                trading_pair=trading_pair,
-                interval=interval
-            ))
-            candles_df = await candle.get_historical_candles(HistoricalCandlesConfig(
-                connector_name=connector_name,
-                trading_pair=trading_pair,
-                start_time=new_start_time,
-                end_time=new_end_time,
-                interval=interval
-            ))
-            candles_df.index = pd.to_datetime(candles_df.timestamp, unit='s')
+            logger.info(f"Fetching data for {connector_name} {trading_pair} {interval} from {new_start_time} to {new_end_time}")
+            if from_trades:
+                trades = await self.get_trades(connector_name, trading_pair, new_start_time, new_end_time)
+                pandas_interval = self.convert_interval_to_pandas_freq(interval)
+                candles_df = trades.resample(pandas_interval).agg({"price": "ohlc", "volume": "sum"}).ffill()
+                candles_df.columns = candles_df.columns.droplevel(0)
+            else:
+                candle = self.candles_factory.get_candle(CandlesConfig(
+                    connector=connector_name,
+                    trading_pair=trading_pair,
+                    interval=interval
+                ))
+                candles_df = await candle.get_historical_candles(HistoricalCandlesConfig(
+                    connector_name=connector_name,
+                    trading_pair=trading_pair,
+                    start_time=new_start_time,
+                    end_time=new_end_time,
+                    interval=interval
+                ))
+                candles_df.index = pd.to_datetime(candles_df.timestamp, unit='s')
 
             if cache_key in self._candles_cache:
                 self._candles_cache[cache_key] = pd.concat(
-                    [self._candles_cache[cache_key], candles_df]).drop_duplicates().sort_index()
+                    [self._candles_cache[cache_key], candles_df]).drop_duplicates(keep='first').sort_index()
             else:
                 self._candles_cache[cache_key] = candles_df
 
@@ -101,7 +125,8 @@ class CLOBDataSource:
                 (self._candles_cache[cache_key].index <= pd.to_datetime(end_time, unit='s'))],
                            connector_name=connector_name, trading_pair=trading_pair, interval=interval)
         except Exception as e:
-            logger.error(f"Error fetching candles for {connector_name} {trading_pair} {interval}: {e}")
+            logger.error(f"Error fetching candles for {connector_name} {trading_pair} {interval}: {type(e).__name__} - {e}")
+            raise  # Re-raise the exception if you want the caller to handle it
 
     async def get_candles_last_days(self,
                                     connector_name: str,
@@ -116,7 +141,7 @@ class CLOBDataSource:
         conn_setting = self.conn_settings.get(connector_name)
         if conn_setting is None:
             logger.error(f"Connector {connector_name} not found")
-            raise Exception(f"Connector {connector_name} not found")
+            raise ValueError(f"Connector {connector_name} not found")
 
         client_config_map = ClientConfigAdapter(ClientConfigMap())
         init_params = conn_setting.conn_init_parameters(
@@ -135,21 +160,38 @@ class CLOBDataSource:
         return TradingRules(list(connector.trading_rules.values()))
 
     def dump_candles_cache(self, path: str = "data"):
+        candles_path = os.path.join(path, "candles")
+        os.makedirs(candles_path, exist_ok=True)
         for key, df in self._candles_cache.items():
             candles_path = os.path.join(path, "candles")
             df.to_csv(os.path.join(candles_path, f"{key[0]}|{key[1]}|{key[2]}.csv"), index=False)
         logger.info("Candles cache dumped")
 
     def load_candles_cache(self, path: str = "data"):
-        all_files = os.listdir(os.path.join(path, "candles"))
+        candles_path = os.path.join(path, "candles")
+        if not os.path.exists(candles_path):
+            logger.warning(f"Path {candles_path} does not exist, skipping cache loading.")
+            return
+
+        all_files = os.listdir(candles_path)
         for file in all_files:
             if file == ".gitignore":
                 continue
             try:
                 connector_name, trading_pair, interval = file.split(".")[0].split("|")
-                candles = pd.read_csv(os.path.join(path, "candles", file))
+                candles = pd.read_csv(os.path.join(candles_path, file))
                 candles.index = pd.to_datetime(candles.timestamp, unit='s')
                 candles.index.name = None
                 self._candles_cache[(connector_name, trading_pair, interval)] = candles
             except Exception as e:
-                logger.error(f"Error loading {file}: {e}")
+                logger.error(f"Error loading {file}: {type(e).__name__} - {e}")
+
+    async def get_trades(self, connector_name: str, trading_pair: str, start_time: int, end_time: int):
+        return await self.trades_feeds[connector_name].get_historical_trades(trading_pair, start_time, end_time)
+
+    @staticmethod
+    def convert_interval_to_pandas_freq(interval: str) -> str:
+        """
+        Converts a candle interval string to a pandas frequency string.
+        """
+        return INTERVAL_MAPPING.get(interval, 'T')
