@@ -126,16 +126,17 @@ class CLOBDataSource:
                            connector_name=connector_name, trading_pair=trading_pair, interval=interval)
         except Exception as e:
             logger.error(f"Error fetching candles for {connector_name} {trading_pair} {interval}: {type(e).__name__} - {e}")
-            raise  # Re-raise the exception if you want the caller to handle it
+            raise
 
     async def get_candles_last_days(self,
                                     connector_name: str,
                                     trading_pair: str,
                                     interval: str,
-                                    days: int) -> Candles:
+                                    days: int,
+                                    from_trades: bool = False) -> Candles:
         end_time = int(time.time())
         start_time = end_time - days * 24 * 60 * 60
-        return await self.get_candles(connector_name, trading_pair, interval, start_time, end_time)
+        return await self.get_candles(connector_name, trading_pair, interval, start_time, end_time, from_trades)
 
     def get_connector(self, connector_name: str):
         conn_setting = self.conn_settings.get(connector_name)
