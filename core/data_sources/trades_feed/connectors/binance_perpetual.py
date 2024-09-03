@@ -35,7 +35,7 @@ class BinancePerpetualTradesFeed(TradesFeedBase):
         base, quote = trading_pair.split("-")
         return f"{base}{quote}"
 
-    async def _get_historical_trades(self, trading_pair: str, start_time: float, end_time: float):
+    async def _get_historical_trades(self, trading_pair: str, start_time: int, end_time: int):
         all_trades_collected = False
         end_ts = int(end_time * 1000)
         start_ts = int(start_time * 1000)
@@ -66,12 +66,12 @@ class BinancePerpetualTradesFeed(TradesFeedBase):
                 all_trades_collected = True
 
         df = pd.DataFrame(all_trades)
-        df.rename(columns={"T": "timestamp", "p": "price", "q": "quantity", "m": "sell_taker", "a": "id"}, inplace=True)
+        df.rename(columns={"T": "timestamp", "p": "price", "q": "volume", "m": "sell_taker", "a": "id"}, inplace=True)
         df.drop(columns=["f", "l"], inplace=True)
         df["timestamp"] = df["timestamp"] / 1000
         df.index = pd.to_datetime(df["timestamp"], unit="s")
         df["price"] = df["price"].astype(float)
-        df["quantity"] = df["quantity"].astype(float)
+        df["volume"] = df["volume"].astype(float)
         return df
 
     async def _get_historical_trades_request(self, params: Dict):
