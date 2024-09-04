@@ -1,5 +1,6 @@
 import datetime
 import os.path
+import subprocess
 import traceback
 from abc import ABC, abstractmethod
 from typing import Type
@@ -72,6 +73,7 @@ class StrategyOptimizer:
         self.resolution = resolution
         db_path = os.path.join(root_path, "data", "backtesting", f"{database_name}.db")
         self._storage_name = f"sqlite:///{db_path}"
+        self.dashboard_process = None
 
     def _create_study(self, study_name: str, direction: str = "maximize", load_if_exists: bool = True) -> optuna.Study:
         """
@@ -164,3 +166,20 @@ class StrategyOptimizer:
             print(f"An error occurred during optimization: {str(e)}")
             traceback.print_exc()
             return float('-inf')  # Return a very low value to indicate failure
+
+    def launch_optuna_dashboard(self):
+        """
+        Launch the Optuna dashboard for visualization.
+        """
+        self.dashboard_process = subprocess.Popen(["optuna-dashboard", self._storage_name])
+
+    def kill_optuna_dashboard(self):
+        """
+        Kill the Optuna dashboard process.
+        """
+        if self.dashboard_process and self.dashboard_process.poll() is None:
+            self.dashboard_process.terminate()  # Graceful termination
+            self.dashboard_process.wait()  # Wait for process to terminate
+            self.dashboard_process = None  # Reset process handle
+        else:
+            print("Dashboard is not running or already terminated.")
