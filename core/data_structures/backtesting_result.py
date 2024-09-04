@@ -95,15 +95,19 @@ Close Types: Take Profit: {take_profit} | Stop Loss: {stop_loss} | Time Limit: {
             name = "Buy Executor" if executor.config.side == TradeType.BUY else "Sell Executor"
 
             if executor.filled_amount_quote == 0:
-                fig.add_trace(go.Scatter(x=[entry_time, exit_time], y=[entry_price, entry_price], mode='lines',
-                                         line=dict(color='grey', width=2, dash="dash"), name=name), row=row, col=col)
+                fig.add_trace(
+                    go.Scatter(x=[entry_time, exit_time], y=[entry_price, entry_price], mode='lines', showlegend=False,
+                               line=dict(color='grey', width=2, dash="dash"), name=name), row=row, col=col)
             else:
                 if executor.net_pnl_quote > Decimal(0):
                     fig.add_trace(go.Scatter(x=[entry_time, exit_time], y=[entry_price, exit_price], mode='lines',
-                                             line=dict(color='green', width=4), name=name), row=row, col=col)
+                                             showlegend=False,
+                                             line=dict(color='green', width=2, dash="dash"), name=name), row=row,
+                                  col=col)
                 else:
                     fig.add_trace(go.Scatter(x=[entry_time, exit_time], y=[entry_price, exit_price], mode='lines',
-                                             line=dict(color='red', width=4), name=name), row=row, col=col)
+                                             showlegend=False,
+                                             line=dict(color='red', width=2, dash="dash"), name=name), row=row, col=col)
 
         return fig
 
