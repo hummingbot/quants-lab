@@ -99,6 +99,7 @@ class CLOBDataSource:
                 pandas_interval = self.convert_interval_to_pandas_freq(interval)
                 candles_df = trades.resample(pandas_interval).agg({"price": "ohlc", "volume": "sum"}).ffill()
                 candles_df.columns = candles_df.columns.droplevel(0)
+                candles_df["timestamp"] = pd.to_numeric(candles_df.index) // 1e9
             else:
                 candle = self.candles_factory.get_candle(CandlesConfig(
                     connector=connector_name,
