@@ -28,3 +28,4 @@ dependencies:
       - flake8
       - commlib-py
       - rich
+      - python-dotenv
