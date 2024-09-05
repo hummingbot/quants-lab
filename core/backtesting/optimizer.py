@@ -75,6 +75,53 @@ class StrategyOptimizer:
         self._storage_name = f"sqlite:///{db_path}"
         self.dashboard_process = None
 
+    def get_all_study_names(self):
+        """
+        Get all the study names available in the database.
+
+        Returns:
+            List[str]: A list of study names.
+        """
+        return optuna.get_all_study_names(self._storage_name)
+
+    def get_study(self, study_name: str):
+        """
+        Get the study object for a given study name.
+
+        Args:
+            study_name (str): The name of the study.
+
+        Returns:
+            optuna.Study: The study object.
+        """
+        return optuna.load_study(study_name=study_name, storage=self._storage_name)
+
+    def get_study_trials_df(self, study_name: str):
+        """
+        Get the trials data frame for a given study name.
+
+        Args:
+            study_name (str): The name of the study.
+
+        Returns:
+            pd.DataFrame: A pandas DataFrame containing the trials data.
+        """
+        study = self.get_study(study_name)
+        return study.trials_dataframe()
+
+    def get_study_best_params(self, study_name: str):
+        """
+        Get the best parameters for a given study name.
+
+        Args:
+            study_name (str): The name of the study.
+
+        Returns:
+            Dict[str, Any]: A dictionary containing the best parameters.
+        """
+        study = self.get_study(study_name)
+        return study.best_params
+
     def _create_study(self, study_name: str, direction: str = "maximize", load_if_exists: bool = True) -> optuna.Study:
         """
         Create or load an Optuna study for optimization.

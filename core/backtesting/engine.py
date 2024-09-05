@@ -65,6 +65,7 @@ class BacktestingEngine:
                               backtester: Optional[BacktestingEngineBase] = None) -> BacktestingResult:
         if backtester:
             backtester = backtester
+            backtester.backtesting_data_provider.candles_feeds = self._dt_bt.backtesting_data_provider.candles_feeds
         elif config.controller_type == "market_making":
             backtester = self._mm_bt
         elif config.controller_type == "directional_trading":
