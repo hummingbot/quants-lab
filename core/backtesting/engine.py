@@ -50,12 +50,17 @@ class BacktestingEngine:
         if config["controller_type"] == "directional_trading":
             return DirectionalTradingBacktesting.get_controller_config_instance_from_dict(
                 config_data=config,
-                controllers_module=os.path.join(self.root_path, "controllers"),
+                controllers_module="controllers",
             )
         elif config["controller_type"] == "market_making":
             return MarketMakingBacktesting.get_controller_config_instance_from_dict(
                 config_data=config,
-                controllers_module=os.path.join(self.root_path, "controllers"),
+                controllers_module="controllers",
+            )
+        elif config["controller_type"] == "generic":
+            return BacktestingEngineBase.get_controller_config_instance_from_dict(
+                config_data=config,
+                controllers_module="controllers",
             )
         else:
             raise Exception("Controller type not supported")
