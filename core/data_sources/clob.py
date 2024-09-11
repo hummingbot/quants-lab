@@ -161,16 +161,16 @@ class CLOBDataSource:
         await connector._update_trading_rules()
         return TradingRules(list(connector.trading_rules.values()))
 
-    def dump_candles_cache(self, path: str = "data"):
-        candles_path = os.path.join(path, "candles")
+    def dump_candles_cache(self, root_path: str = ""):
+        candles_path = os.path.join(root_path, "data", "candles")
         os.makedirs(candles_path, exist_ok=True)
         for key, df in self._candles_cache.items():
-            candles_path = os.path.join(path, "candles")
+            candles_path = os.path.join(root_path, "data", "candles")
             df.to_csv(os.path.join(candles_path, f"{key[0]}|{key[1]}|{key[2]}.csv"), index=False)
         logger.info("Candles cache dumped")
 
-    def load_candles_cache(self, path: str = "data"):
-        candles_path = os.path.join(path, "candles")
+    def load_candles_cache(self, root_path: str = ""):
+        candles_path = os.path.join(root_path, "data", "candles")
         if not os.path.exists(candles_path):
             logger.warning(f"Path {candles_path} does not exist, skipping cache loading.")
             return
