@@ -1,7 +1,8 @@
+import asyncio
 import logging
 import os
 import time
-from typing import Dict, Tuple
+from typing import Dict, List, Tuple
 
 import pandas as pd
 
@@ -138,6 +139,34 @@ class CLOBDataSource:
         end_time = int(time.time())
         start_time = end_time - days * 24 * 60 * 60
         return await self.get_candles(connector_name, trading_pair, interval, start_time, end_time, from_trades)
+
+    async def get_candles_batch_last_days(self, connector_name: str, trading_pairs: List, interval: str,
+                                          days: int, batch_size: int = 10, sleep_time: float = 2.0):
+        number_of_calls = (len(trading_pairs) // batch_size) + 1
+
+        all_candles = []
+
+        for i in range(number_of_calls):
+            print(f"Batch {i + 1}/{number_of_calls}")
+            start = i * batch_size
+            end = (i + 1) * batch_size
+            print(f"Start: {start}, End: {end}")
+            end = min(end, len(trading_pairs))
+            trading_pairs_batch = trading_pairs[start:end]
+
+            tasks = [self.get_candles_last_days(
+                connector_name=connector_name,
+                trading_pair=trading_pair,
+                interval=interval,
+                days=days,
+            ) for trading_pair in trading_pairs_batch]
+
+            candles = await asyncio.gather(*tasks)
+            all_candles.extend(candles)
+            if i != number_of_calls - 1:
+                logger.info(f"Sleeping for {sleep_time} seconds")
+                await asyncio.sleep(sleep_time)
+        return all_candles
 
     def get_connector(self, connector_name: str):
         conn_setting = self.conn_settings.get(connector_name)
