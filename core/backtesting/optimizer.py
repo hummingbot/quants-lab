@@ -3,12 +3,13 @@ import os.path
 import subprocess
 import traceback
 from abc import ABC, abstractmethod
-from typing import Type
+from typing import Optional, Type
 
 import optuna
 from pydantic import BaseModel
 
 from core.backtesting import BacktestingEngine
+from hummingbot.strategy_v2.backtesting.backtesting_engine_base import BacktestingEngineBase
 from hummingbot.strategy_v2.controllers import ControllerConfigBase
 
 
@@ -27,7 +28,8 @@ class BaseStrategyConfigGenerator(ABC):
     Subclasses should implement the method to provide specific strategy configurations.
     """
 
-    def __init__(self, start_date: datetime.datetime, end_date: datetime.datetime):
+    def __init__(self, start_date: datetime.datetime, end_date: datetime.datetime,
+                 backtester: Optional[BacktestingEngineBase] = None):
         """
         Initialize with common parameters for backtesting.
 
@@ -37,6 +39,7 @@ class BaseStrategyConfigGenerator(ABC):
         """
         self.start = int(start_date.timestamp())
         self.end = int(end_date.timestamp())
+        self.backtester = backtester
 
     @abstractmethod
     def generate_config(self, trial) -> BacktestingConfig:
@@ -107,7 +110,12 @@ class StrategyOptimizer:
             pd.DataFrame: A pandas DataFrame containing the trials data.
         """
         study = self.get_study(study_name)
-        return study.trials_dataframe()
+        df = study.trials_dataframe()
+        # Renaming the columns that start with 'user_attrs_'
+        df.rename(columns={col: col.replace('user_attrs_', '') for col in df.columns if col.startswith('user_attrs_')},
+                  inplace=True)
+        df.rename(columns={col: col.replace('params_', '') for col in df.columns if col.startswith('params_')},)
+        return df
 
     def get_study_best_params(self, study_name: str):
         """
@@ -138,6 +146,7 @@ class StrategyOptimizer:
             direction=direction,
             study_name=study_name,
             storage=self._storage_name,
+            sampler=optuna.samplers.TPESampler(),
             load_if_exists=load_if_exists
         )
 
@@ -196,10 +205,11 @@ class StrategyOptimizer:
 
             # Await the backtesting result
             backtesting_result = await self._backtesting_engine.run_backtesting(
-                backtesting_config.config,
-                backtesting_config.start,
-                backtesting_config.end,
-                self.resolution
+                config=backtesting_config.config,
+                start=backtesting_config.start,
+                end=backtesting_config.end,
+                backtesting_resolution=self.resolution,
+                backtester=config_generator.backtester,
             )
             strategy_analysis = backtesting_result.results
 
