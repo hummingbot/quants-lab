@@ -1,7 +1,6 @@
 from typing import List
 
 import pandas as pd
-import yaml
 
 from core.features.candles.volatility import Volatility
 from core.features.candles.volume import Volume
@@ -108,14 +107,3 @@ def generate_configs(version: str, connector_name: str, top_markets: pd.DataFram
 
         configs.append(market_config)
     return configs
-
-
-def dump_dict_to_yaml(folder: str, data_dict: dict):
-    with open(folder + data_dict["id"] + ".yml", 'w') as file:
-        yaml.dump(data_dict, file, sort_keys=False)
-
-
-def read_yaml_to_dict(file_path: str):
-    with open(file_path, 'r') as file:
-        data = yaml.safe_load(file)
-    return data
