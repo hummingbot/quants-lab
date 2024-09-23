@@ -17,7 +17,7 @@ class BinancePerpetualTradesFeed(TradesFeedBase):
     _logger = None
 
     REQUEST_WEIGHT_LIMIT = 2400
-    REQUEST_WEIGHT = 20
+    REQUEST_WEIGHT = 25
     ONE_MINUTE = 60  # seconds
 
     def __init__(self):
@@ -85,10 +85,8 @@ class BinancePerpetualTradesFeed(TradesFeedBase):
             self.logger().error(f"Error fetching historical trades for {params}: {e}")
             if e.status == 429:
                 await asyncio.sleep(1)  # Sleep to respect rate limits
-            raise e
         except Exception as e:
             self.logger().error(f"Error fetching historical trades for {params}: {e}")
-            raise e
 
     async def _enforce_rate_limit(self):
         current_time = time()

@@ -1,5 +1,5 @@
 from decimal import Decimal
-from typing import Dict
+from typing import Dict, Optional
 
 import numpy as np
 import pandas as pd
@@ -19,24 +19,26 @@ class BacktestingResult(DataStructureBase):
         self.executors = backtesting_result["executors"]
         self.controller_config = controller_config
 
-    def get_results_summary(self):
-        net_pnl_quote = self.results["net_pnl_quote"]
-        net_pnl_pct = self.results["net_pnl"]
-        max_drawdown = self.results["max_drawdown_usd"]
-        max_drawdown_pct = self.results["max_drawdown_pct"]
-        total_volume = self.results["total_volume"]
-        sharpe_ratio = self.results["sharpe_ratio"]
-        profit_factor = self.results["profit_factor"]
-        total_executors = self.results["total_executors"]
-        accuracy_long = self.results["accuracy_long"]
-        accuracy_short = self.results["accuracy_short"]
-        take_profit = self.results["close_types"].get("TAKE_PROFIT", 0)
-        stop_loss = self.results["close_types"].get("STOP_LOSS", 0)
-        time_limit = self.results["close_types"].get("TIME_LIMIT", 0)
-        trailing_stop = self.results["close_types"].get("TRAILING_STOP", 0)
-        early_stop = self.results["close_types"].get("EARLY_STOP", 0)
+    def get_results_summary(self, results: Optional[Dict] = None):
+        if results is None:
+            results = self.results
+        net_pnl_quote = results["net_pnl_quote"]
+        net_pnl_pct = results["net_pnl"]
+        max_drawdown = results["max_drawdown_usd"]
+        max_drawdown_pct = results["max_drawdown_pct"]
+        total_volume = results["total_volume"]
+        sharpe_ratio = results["sharpe_ratio"]
+        profit_factor = results["profit_factor"]
+        total_executors = results["total_executors"]
+        accuracy_long = results["accuracy_long"]
+        accuracy_short = results["accuracy_short"]
+        take_profit = results["close_types"].get("TAKE_PROFIT", 0)
+        stop_loss = results["close_types"].get("STOP_LOSS", 0)
+        time_limit = results["close_types"].get("TIME_LIMIT", 0)
+        trailing_stop = results["close_types"].get("TRAILING_STOP", 0)
+        early_stop = results["close_types"].get("EARLY_STOP", 0)
         return f"""
-Net PNL: ${net_pnl_quote:.2f} ({net_pnl_pct:.2f}%) | Max Drawdown: ${max_drawdown:.2f} ({max_drawdown_pct:.2f}%)
+Net PNL: ${net_pnl_quote:.2f} ({net_pnl_pct*100:.2f}%) | Max Drawdown: ${max_drawdown:.2f} ({max_drawdown_pct*100:.2f}%)
 Total Volume ($): {total_volume:.2f} | Sharpe Ratio: {sharpe_ratio:.2f} | Profit Factor: {profit_factor:.2f}
 Total Executors: {total_executors} | Accuracy Long: {accuracy_long:.2f} | Accuracy Short: {accuracy_short:.2f}
 Close Types: Take Profit: {take_profit} | Stop Loss: {stop_loss} | Time Limit: {time_limit} |
@@ -57,14 +59,15 @@ Close Types: Take Profit: {take_profit} | Stop Loss: {stop_loss} | Time Limit: {
                           line=dict(color="blue"),
                           )
 
-    def _get_pnl_trace(self):
-        pnl = [e.net_pnl_quote for e in self.executors]
+    @staticmethod
+    def _get_pnl_trace(executors, line_style: str = "dash"):
+        pnl = [e.net_pnl_quote for e in executors]
         cum_pnl = np.cumsum(pnl)
         return go.Scatter(
-            x=pd.to_datetime([e.close_timestamp for e in self.executors], unit="s"),
+            x=pd.to_datetime([e.close_timestamp for e in executors], unit="s"),
             y=cum_pnl,
             mode='lines',
-            line=dict(color='gold', width=2, dash="dash"),
+            line=dict(color='gold', width=2, dash=line_style if line_style == "dash" else None),
             name='Cumulative PNL'
         )
 
@@ -86,8 +89,9 @@ Close Types: Take Profit: {take_profit} | Stop Loss: {stop_loss} | Time Limit: {
             layout["title"] = title
         return layout
 
-    def _add_executors_trace(self, fig, row=1, col=1):
-        for executor in self.executors:
+    @staticmethod
+    def _add_executors_trace(fig, executors, row=1, col=1, line_style="dash"):
+        for executor in executors:
             entry_time = pd.to_datetime(executor.timestamp, unit='s')
             entry_price = executor.custom_info["current_position_average_price"]
             exit_time = pd.to_datetime(executor.close_timestamp, unit='s')
@@ -97,17 +101,22 @@ Close Types: Take Profit: {take_profit} | Stop Loss: {stop_loss} | Time Limit: {
             if executor.filled_amount_quote == 0:
                 fig.add_trace(
                     go.Scatter(x=[entry_time, exit_time], y=[entry_price, entry_price], mode='lines', showlegend=False,
-                               line=dict(color='grey', width=2, dash="dash"), name=name), row=row, col=col)
+                               line=dict(color='grey', width=2, dash=line_style if line_style == "dash" else None),
+                               name=name), row=row, col=col)
             else:
                 if executor.net_pnl_quote > Decimal(0):
                     fig.add_trace(go.Scatter(x=[entry_time, exit_time], y=[entry_price, exit_price], mode='lines',
                                              showlegend=False,
-                                             line=dict(color='green', width=2, dash="dash"), name=name), row=row,
+                                             line=dict(color='green', width=2,
+                                                       dash=line_style if line_style == "dash" else None), name=name),
+                                  row=row,
                                   col=col)
                 else:
                     fig.add_trace(go.Scatter(x=[entry_time, exit_time], y=[entry_price, exit_price], mode='lines',
                                              showlegend=False,
-                                             line=dict(color='red', width=2, dash="dash"), name=name), row=row, col=col)
+                                             line=dict(color='red', width=2,
+                                                       dash=line_style if line_style == "dash" else None), name=name),
+                                  row=row, col=col)
 
         return fig
 
@@ -121,10 +130,10 @@ Close Types: Take Profit: {take_profit} | Stop Loss: {stop_loss} | Time Limit: {
         fig.add_trace(self._get_bt_candlestick_trace(), row=1, col=1)
 
         # Add executors trace
-        fig = self._add_executors_trace(fig, row=1, col=1)
+        fig = self._add_executors_trace(fig, self.executors, row=1, col=1)
 
         # Add PNL trace
-        fig.add_trace(self._get_pnl_trace(), row=2, col=1)
+        fig.add_trace(self._get_pnl_trace(self.executors), row=2, col=1)
 
         # Apply the theme layout
         layout_settings = self._get_default_layout(f"Trading Pair: {self.controller_config.dict().get('trading_pair')}")

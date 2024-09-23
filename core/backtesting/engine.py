@@ -50,12 +50,17 @@ class BacktestingEngine:
         if config["controller_type"] == "directional_trading":
             return DirectionalTradingBacktesting.get_controller_config_instance_from_dict(
                 config_data=config,
-                controllers_module=os.path.join(self.root_path, "controllers"),
+                controllers_module="controllers",
             )
         elif config["controller_type"] == "market_making":
             return MarketMakingBacktesting.get_controller_config_instance_from_dict(
                 config_data=config,
-                controllers_module=os.path.join(self.root_path, "controllers"),
+                controllers_module="controllers",
+            )
+        elif config["controller_type"] == "generic":
+            return BacktestingEngineBase.get_controller_config_instance_from_dict(
+                config_data=config,
+                controllers_module="controllers",
             )
         else:
             raise Exception("Controller type not supported")
@@ -83,5 +88,5 @@ class BacktestingEngine:
                                            backtesting_resolution: str = "1m",
                                            trade_cost: float = 0.0006,
                                            backtester: Optional[BacktestingEngineBase] = None):
-        config = self.get_controller_config_instance_from_yml(config_file, controllers_conf_dir_path)
+        config = self._dt_bt.get_controller_config_instance_from_yml(config_file, controllers_conf_dir_path)
         return await self.run_backtesting(config, start, end, backtesting_resolution, trade_cost, backtester)

@@ -1,7 +1,8 @@
+import asyncio
 import logging
 import os
 import time
-from typing import Dict, Tuple
+from typing import Dict, List, Tuple
 
 import pandas as pd
 
@@ -139,6 +140,34 @@ class CLOBDataSource:
         start_time = end_time - days * 24 * 60 * 60
         return await self.get_candles(connector_name, trading_pair, interval, start_time, end_time, from_trades)
 
+    async def get_candles_batch_last_days(self, connector_name: str, trading_pairs: List, interval: str,
+                                          days: int, batch_size: int = 10, sleep_time: float = 2.0):
+        number_of_calls = (len(trading_pairs) // batch_size) + 1
+
+        all_candles = []
+
+        for i in range(number_of_calls):
+            print(f"Batch {i + 1}/{number_of_calls}")
+            start = i * batch_size
+            end = (i + 1) * batch_size
+            print(f"Start: {start}, End: {end}")
+            end = min(end, len(trading_pairs))
+            trading_pairs_batch = trading_pairs[start:end]
+
+            tasks = [self.get_candles_last_days(
+                connector_name=connector_name,
+                trading_pair=trading_pair,
+                interval=interval,
+                days=days,
+            ) for trading_pair in trading_pairs_batch]
+
+            candles = await asyncio.gather(*tasks)
+            all_candles.extend(candles)
+            if i != number_of_calls - 1:
+                logger.info(f"Sleeping for {sleep_time} seconds")
+                await asyncio.sleep(sleep_time)
+        return all_candles
+
     def get_connector(self, connector_name: str):
         conn_setting = self.conn_settings.get(connector_name)
         if conn_setting is None:
@@ -161,16 +190,16 @@ class CLOBDataSource:
         await connector._update_trading_rules()
         return TradingRules(list(connector.trading_rules.values()))
 
-    def dump_candles_cache(self, path: str = "data"):
-        candles_path = os.path.join(path, "candles")
+    def dump_candles_cache(self, root_path: str = ""):
+        candles_path = os.path.join(root_path, "data", "candles")
         os.makedirs(candles_path, exist_ok=True)
         for key, df in self._candles_cache.items():
-            candles_path = os.path.join(path, "candles")
+            candles_path = os.path.join(root_path, "data", "candles")
             df.to_csv(os.path.join(candles_path, f"{key[0]}|{key[1]}|{key[2]}.csv"), index=False)
         logger.info("Candles cache dumped")
 
-    def load_candles_cache(self, path: str = "data"):
-        candles_path = os.path.join(path, "candles")
+    def load_candles_cache(self, root_path: str = ""):
+        candles_path = os.path.join(root_path, "data", "candles")
         if not os.path.exists(candles_path):
             logger.warning(f"Path {candles_path} does not exist, skipping cache loading.")
             return
