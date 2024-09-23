@@ -88,5 +88,5 @@ class BacktestingEngine:
                                            backtesting_resolution: str = "1m",
                                            trade_cost: float = 0.0006,
                                            backtester: Optional[BacktestingEngineBase] = None):
-        config = self.get_controller_config_instance_from_yml(config_file, controllers_conf_dir_path)
+        config = self._dt_bt.get_controller_config_instance_from_yml(config_file, controllers_conf_dir_path)
         return await self.run_backtesting(config, start, end, backtesting_resolution, trade_cost, backtester)
