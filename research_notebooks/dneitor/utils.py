@@ -132,7 +132,7 @@ def generate_config(id: str, connector_name: str, candles: pd.DataFrame,  top_ma
             "min_order_amount": min_order_amount,
             "leverage": leverage,
             "time_limit": None,
-            "take_profit_order_type": take_profit_order_type,
+            "take_profit_order_type": take_profit_order_type.value,
         }
         configs.append(config)
     return configs
