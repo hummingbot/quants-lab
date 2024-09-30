@@ -3,14 +3,15 @@ import os.path
 import subprocess
 import traceback
 from abc import ABC, abstractmethod
-from typing import Optional, Type
+from typing import List, Optional, Type
 
 import optuna
+from hummingbot.strategy_v2.backtesting.backtesting_engine_base import BacktestingEngineBase
+from hummingbot.strategy_v2.controllers import ControllerConfigBase
 from pydantic import BaseModel
 
 from core.backtesting import BacktestingEngine
-from hummingbot.strategy_v2.backtesting.backtesting_engine_base import BacktestingEngineBase
-from hummingbot.strategy_v2.controllers import ControllerConfigBase
+from services.timescale_client import TimescaleClient
 
 
 class BacktestingConfig(BaseModel):
@@ -27,6 +28,8 @@ class BaseStrategyConfigGenerator(ABC):
     Base class for generating strategy configurations for optimization.
     Subclasses should implement the method to provide specific strategy configurations.
     """
+
+    backtester = None
 
     def __init__(self, start_date: datetime.datetime, end_date: datetime.datetime,
                  backtester: Optional[BacktestingEngineBase] = None):
@@ -55,6 +58,17 @@ class BaseStrategyConfigGenerator(ABC):
         """
         pass
 
+    @abstractmethod
+    def generate_custom_configs(self) -> List[BacktestingConfig]:
+        """
+        Generate custom configurations for optimization.
+        This method must be implemented by subclasses.
+
+        Returns:
+            List[BacktestingConfig]: A list of objects containing the configuration, start time, and end time.
+        """
+        pass
+
 
 class StrategyOptimizer:
     """
@@ -73,6 +87,7 @@ class StrategyOptimizer:
             resolution (str): The resolution or time frame of the data (e.g., '1h', '1d').
         """
         self._backtesting_engine = BacktestingEngine(load_cached_data=load_cached_data)
+        self._db_client = TimescaleClient()
         self.resolution = resolution
         db_path = os.path.join(root_path, "data", "backtesting", f"{database_name}.db")
         self._storage_name = f"sqlite:///{db_path}"
@@ -114,7 +129,7 @@ class StrategyOptimizer:
         # Renaming the columns that start with 'user_attrs_'
         df.rename(columns={col: col.replace('user_attrs_', '') for col in df.columns if col.startswith('user_attrs_')},
                   inplace=True)
-        df.rename(columns={col: col.replace('params_', '') for col in df.columns if col.startswith('params_')},)
+        df.rename(columns={col: col.replace('params_', '') for col in df.columns if col.startswith('params_')}, )
         return df
 
     def get_study_best_params(self, study_name: str):
@@ -164,6 +179,19 @@ class StrategyOptimizer:
         study = self._create_study(study_name, load_if_exists=load_if_exists)
         await self._optimize_async(study, config_generator, n_trials=n_trials)
 
+    async def optimize_custom_configs(self, study_name: str, config_generator: Type[BaseStrategyConfigGenerator],
+                                      load_if_exists: bool = True):
+        """
+        Run the optimization process asynchronously using custom configurations.
+
+        Args:
+            study_name (str): The name of the study.
+            config_generator (Type[BaseStrategyConfigGenerator]): A configuration generator class instance.
+            load_if_exists (bool): Whether to load an existing study if available.
+        """
+        study = self._create_study(study_name, load_if_exists=load_if_exists)
+        await self._optimize_async_custom_configs(study, config_generator)
+
     async def _optimize_async(self, study: optuna.Study, config_generator: Type[BaseStrategyConfigGenerator],
                               n_trials: int):
         """
@@ -187,6 +215,60 @@ class StrategyOptimizer:
             except Exception as e:
                 print(f"Error in _optimize_async: {str(e)}")
                 study.tell(trial, state=optuna.trial.TrialState.FAIL)
+
+    async def _optimize_async_custom_configs(self, study: optuna.Study,
+                                             config_generator: Type[BaseStrategyConfigGenerator]):
+        """
+        Asynchronously optimize using the provided study and configuration generator.
+
+        Args:
+            study (optuna.Study): The study to use for optimization.
+            config_generator (Type[BaseStrategyConfigGenerator]): A configuration generator class instance.
+            n_trials (int): Number of trials to run for optimization.
+        """
+        backtesting_configs = config_generator.generate_custom_configs()
+        await self._db_client.connect()
+        for bt_config in backtesting_configs:
+            trial = study.ask()
+            try:
+                connector_name = bt_config.config.connector_name
+                trading_pair = bt_config.config.trading_pair
+                start = bt_config.start
+                end = bt_config.end
+                candles = await self._db_client.get_candles(connector_name,
+                                                            trading_pair,
+                                                            start, self.resolution, end)
+                self._backtesting_engine._dt_bt.backtesting_data_provider.candles_feeds[
+                    f"{connector_name}_{trading_pair}_{self.resolution}"] = candles.data
+                self._backtesting_engine._mm_bt.backtesting_data_provider.candles_feeds[
+                    f"{connector_name}_{trading_pair}_{self.resolution}"] = candles.data
+                config_generator.backtester.backtesting_data_provider.candles_feeds[
+                    f"{connector_name}_{trading_pair}_{self.resolution}"] = candles.data
+                start = candles.data["timestamp"].min()
+                end = candles.data["timestamp"].max()
+                # Generate configuration using the config generator
+                backtesting_result = await self._backtesting_engine.run_backtesting(
+                    config=bt_config.config,
+                    start=start,
+                    end=end,
+                    backtesting_resolution=self.resolution,
+                    backtester=config_generator.backtester,
+                )
+                strategy_analysis = backtesting_result.results
+
+                for key, value in strategy_analysis.items():
+                    trial.set_user_attr(key, value)
+                trial.set_user_attr("config", backtesting_result.controller_config.json())
+
+                # Return the value you want to optimize
+                value = strategy_analysis["net_pnl"]
+            except Exception as e:
+                print(f"An error occurred during optimization: {str(e)}")
+                traceback.print_exc()
+                value = float('-inf')  # Return a very low value to indicate failure
+
+            # Report the result back to the study
+            study.tell(trial, value)
 
     async def _async_objective(self, trial: optuna.Trial, config_generator: Type[BaseStrategyConfigGenerator]) -> float:
         """
