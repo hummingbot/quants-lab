@@ -1,7 +1,7 @@
 import asyncio
 import logging
 from time import time
-from typing import Dict
+from typing import Dict, Optional
 
 import aiohttp
 import pandas as pd
@@ -35,11 +35,10 @@ class BinancePerpetualTradesFeed(TradesFeedBase):
         base, quote = trading_pair.split("-")
         return f"{base}{quote}"
 
-    async def _get_historical_trades(self, trading_pair: str, start_time: int, end_time: int):
+    async def _get_historical_trades(self, trading_pair: str, start_time: int, end_time: int, from_id: Optional[int] = None):
         all_trades_collected = False
         end_ts = int(end_time * 1000)
         start_ts = int(start_time * 1000)
-        from_id = None
         all_trades = []
         ex_trading_pair = self.get_exchange_trading_pair(trading_pair)
 

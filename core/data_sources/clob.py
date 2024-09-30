@@ -2,18 +2,18 @@ import asyncio
 import logging
 import os
 import time
-from typing import Dict, List, Tuple
+from typing import Dict, List, Optional, Tuple
 
 import pandas as pd
-
-from core.data_sources.trades_feed.connectors.binance_perpetual import BinancePerpetualTradesFeed
-from core.data_structures.candles import Candles
-from core.data_structures.trading_rules import TradingRules
 from hummingbot.client.config.client_config_map import ClientConfigMap
 from hummingbot.client.config.config_helpers import ClientConfigAdapter, get_connector_class
 from hummingbot.client.settings import AllConnectorSettings, ConnectorType
 from hummingbot.data_feed.candles_feed.candles_factory import CandlesFactory
 from hummingbot.data_feed.candles_feed.data_types import CandlesConfig, HistoricalCandlesConfig
+
+from core.data_sources.trades_feed.connectors.binance_perpetual import BinancePerpetualTradesFeed
+from core.data_structures.candles import Candles
+from core.data_structures.trading_rules import TradingRules
 
 # Set up logging
 logging.basicConfig(level=logging.INFO)
@@ -39,7 +39,7 @@ INTERVAL_MAPPING = {
 
 class CLOBDataSource:
     CONNECTOR_TYPES = [ConnectorType.CLOB_SPOT, ConnectorType.CLOB_PERP, ConnectorType.Exchange, ConnectorType.Derivative]
-    EXCLUDED_CONNECTORS = ["vega_perpetual", "hyperliquid_perpetual", "dydx_perpetual", "cube",
+    EXCLUDED_CONNECTORS = ["vega_perpetual", "hyperliquid_perpetual", "dydx_perpetual", "cube", "ndax",
                            "polkadex", "coinbase_advanced_trade", "kraken", "dydx_v4_perpetual", "hitbtc"]
 
     def __init__(self):
@@ -217,8 +217,10 @@ class CLOBDataSource:
             except Exception as e:
                 logger.error(f"Error loading {file}: {type(e).__name__} - {e}")
 
-    async def get_trades(self, connector_name: str, trading_pair: str, start_time: int, end_time: int):
-        return await self.trades_feeds[connector_name].get_historical_trades(trading_pair, start_time, end_time)
+    async def get_trades(self, connector_name: str, trading_pair: str, start_time: int, end_time: int,
+                         from_id: Optional[int] = None):
+        return await self.trades_feeds[connector_name].get_historical_trades(trading_pair, start_time, end_time,
+                                                                             from_id)
 
     @staticmethod
     def convert_interval_to_pandas_freq(interval: str) -> str:
