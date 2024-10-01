@@ -6,6 +6,8 @@ from datetime import datetime, timedelta, timezone
 from decimal import Decimal
 from typing import Any, Dict
 
+import pandas as pd
+
 from core.data_sources import CLOBDataSource
 from core.task_base import BaseTask
 from services.timescale_client import TimescaleClient
@@ -24,7 +26,7 @@ class TradesDownloaderTask(BaseTask):
     async def execute(self):
         logging.info(f"Starting trades downloader for {self.connector_name} at {time.strftime('%Y-%m-%d %H:%M:%S')}")
         end_time = datetime.now(timezone.utc)
-        start_time = end_time - self.frequency
+        start_time = pd.Timestamp(self.config["start_time"]).tz_localize(timezone.utc)
         logging.info(f"Start date: {start_time}, End date: {end_time}")
         logging.info(f"Quote asset: {self.quote_asset}, Min notional size: {self.min_notional_size}")
 

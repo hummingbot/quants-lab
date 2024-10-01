@@ -2,7 +2,7 @@ import asyncio
 import logging
 import os
 import sys
-from datetime import timedelta
+from datetime import datetime, timedelta
 
 project_root = os.path.abspath(os.path.join(os.path.dirname(__file__), '..'))
 sys.path.insert(0, project_root)
@@ -31,16 +31,16 @@ async def main():
         'connector_name': 'binance_perpetual',
         'quote_asset': 'USDT',
         'min_notional_size': 10.0,
-        'db_host': 'timescaledb',
-        'db_port': 5432,
-        'db_name': 'timescaledb'
+        'start_time': datetime(2024, 9, 23),
     }
-    trades_downloader_task = TradesDownloaderTask("Trades Downloader Binance", timedelta(hours=5), trades_downloader_config)
+    trades_downloader_task = TradesDownloaderTask("Trades Downloader Binance", timedelta(hours=5),
+                                                  trades_downloader_config)
 
     orchestrator.add_task(backtesting_task)
     orchestrator.add_task(trades_downloader_task)
 
     await orchestrator.run()
+
 
 if __name__ == "__main__":
     asyncio.run(main())
