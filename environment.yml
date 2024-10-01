@@ -5,9 +5,10 @@ channels:
 dependencies:
   - python=3.10
   - sqlalchemy=1.4
+  - libcxx
   - pip
   - pip:
-      - hummingbot
+      - hummingbot==20240714
       - numpy==1.26.4
       - plotly
       - pycoingecko
@@ -29,3 +30,4 @@ dependencies:
       - commlib-py
       - rich
       - python-dotenv
+      - asyncpg
