@@ -4,6 +4,7 @@ services:
   base-task-runner:
     image: hummingbot/quants_lab:latest
     volumes:
+      - ./data:/quants-lab/data
       - ./core:/quants-lab/core
       - ./tasks:/quants-lab/tasks
       - ./research_notebooks:/quants-lab/research_notebooks
@@ -12,6 +13,7 @@ services:
     environment:
       - POSTGRES_USER=${POSTGRES_USER}
       - POSTGRES_PASSWORD=${POSTGRES_PASSWORD}
+      - POSTGRES_HOST=timescaledb
     command: conda run --no-capture-output -n quants-lab python3 tasks/task_runner.py
     networks:
       - quants-lab-network
