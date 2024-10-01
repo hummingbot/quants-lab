@@ -1,0 +1,29 @@
+controller_name: xtreet_bb
+controller_type: directional_trading
+manual_kill_switch: null
+candles_config: []
+trading_pair: NULS-USDT
+connector_name: binance_perpetual
+interval: 1m
+max_executors_per_side: 1
+cooldown_time: 0
+leverage: 20
+position_mode: HEDGE
+time_limit: 86400
+dca_spreads:
+- -1.0e-05
+- 0.01684060721062631
+dca_amounts_pct:
+- 1
+- 3.220138704558578
+bb_length: 20
+bb_std: 1.5
+stop_loss: 0.007423117709437971
+take_profit: null
+trailing_stop:
+  activation_price: 0.007232084155161134
+  trailing_delta: 0.0014464168310322268
+total_amount_quote: 300
+candles_trading_pair: NULS-USDT
+candles_connector: binance_perpetual
+id: xtreet_bb_binance_perpetual_1m_NULS-USDT_bb20_1.5_sl0.7_ts0.7-0.1bep0.0129
