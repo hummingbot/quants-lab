@@ -76,7 +76,7 @@ class StrategyOptimizer:
     """
 
     def __init__(self, root_path: str = "", database_name: str = "optimization_database",
-                 load_cached_data: bool = False, resolution: str = "1h"):
+                 load_cached_data: bool = False, resolution: str = "1m"):
         """
         Initialize the optimizer with a backtesting engine and database configuration.
 
@@ -87,7 +87,14 @@ class StrategyOptimizer:
             resolution (str): The resolution or time frame of the data (e.g., '1h', '1d').
         """
         self._backtesting_engine = BacktestingEngine(load_cached_data=load_cached_data)
-        self._db_client = TimescaleClient()
+        self._db_client = TimescaleClient(
+            host=os.getenv("POSTGRES_HOST", "localhost"),
+            port=os.getenv("POSTGRES_PORT", 5432),
+            user=os.getenv("POSTGRES_USER", "admin"),
+            password=os.getenv("POSTGRES_PASSWORD", "admin"),
+            database=os.getenv("POSTGRES_DB", "timescaledb")
+        )
+
         self.resolution = resolution
         db_path = os.path.join(root_path, "data", "backtesting", f"{database_name}.db")
         self._storage_name = f"sqlite:///{db_path}"
