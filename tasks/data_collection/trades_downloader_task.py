@@ -1,5 +1,6 @@
 import asyncio
 import logging
+import os
 import time
 from datetime import datetime, timedelta, timezone
 from decimal import Decimal
@@ -28,11 +29,11 @@ class TradesDownloaderTask(BaseTask):
         logging.info(f"Quote asset: {self.quote_asset}, Min notional size: {self.min_notional_size}")
 
         timescale_client = TimescaleClient(
-            host=self.config.get('db_host', "localhost"),
-            port=self.config.get('db_port', 5432),
-            user=self.config.get('postgres_user', "admin"),
-            password=self.config.get('postgres_password', "admin"),
-            database=self.config.get('db_name', "timescaledb")
+            host=os.getenv("POSTGRES_HOST", "localhost"),
+            port=os.getenv("POSTGRES_PORT", 5432),
+            user=os.getenv("POSTGRES_USER", "admin"),
+            password=os.getenv("POSTGRES_PASSWORD", "admin"),
+            database=os.getenv("POSTGRES_DB", "timescaledb")
         )
         await timescale_client.connect()
         await timescale_client.create_trades_table()
