@@ -6,11 +6,11 @@ from abc import ABC, abstractmethod
 from typing import List, Optional, Type
 
 import optuna
-from hummingbot.strategy_v2.backtesting.backtesting_engine_base import BacktestingEngineBase
-from hummingbot.strategy_v2.controllers import ControllerConfigBase
 from pydantic import BaseModel
 
 from core.backtesting import BacktestingEngine
+from hummingbot.strategy_v2.backtesting.backtesting_engine_base import BacktestingEngineBase
+from hummingbot.strategy_v2.controllers import ControllerConfigBase
 from services.timescale_client import TimescaleClient
 
 
@@ -45,7 +45,7 @@ class BaseStrategyConfigGenerator(ABC):
         self.backtester = backtester
 
     @abstractmethod
-    def generate_config(self, trial) -> BacktestingConfig:
+    async def generate_config(self, trial) -> BacktestingConfig:
         """
         Generate the configuration for a given trial.
         This method must be implemented by subclasses.
@@ -58,8 +58,7 @@ class BaseStrategyConfigGenerator(ABC):
         """
         pass
 
-    @abstractmethod
-    def generate_custom_configs(self) -> List[BacktestingConfig]:
+    async def generate_custom_configs(self) -> List[BacktestingConfig]:
         """
         Generate custom configurations for optimization.
         This method must be implemented by subclasses.
@@ -290,7 +289,7 @@ class StrategyOptimizer:
         """
         try:
             # Generate configuration using the config generator
-            backtesting_config = config_generator.generate_config(trial)
+            backtesting_config = await config_generator.generate_config(trial)
 
             # Await the backtesting result
             backtesting_result = await self._backtesting_engine.run_backtesting(
