@@ -31,7 +31,7 @@ def generate_report(candles, volatility_config, volume_config):
             max_price = df['close'].max()
             min_price = df['close'].min()
             range_price = max_price - min_price
-            range_price_pct = range_price / max_price
+            range_price_pct = (max_price - df['close'].iloc[-1]) / df['close'].iloc[-1]
             current_position = (max_price - df['close'].iloc[-1]) / range_price
 
             # Calculate score
