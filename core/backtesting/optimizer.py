@@ -243,7 +243,7 @@ class StrategyOptimizer:
                 end = bt_config.end
                 candles = await self._db_client.get_candles(connector_name,
                                                             trading_pair,
-                                                            start, self.resolution, end)
+                                                            self.resolution, start, end)
                 self._backtesting_engine._dt_bt.backtesting_data_provider.candles_feeds[
                     f"{connector_name}_{trading_pair}_{self.resolution}"] = candles.data
                 self._backtesting_engine._mm_bt.backtesting_data_provider.candles_feeds[
