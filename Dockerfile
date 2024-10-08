@@ -12,7 +12,6 @@ WORKDIR /quants-lab
 # Copy the current directory contents and the Conda environment file into the container
 COPY core/ core/
 COPY environment.yml .
-COPY services/ services/
 COPY research_notebooks/ research_notebooks/
 COPY controllers/ controllers/
 
