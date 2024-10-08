@@ -9,9 +9,9 @@ import optuna
 from pydantic import BaseModel
 
 from core.backtesting import BacktestingEngine
+from core.services import TimescaleClient
 from hummingbot.strategy_v2.backtesting.backtesting_engine_base import BacktestingEngineBase
 from hummingbot.strategy_v2.controllers import ControllerConfigBase
-from services.timescale_client import TimescaleClient
 
 
 class BacktestingConfig(BaseModel):

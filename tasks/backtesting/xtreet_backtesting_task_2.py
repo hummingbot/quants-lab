@@ -23,24 +23,13 @@ class BacktestingTask(BaseTask):
         start_date = datetime.datetime.now() - timedelta(days=self.config.get('lookback_days', 1))
         end_date = datetime.datetime.now()
         logger.info("Generating config generator")
-        resolution = self.config.get('resolution', "1s")
         config_generator = XtreetConfigGenerator(start_date=start_date, end_date=end_date)
         logger.info("Generating top markets report")
         await config_generator.generate_top_markets_report(self.config["config"])
         logger.info("Optimizing strategy")
-        optimizer = StrategyOptimizer(root_path=self.root_path, resolution=resolution)
-
-        connector_name = self.config["config"]["connector_name"]
-        for trading_pair in config_generator.screener_top_markets["trading_pair"]:
-            trading_pair = trading_pair
-            candles = await optimizer._db_client.get_candles(connector_name,
-                                                             trading_pair,
-                                                             resolution, start_date, end_date)
-            config_generator.backtester.backtesting_data_provider.candles_feeds[
-                f"{connector_name}_{trading_pair}_{resolution}"] = candles.data
-
-            await optimizer.optimize(study_name=self.config.get('study_name', "xtreet_1"),
-                                     config_generator=config_generator)
+        optimizer = StrategyOptimizer(root_path=self.root_path, resolution=self.config.get('resolution', "1s"))
+        await optimizer.optimize(study_name=self.config.get('study_name', "xtreet_1"),
+                                 config_generator=config_generator, n_trials=100)
 
 
 if __name__ == "__main__":
