@@ -84,6 +84,8 @@ class BinancePerpetualTradesFeed(TradesFeedBase):
             self.logger().error(f"Error fetching historical trades for {params}: {e}")
             if e.status == 429:
                 await asyncio.sleep(1)  # Sleep to respect rate limits
+            elif e.status == 418:
+                await asyncio.sleep(60 * 60 * 2)  # Sleep to respect rate limits
         except Exception as e:
             self.logger().error(f"Error fetching historical trades for {params}: {e}")
 
