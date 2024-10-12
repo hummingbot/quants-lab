@@ -67,6 +67,12 @@ class LarpClient(ClientBase):
         params = {"address": address} if address else None
         return await self.get(endpoint, params=params)
 
+    async def get_orca_bundles_owned(self, address: Optional[str] = None):
+        """Retrieve a list of Orca position bundles owned by an address or the user's wallet."""
+        endpoint = "orca/bundles-owned"
+        params = {"address": address} if address else None
+        return await self.get(endpoint, params=params)
+
     async def get_orca_position(self, position_address: str):
         """Retrieve info about an Orca position."""
         endpoint = f"orca/position/{position_address}"
@@ -75,6 +81,11 @@ class LarpClient(ClientBase):
     async def get_orca_quote_fees(self, position_address: str):
         """Get the fees quote for an Orca position."""
         endpoint = f"orca/quote-fees/{position_address}"
+        return await self.get(endpoint)
+
+    async def get_pool_info(self, pool_address: str):
+        """Retrieve info about a pool."""
+        endpoint = f"orca/pool/{pool_address}"
         return await self.get(endpoint)
 
     async def get_orca_quote_swap(self, input_token_symbol: str, output_token_symbol: str, amount: float,
