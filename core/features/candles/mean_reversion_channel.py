@@ -15,7 +15,7 @@ class MeanReversionChannelConfig(FeatureConfig):
 
 
 class MeanReversionChannel(FeatureBase[MeanReversionChannelConfig]):
-    def calculate(self, candles):
+    def calculate(self, candles: pd.DataFrame) -> pd.DataFrame:
         length = self.config.length
         inner_mult = self.config.inner_mult
         outer_mult = self.config.outer_mult
