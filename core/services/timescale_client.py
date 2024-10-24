@@ -215,7 +215,8 @@ class TimescaleClient:
                 end_dt = datetime.fromtimestamp(end_time) if end_time else datetime.max
                 rows = await conn.fetch(query, start_dt, end_dt)
             candles_df = pd.DataFrame(rows, columns=['timestamp', 'open', 'high', 'low', 'close', 'volume'])
-            candles_df.set_index('timestamp', inplace=True)
+            # candles_df.set_index('timestamp', inplace=True)
+            candles_df['timestamp'] = candles_df['timestamp'].apply(lambda x: x.timestamp())
             candles_df = candles_df.astype({'open': float, 'high': float, 'low': float, 'close': float, 'volume': float})
 
         return Candles(candles_df=candles_df, connector_name=connector_name, trading_pair=trading_pair,
