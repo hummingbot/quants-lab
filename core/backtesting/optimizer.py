@@ -4,6 +4,7 @@ import subprocess
 import traceback
 from abc import ABC, abstractmethod
 from typing import List, Optional, Type
+from dotenv import load_dotenv
 
 import optuna
 from pydantic import BaseModel
@@ -12,6 +13,9 @@ from core.backtesting import BacktestingEngine
 from core.services.timescale_client import TimescaleClient
 from hummingbot.strategy_v2.backtesting.backtesting_engine_base import BacktestingEngineBase
 from hummingbot.strategy_v2.controllers import ControllerConfigBase
+
+
+load_dotenv()
 
 
 class BacktestingConfig(BaseModel):
@@ -74,14 +78,12 @@ class StrategyOptimizer:
     Class for optimizing trading strategies using Optuna and a backtesting engine.
     """
 
-    def __init__(self, root_path: str = "", database_name: str = "optimization_database",
-                 load_cached_data: bool = False, resolution: str = "1m", db_client: Optional[TimescaleClient] = None):
+    def __init__(self, load_cached_data: bool = False, resolution: str = "1m",
+                 db_client: Optional[TimescaleClient] = None):
         """
         Initialize the optimizer with a backtesting engine and database configuration.
 
         Args:
-            root_path (str): Root path for storing database files.
-            database_name (str): Name of the SQLite database for storing optimization results.
             load_cached_data (bool): Whether to load cached backtesting data.
             resolution (str): The resolution or time frame of the data (e.g., '1h', '1d').
         """
@@ -89,8 +91,12 @@ class StrategyOptimizer:
         self._db_client = db_client
 
         self.resolution = resolution
-        db_path = os.path.join(root_path, "data", "backtesting", f"{database_name}.db")
-        self._storage_name = f"sqlite:///{db_path}"
+        self.optuna_postgres_user = os.getenv("OPTUNA_POSTGRES_USER", "admin")
+        self.optuna_postgres_password = os.getenv("OPTUNA_POSTGRES_PASSWORD", "admin")
+        self.optuna_postgres_host = os.getenv("OPTUNA_POSTGRES_HOST", "localhost")
+        self.optuna_postgres_db_name = os.getenv("OPTUNA_POSTGRES_DB_NAME", "optimization_database")
+        self.optuna_postgres_port = os.getenv("OPTUNA_POSTGRES_PORT", 5433)
+        self._storage_name = f"postgresql://{self.optuna_postgres_user}:{self.optuna_postgres_password}@{self.optuna_postgres_host}:{self.optuna_postgres_port}/{self.optuna_postgres_db_name}"
         self.dashboard_process = None
 
     def get_all_study_names(self):
@@ -299,6 +305,11 @@ class StrategyOptimizer:
             for key, value in strategy_analysis.items():
                 trial.set_user_attr(key, value)
             trial.set_user_attr("config", backtesting_result.controller_config.json())
+            executors_df = backtesting_result.executors_df.copy()
+            executors_df["close_type"] = executors_df["close_type"].apply(lambda x: x.name)
+            executors_df["status"] = executors_df["status"].apply(lambda x: x.name)
+            executors_df.drop(columns=["config", "custom_info"], inplace=True)
+            trial.set_user_attr("executors", executors_df.to_json())
 
             # Return the value you want to optimize
             return strategy_analysis["sharpe_ratio"]
