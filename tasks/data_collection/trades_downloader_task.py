@@ -80,6 +80,9 @@ class TradesDownloaderTask(BaseTask):
                                                      timestamp=cutoff_timestamp)
                 await timescale_client.compute_resampled_ohlc(connector_name=self.connector_name,
                                                               trading_pair=trading_pair, interval="1s")
+                await timescale_client.append_metrics(connector_name=self.connector_name,
+                                                      trading_pair=trading_pair, interval="5m")
+
                 logging.info(f"{now} - Inserted {len(trades_data)} trades for {trading_pair}")
 
             except Exception as e:

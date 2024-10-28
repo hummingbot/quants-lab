@@ -7,6 +7,7 @@ import asyncpg
 import pandas as pd
 
 from core.data_structures.candles import Candles
+from core.features.candles.volatility import Volatility, VolatilityConfig
 
 INTERVAL_MAPPING = {
     '1s': 's',  # seconds
@@ -28,13 +29,15 @@ INTERVAL_MAPPING = {
 
 class TimescaleClient:
     def __init__(self, host: str = "localhost", port: int = 5432,
-                 user: str = "admin", password: str = "admin", database: str = "timescaledb"):
+                 user: str = "admin", password: str = "admin", database: str = "timescaledb",
+                 volatility_config: VolatilityConfig = VolatilityConfig()):
         self.host = host
         self.port = port
         self.user = user
         self.password = password
         self.database = database
         self.pool = None
+        self.volatility_config = volatility_config
 
     async def connect(self):
         self.pool = await asyncpg.create_pool(
@@ -52,6 +55,33 @@ class TimescaleClient:
     @staticmethod
     def get_ohlc_table_name(connector_name: str, trading_pair: str, interval: str) -> str:
         return f"{connector_name}_{trading_pair.lower().replace('-', '_')}_{interval}"
+
+    @property
+    def metrics_table_name(self):
+        return "summary_metrics"
+
+    async def create_metrics_table(self):
+        async with self.pool.acquire() as conn:
+            await conn.execute(f'''
+                CREATE TABLE IF NOT EXISTS {self.metrics_table_name} (
+                connector_name TEXT NOT NULL,
+                trading_pair TEXT NOT NULL,
+                interval TEXT NOT NULL,
+                from_timestamp TIMESTAMPTZ NOT NULL,
+                to_timestamp TIMESTAMPTZ NOT NULL,
+                mean_volatility NUMERIC,
+                mean_natr NUMERIC,
+                mean_bb_100_2_width NUMERIC,
+                total_volume_usd NUMERIC,
+                average_volume_per_hour NUMERIC,
+                last_price NUMERIC,
+                min_price_increment NUMERIC,
+                price_step_pct NUMERIC,
+                total_volume_usd_24h NUMERIC,
+                mean_natr_24h NUMERIC,
+                mean_bb_100_2_width_24h NUMERIC
+            );
+            ''')
 
     async def create_trades_table(self, table_name: str):
         async with self.pool.acquire() as conn:
@@ -160,6 +190,13 @@ class TimescaleClient:
                 ''')
             return start_time.timestamp()
 
+    async def get_max_timestamp(self, table_name):
+        async with self.pool.acquire() as conn:
+            end_timestamp = await conn.fetchval(f'''
+                SELECT MAX(timestamp) FROM {table_name}
+                ''')
+            return end_timestamp.timestamp()
+
     async def get_trades(self, connector_name: str, trading_pair: str, start_time: Optional[float],
                          end_time: Optional[float] = None, chunk_size: timedelta = timedelta(hours=6)) -> pd.DataFrame:
         table_name = self.get_trades_table_name(connector_name, trading_pair)
@@ -233,6 +270,76 @@ class TimescaleClient:
                 )
                 for i, row in candles.data.iterrows()
             ])
+
+    async def compute_candles_metrics(self, connector_name: str, trading_pair: str, interval: str):
+        table_name = self.get_trades_table_name(connector_name, trading_pair)
+        # when passing an interval like 5m or 15m and setting from_trades to true, will resample automatically
+        candle = await self.get_candles(connector_name, trading_pair, interval, from_trades=True)
+        candle.add_features([Volatility(self.volatility_config)])
+        from_timestamp = await self.get_min_timestamp(table_name)
+        to_timestamp = await self.get_max_timestamp(table_name)
+        df = candle.data.copy()
+        df["volume_usd"] = df["volume"] * df["close"]
+        total_volume_usd = df["volume_usd"].sum()
+        total_hours = (df.index[-1] - df.index[0]).total_seconds() / 3600
+        average_volume_per_hour = total_volume_usd / total_hours
+        df_24h = df[df["timestamp"] >= to_timestamp - 24 * 60 * 60]
+        return {
+            "connector_name": connector_name,
+            "trading_pair": trading_pair,
+            "interval": interval,
+            "from_timestamp": from_timestamp,
+            "to_timestamp": to_timestamp,
+            "mean_volatility": df['volatility'].mean(),
+            "mean_natr": df['natr'].mean(),
+            "mean_bb_100_2_width": df['bb_width'].mean(),
+            "total_volume_usd": total_volume_usd,
+            "average_volume_per_hour": average_volume_per_hour,
+            "last_price": df["close"].iloc[-1],
+            "total_volume_usd_24h": df_24h["volume_usd"].sum(),
+            "mean_natr_24h": df_24h["natr"].mean(),
+            "mean_bb_100_2_width_24h": df_24h["bb_width"].mean()
+        }
+
+    async def append_metrics(self, connector_name: str, trading_pair: str, interval: str):
+        async with self.pool.acquire() as conn:
+            await self.create_metrics_table()
+            metrics = await self.compute_candles_metrics(connector_name, trading_pair, interval)
+            # Use parameter placeholders instead of direct f-string interpolation
+            await conn.execute(f'''
+                       INSERT INTO {self.metrics_table_name} (
+                           connector_name,
+                           trading_pair,
+                           interval,
+                           from_timestamp,
+                           to_timestamp,
+                           mean_volatility,
+                           mean_natr,
+                           mean_bb_100_2_width,
+                           total_volume_usd,
+                           average_volume_per_hour,
+                           last_price,
+                           total_volume_usd_24h,
+                           mean_natr_24h,
+                           mean_bb_100_2_width_24h)
+                       VALUES (
+                           $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14
+                       )
+                   ''',
+                               metrics["connector_name"],
+                               metrics["trading_pair"],
+                               metrics["interval"],
+                               datetime.fromtimestamp(metrics["from_timestamp"]),
+                               datetime.fromtimestamp(metrics["to_timestamp"]),
+                               metrics["mean_volatility"],
+                               metrics["mean_natr"],
+                               metrics["mean_bb_100_2_width"],
+                               metrics["total_volume_usd"],
+                               metrics["average_volume_per_hour"],
+                               metrics["last_price"],
+                               metrics["total_volume_usd_24h"],
+                               metrics["mean_natr_24h"],
+                               metrics["mean_bb_100_2_width_24h"])
 
     async def get_candles(self, connector_name: str, trading_pair: str, interval: str,
                           start_time: Optional[float] = None,
