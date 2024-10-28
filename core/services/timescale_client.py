@@ -301,6 +301,32 @@ class TimescaleClient:
             "mean_bb_100_2_width_24h": df_24h["bb_width"].mean()
         }
 
+    async def get_metrics_df(self):
+        async with self.pool.acquire() as conn:
+            rows = await conn.fetch("""
+            SELECT *
+            FROM summary_metrics""")
+        df_cols = [
+            "connector_name",
+            "trading_pair",
+            "interval",
+            "from_timestamp",
+            "to_timestamp",
+            "mean_volatility",
+            "mean_natr",
+            "mean_bb_100_2_width",
+            "total_volume_usd",
+            "average_volume_per_hour",
+            "last_price",
+            "min_price_increment",
+            "price_step_pct",
+            "total_volume_usd_24h",
+            "mean_natr_24h",
+            "mean_bb_100_2_width_24h"
+        ]
+        df = pd.DataFrame(rows, columns=df_cols)
+        return df
+
     async def append_metrics(self, connector_name: str, trading_pair: str, interval: str):
         async with self.pool.acquire() as conn:
             await self.create_metrics_table()
