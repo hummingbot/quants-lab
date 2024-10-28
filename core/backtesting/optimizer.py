@@ -100,8 +100,8 @@ class StrategyOptimizer:
         self.optuna_postgres_host = os.getenv("OPTUNA_POSTGRES_HOST", "localhost")
         self.optuna_postgres_db_name = os.getenv("OPTUNA_POSTGRES_DB_NAME", "optimization_database")
         self.optuna_postgres_port = os.getenv("OPTUNA_POSTGRES_PORT", 5433)
-        logging.info(f"Connecting to {self.optuna_postgres_host} with user {self.optuna_postgres_user} at db name {self.optuna_postgres_db_name}")
         self._storage_name = f"postgresql://{self.optuna_postgres_user}:{self.optuna_postgres_password}@{self.optuna_postgres_host}:{self.optuna_postgres_port}/{self.optuna_postgres_db_name}"
+        logging.info(f"Connecting to {self._storage_name}")
         self.dashboard_process = None
 
     def get_all_study_names(self):
