@@ -17,7 +17,7 @@ services:
       - OPTUNA_POSTGRES_HOST=optuna-db
       - OPTUNA_POSTGRES_USER=${POSTGRES_USER}
       - OPTUNA_POSTGRES_PASSWORD=${POSTGRES_PASSWORD}
-      - OPTUNA_POSTGRES_DB=${POSTGRES_OPTUNA_DB_NAME}
+      - OPTUNA_POSTGRES_DB=${OPTUNA_POSTGRES_DB_NAME}
     command: conda run --no-capture-output -n quants-lab python3 tasks/task_runner.py
     networks:
       - quants-lab-network
@@ -45,11 +45,11 @@ services:
     environment:
       - POSTGRES_USER=${OPTUNA_POSTGRES_USER}
       - POSTGRES_PASSWORD=${OPTUNA_POSTGRES_PASSWORD}
-      - POSTGRES_DB=${OPTUNA_POSTGRES_DB_NAME}
+      - POSTGRES_DB=optuna-db
     volumes:
       - optuna-data:/var/lib/postgresql/data
     ports:
-      - "5433:5432"  # Expose on a different host port to avoid conflict with timescaledb
+      - "5432:5432"
     networks:
       - quants-lab-network
 

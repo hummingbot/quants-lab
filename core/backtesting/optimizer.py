@@ -95,11 +95,11 @@ class StrategyOptimizer:
         self._db_client = db_client
 
         self.resolution = resolution
-        self.optuna_postgres_user = os.getenv("OPTUNA_POSTGRES_USER", "admin")
-        self.optuna_postgres_password = os.getenv("OPTUNA_POSTGRES_PASSWORD", "admin")
-        self.optuna_postgres_host = os.getenv("OPTUNA_POSTGRES_HOST", "localhost")
-        self.optuna_postgres_db_name = os.getenv("OPTUNA_POSTGRES_DB_NAME", "optimization_database")
-        self.optuna_postgres_port = os.getenv("OPTUNA_POSTGRES_PORT", 5433)
+        self.optuna_postgres_user = os.getenv("POSTGRES_USER", "admin")
+        self.optuna_postgres_password = os.getenv("POSTGRES_PASSWORD", "admin")
+        self.optuna_postgres_host = os.getenv("POSTGRES_HOST", "localhost")
+        self.optuna_postgres_db_name = "optuna-db"
+        self.optuna_postgres_port = 5432
         self._storage_name = f"postgresql://{self.optuna_postgres_user}:{self.optuna_postgres_password}@{self.optuna_postgres_host}:{self.optuna_postgres_port}/{self.optuna_postgres_db_name}"
         logging.info(f"Connecting to {self._storage_name}")
         self.dashboard_process = None
