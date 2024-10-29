@@ -1,10 +1,11 @@
 import time
 from typing import List, Optional
 
+import aiohttp
 import pandas as pd
+from hummingbot.strategy_v2.models.executors_info import ExecutorInfo
 
 from core.services.client_base import ClientBase
-from hummingbot.strategy_v2.models.executors_info import ExecutorInfo
 
 
 class BackendAPIClient(ClientBase):
@@ -21,35 +22,39 @@ class BackendAPIClient(ClientBase):
             cls._shared_instance = BackendAPIClient(*args, **kwargs)
         return cls._shared_instance
 
+    def __init__(self, host: str = "localhost", port: int = 8000, username: str = "admin", password: str = "admin"):
+        super().__init__(host, port)
+        self.auth = aiohttp.BasicAuth(username, password)
+
     async def is_docker_running(self):
         """Check if Docker is running."""
         endpoint = "is-docker-running"
-        return await self.get(endpoint)["is_docker_running"]
+        return await self.get(endpoint, auth=self.auth)["is_docker_running"]
 
     async def pull_image(self, image_name: str):
         """Pull a Docker image."""
         endpoint = "pull-image"
-        return await self.post(endpoint, payload={"image_name": image_name})
+        return await self.post(endpoint, payload={"image_name": image_name}, auth=self.auth)
 
     async def list_available_images(self, image_name: str):
         """List available images by name."""
         endpoint = f"available-images/{image_name}"
-        return await self.get(endpoint)
+        return await self.get(endpoint, auth=self.auth)
 
     async def list_active_containers(self):
         """List all active containers."""
         endpoint = "active-containers"
-        return await self.get(endpoint)
+        return await self.get(endpoint, auth=self.auth)
 
     async def list_exited_containers(self):
         """List all exited containers."""
         endpoint = "exited-containers"
-        return await self.get(endpoint)
+        return await self.get(endpoint, auth=self.auth)
 
     async def clean_exited_containers(self):
         """Clean up exited containers."""
         endpoint = "clean-exited-containers"
-        return await self.post(endpoint, payload=None)
+        return await self.post(endpoint, payload=None, auth=self.auth)
 
     async def remove_container(self, container_name: str, archive_locally: bool = True, s3_bucket: str = None):
         """Remove a specific container."""
@@ -57,49 +62,50 @@ class BackendAPIClient(ClientBase):
         params = {"archive_locally": archive_locally}
         if s3_bucket:
             params["s3_bucket"] = s3_bucket
-        return await self.post(endpoint, params=params)
+        return await self.post(endpoint, params=params, auth=self.auth)
 
     async def stop_container(self, container_name: str):
         """Stop a specific container."""
         endpoint = f"stop-container/{container_name}"
-        return await self.post(endpoint)
+        return await self.post(endpoint, auth=self.auth)
 
     async def start_container(self, container_name: str):
         """Start a specific container."""
         endpoint = f"start-container/{container_name}"
-        return await self.post(endpoint)
+        return await self.post(endpoint, auth=self.auth)
 
     async def create_hummingbot_instance(self, instance_config: dict):
         """Create a new Hummingbot instance."""
         endpoint = "create-hummingbot-instance"
-        return await self.post(endpoint, payload=instance_config)
+        return await self.post(endpoint, payload=instance_config, auth=self.auth)
 
     async def start_bot(self, start_bot_config: dict):
         """Start a Hummingbot bot."""
         endpoint = "start-bot"
-        return await self.post(endpoint, payload=start_bot_config)
+        return await self.post(endpoint, payload=start_bot_config, auth=self.auth)
 
     async def stop_bot(self, bot_name: str, skip_order_cancellation: bool = False, async_backend: bool = True):
         """Stop a Hummingbot bot."""
         endpoint = "stop-bot"
         return await self.post(endpoint,
                                payload={"bot_name": bot_name, "skip_order_cancellation": skip_order_cancellation,
-                                        "async_backend": async_backend})
+                                        "async_backend": async_backend},
+                               auth=self.auth)
 
     async def import_strategy(self, strategy_config: dict):
         """Import a trading strategy to a bot."""
         endpoint = "import-strategy"
-        return await self.post(endpoint, payload=strategy_config)
+        return await self.post(endpoint, payload=strategy_config, auth=self.auth)
 
     async def get_bot_status(self, bot_name: str):
         """Get the status of a bot."""
         endpoint = f"get-bot-status/{bot_name}"
-        return await self.get(endpoint)
+        return await self.get(endpoint, auth=self.auth)
 
     async def get_bot_history(self, bot_name: str):
         """Get the historical data of a bot."""
         endpoint = f"get-bot-history/{bot_name}"
-        return await self.get(endpoint)
+        return await self.get(endpoint, auth=self.auth)
 
     async def get_active_bots_status(self):
         """
@@ -107,22 +113,22 @@ class BackendAPIClient(ClientBase):
         Returns a JSON response with the status and data of active bots.
         """
         endpoint = "get-active-bots-status"
-        return await self.get(endpoint)
+        return await self.get(endpoint, auth=self.auth)
 
     async def get_all_controllers_config(self):
         """Get all controller configurations."""
         endpoint = "all-controller-configs"
-        return await self.get(endpoint)
+        return await self.get(endpoint, auth=self.auth)
 
     async def get_available_images(self, image_name: str = "hummingbot"):
         """Get available images."""
         endpoint = f"available-images/{image_name}"
-        return await self.get(endpoint)["available_images"]
+        return await self.get(endpoint, auth=self.auth)["available_images"]
 
     async def add_script_config(self, script_config: dict):
         """Add a new script configuration."""
         endpoint = "add-script-config"
-        return await self.post(endpoint, payload=script_config)
+        return await self.post(endpoint, payload=script_config, auth=self.auth)
 
     async def add_controller_config(self, controller_config: dict):
         """Add a new controller configuration."""
@@ -131,12 +137,12 @@ class BackendAPIClient(ClientBase):
             "name": controller_config["id"],
             "content": controller_config
         }
-        return await self.post(endpoint, payload=config)
+        return await self.post(endpoint, payload=config, auth=self.auth)
 
     async def delete_controller_config(self, controller_name: str):
         """Delete a controller configuration."""
         url = "delete-controller-config"
-        return await self.post(url, params={"config_name": controller_name})
+        return await self.post(url, params={"config_name": controller_name}, auth=self.auth)
 
     async def get_real_time_candles(self, connector: str, trading_pair: str, interval: str, max_records: int):
         """Get candles data."""
@@ -147,7 +153,7 @@ class BackendAPIClient(ClientBase):
             "interval": interval,
             "max_records": max_records
         }
-        return await self.post(endpoint, payload=payload)
+        return await self.post(endpoint, payload=payload, auth=self.auth)
 
     async def get_historical_candles(self, connector: str, trading_pair: str, interval: str, start_time: int,
                                      end_time: int):
@@ -160,7 +166,7 @@ class BackendAPIClient(ClientBase):
             "start_time": start_time,
             "end_time": end_time
         }
-        return await self.post(endpoint, payload=payload)
+        return await self.post(endpoint, payload=payload, auth=self.auth)
 
     async def run_backtesting(self, start_time: int, end_time: int, backtesting_resolution: str, trade_cost: float,
                               config: dict):
@@ -173,7 +179,7 @@ class BackendAPIClient(ClientBase):
             "trade_cost": trade_cost,
             "config": config
         }
-        backtesting_results = await self.post(endpoint, payload=payload)
+        backtesting_results = await self.post(endpoint, payload=payload, auth=self.auth)
         if "error" in backtesting_results:
             raise Exception(backtesting_results["error"])
         if "processed_data" not in backtesting_results:
@@ -193,69 +199,69 @@ class BackendAPIClient(ClientBase):
     async def get_all_configs_from_bot(self, bot_name: str):
         """Get all configurations from a bot."""
         endpoint = f"all-controller-configs/bot/{bot_name}"
-        return await self.get(endpoint)
+        return await self.get(endpoint, auth=self.auth)
 
     async def stop_controller_from_bot(self, bot_name: str, controller_id: str):
         """Stop a controller from a bot."""
         endpoint = f"update-controller-config/bot/{bot_name}/{controller_id}"
         config = {"manual_kill_switch": True}
-        return await self.post(endpoint, payload=config)
+        return await self.post(endpoint, payload=config, auth=self.auth)
 
     async def start_controller_from_bot(self, bot_name: str, controller_id: str):
         """Start a controller from a bot."""
         endpoint = f"update-controller-config/bot/{bot_name}/{controller_id}"
         config = {"manual_kill_switch": False}
-        return await self.post(endpoint, payload=config)
+        return await self.post(endpoint, payload=config, auth=self.auth)
 
     async def get_connector_config_map(self, connector_name: str):
         """Get connector configuration map."""
         endpoint = f"connector-config-map/{connector_name}"
-        return await self.get(endpoint)
+        return await self.get(endpoint, auth=self.auth)
 
     async def get_all_connectors_config_map(self):
         """Get all connector configuration maps."""
         endpoint = "all-connectors-config-map"
-        return await self.get(endpoint)
+        return await self.get(endpoint, auth=self.auth)
 
     async def add_account(self, account_name: str):
         """Add a new account."""
         endpoint = "add-account"
-        return await self.post(endpoint, params={"account_name": account_name})
+        return await self.post(endpoint, params={"account_name": account_name}, auth=self.auth)
 
     async def delete_account(self, account_name: str):
         """Delete an account."""
         endpoint = "delete-account"
-        return await self.post(endpoint, params={"account_name": account_name})
+        return await self.post(endpoint, params={"account_name": account_name}, auth=self.auth)
 
     async def delete_credential(self, account_name: str, connector_name: str):
         """Delete credentials."""
         endpoint = f"delete-credential/{account_name}/{connector_name}"
-        return await self.post(endpoint)
+        return await self.post(endpoint, auth=self.auth)
 
     async def add_connector_keys(self, account_name: str, connector_name: str, connector_config: dict):
         """Add connector keys."""
         endpoint = f"add-connector-keys/{account_name}/{connector_name}"
-        return await self.post(endpoint, payload=connector_config)
+        return await self.post(endpoint, payload=connector_config, auth=self.auth)
 
     async def get_accounts(self):
         """Get available credentials."""
         endpoint = "list-accounts"
-        return await self.get(endpoint)
+        return await self.get(endpoint, auth=self.auth)
 
     async def get_credentials(self, account_name: str):
         """Get available credentials."""
         endpoint = f"list-credentials/{account_name}"
-        return await self.get(endpoint)
+        return await self.get(endpoint, auth=self.auth)
 
     async def get_accounts_state(self):
         """Get all balances."""
         endpoint = "accounts-state"
-        return await self.get(endpoint)
+        return await self.get(endpoint, auth=self.auth)
 
     async def get_account_state_history(self):
         """Get account state history."""
         endpoint = "account-state-history"
-        return await self.get(endpoint)
+        return await self.get(endpoint, auth=self.auth)
 
     async def deploy_script_with_controllers(self,
                                              bot_name: str, controller_configs: List[str],
