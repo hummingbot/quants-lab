@@ -31,6 +31,7 @@ services:
     environment:
       - POSTGRES_USER=${POSTGRES_USER}
       - POSTGRES_PASSWORD=${POSTGRES_PASSWORD}
+      - TIMESCALE_HOST=${TIMESCALE_HOST}
       - POSTGRES_DB=timescaledb
     volumes:
       - timescale-data:/var/lib/postgresql/data
@@ -45,7 +46,8 @@ services:
     environment:
       - POSTGRES_USER=${OPTUNA_POSTGRES_USER}
       - POSTGRES_PASSWORD=${OPTUNA_POSTGRES_PASSWORD}
-      - POSTGRES_DB=optuna-db
+      - OPTUNA_HOST=${OPTUNA_HOST}
+      - POSTGRES_DB=optimization_database
     volumes:
       - optuna-data:/var/lib/postgresql/data
     ports:
