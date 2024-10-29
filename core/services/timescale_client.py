@@ -93,6 +93,34 @@ class TimescaleClient:
                 ON CONFLICT (connector_name, trading_pair, trade_id) DO NOTHING
             ''', trades)
 
+    async def create_candles_table(self, table_name: str):
+        async with self.pool.acquire() as conn:
+            await conn.execute(f'''
+                CREATE TABLE IF NOT EXISTS {table_name} (
+                    timestamp TIMESTAMPTZ NOT NULL,
+                    open NUMERIC NOT NULL,
+                    high NUMERIC NOT NULL,
+                    low NUMERIC NOT NULL,
+                    close NUMERIC NOT NULL,
+                    volume NUMERIC NOT NULL,
+                    quote_asset_volume NUMERIC NOT NULL,
+                    n_trades INTEGER NOT NULL,
+                    taker_buy_base_volume NUMERIC NOT NULL,
+                    taker_buy_quote_volume NUMERIC NOT NULL,
+                    PRIMARY KEY (timestamp)
+                )
+            ''')
+
+    async def append_candles(self, table_name: str, candles: List[Tuple[float, float, float, float, float]]):
+        async with self.pool.acquire() as conn:
+            await self.create_candles_table(table_name)
+            await conn.executemany(f'''
+                INSERT INTO {table_name} (timestamp, open, high, low, close, volume, quote_asset_volume, n_trades,
+                taker_buy_base_volume, taker_buy_quote_volume)
+                VALUES (to_timestamp($1), $2, $3, $4, $5, $6, $7, $8, $9, $10)
+                ON CONFLICT (timestamp) DO NOTHING
+            ''', candles)
+
     async def get_last_trade_id(self, connector_name: str, trading_pair: str, table_name: str) -> int:
         async with self.pool.acquire() as conn:
             await self.create_trades_table(table_name)
@@ -101,6 +129,14 @@ class TimescaleClient:
                 WHERE connector_name = $1 AND trading_pair = $2
             ''', connector_name, trading_pair)
             return result
+
+    async def get_last_candle_timestamp(self, connector_name: str, trading_pair: str, interval: str) -> Optional[float]:
+        table_name = self.get_ohlc_table_name(connector_name, trading_pair, interval)
+        async with self.pool.acquire() as conn:
+            result = await conn.fetchval(f'''
+                SELECT MAX(timestamp) FROM {table_name}
+            ''')
+            return result.timestamp() if result else None
 
     async def close(self):
         if self.pool:
