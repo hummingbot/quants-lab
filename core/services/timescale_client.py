@@ -84,6 +84,17 @@ class TimescaleClient:
                 params.append(datetime.fromtimestamp(timestamp))
             await conn.execute(query, *params)
 
+    async def delete_candles(self, connector_name: str, trading_pair: str, interval: str, timestamp: Optional[float] = None):
+        table_name = self.get_ohlc_table_name(connector_name, trading_pair, interval)
+        async with self.pool.acquire() as conn:
+            query = f"DELETE FROM {table_name}"
+            params = []
+
+            if timestamp is not None:
+                query += " WHERE timestamp < $1"
+                params.append(datetime.fromtimestamp(timestamp))
+            await conn.execute(query, *params)
+
     async def append_trades(self, table_name: str, trades: List[Tuple[int, str, str, float, float, float, bool]]):
         async with self.pool.acquire() as conn:
             await self.create_trades_table(table_name)
