@@ -41,8 +41,8 @@ services:
     container_name: optuna-db
     image: postgres:latest
     environment:
-      - POSTGRES_USER=${OPTUNA_POSTGRES_USER}
-      - POSTGRES_PASSWORD=${OPTUNA_POSTGRES_PASSWORD}
+      - POSTGRES_USER=${POSTGRES_USER}
+      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD}
       - OPTUNA_HOST=${OPTUNA_HOST}
       - POSTGRES_DB=optimization_database
     volumes:
