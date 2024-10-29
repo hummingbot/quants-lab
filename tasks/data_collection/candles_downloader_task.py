@@ -15,21 +15,23 @@ from core.task_base import BaseTask
 logging.basicConfig(level=logging.INFO)
 
 
-class TradesDownloaderTask(BaseTask):
+class CandlesDownloaderTask(BaseTask):
     def __init__(self, name: str, frequency: timedelta, config: Dict[str, Any]):
         super().__init__(name, frequency, config)
         self.connector_name = config['connector_name']
         self.days_data_retention = config.get("days_data_retention", 7)
-        self.start_time = time.time() - self.days_data_retention * 24 * 60 * 60
+        self.interval = config.get("interval", "1m")
         self.quote_asset = config.get('quote_asset', "USDT")
         self.min_notional_size = Decimal(str(config.get('min_notional_size', 10.0)))
         self.clob = CLOBDataSource()
 
     async def execute(self):
         now = datetime.now(timezone.utc).strftime('%Y-%m-%d %H:%M:%S.%f UTC')
-        logging.info(f"{now} - Starting trades downloader for {self.connector_name} at {time.strftime('%Y-%m-%d %H:%M:%S')}")
+        logging.info(
+            f"{now} - Starting candles downloader for {self.connector_name} at {time.strftime('%Y-%m-%d %H:%M:%S')}")
         end_time = datetime.now(timezone.utc)
-        start_time = pd.Timestamp(self.start_time, unit="s").tz_localize(timezone.utc)
+        start_time = pd.Timestamp(time.time() - self.days_data_retention * 24 * 60 * 60,
+                                  unit="s").tz_localize(timezone.utc).timestamp()
         logging.info(f"{now} - Start date: {start_time}, End date: {end_time}")
         logging.info(f"{now} - Quote asset: {self.quote_asset}, Min notional size: {self.min_notional_size}")
 
@@ -47,57 +49,60 @@ class TradesDownloaderTask(BaseTask):
             .filter_by_min_notional_size(self.min_notional_size) \
             .get_all_trading_pairs()
         for i, trading_pair in enumerate(trading_pairs):
-            logging.info(f"{now} - Fetching trades for {trading_pair} [{i} from {len(trading_pairs)}]")
+            logging.info(f"{now} - Fetching candles for {trading_pair} [{i} from {len(trading_pairs)}]")
             try:
-                table_name = timescale_client.get_trades_table_name(self.connector_name, trading_pair)
-                last_trade_id = await timescale_client.get_last_trade_id(connector_name=self.connector_name,
-                                                                         trading_pair=trading_pair,
-                                                                         table_name=table_name)
-                trades = await self.clob.get_trades(
+                table_name = timescale_client.get_ohlc_table_name(self.connector_name, trading_pair, self.interval)
+                await timescale_client.create_candles_table(table_name)
+                last_candle_timestamp = await timescale_client.get_last_candle_timestamp(
+                    connector_name=self.connector_name,
+                    trading_pair=trading_pair,
+                    interval=self.interval)
+                start_time = last_candle_timestamp if last_candle_timestamp else start_time
+                candles = await self.clob.get_candles(
                     self.connector_name,
                     trading_pair,
-                    int(start_time.timestamp()),
+                    self.interval,
+                    int(start_time),
                     int(end_time.timestamp()),
-                    last_trade_id
                 )
 
-                if trades.empty:
+                if candles.data.empty:
                     logging.info(f"{now} - No new trades for {trading_pair}")
                     continue
 
-                trades["connector_name"] = self.connector_name
-                trades["trading_pair"] = trading_pair
-
-                trades_data = trades[
-                    ["id", "connector_name", "trading_pair", "timestamp", "price", "volume",
-                     "sell_taker"]].values.tolist()
-
-                await timescale_client.append_trades(table_name=table_name,
-                                                     trades=trades_data)
+                await timescale_client.append_candles(table_name=table_name,
+                                                      candles=candles.data.values.tolist())
                 today_start = datetime.utcnow().replace(hour=0, minute=0, second=0, microsecond=0)
                 cutoff_timestamp = (today_start - timedelta(days=self.days_data_retention)).timestamp()
-                await timescale_client.delete_trades(connector_name=self.connector_name, trading_pair=trading_pair,
-                                                     timestamp=cutoff_timestamp)
-                await timescale_client.compute_resampled_ohlc(connector_name=self.connector_name,
-                                                              trading_pair=trading_pair, interval="1s")
-                logging.info(f"{now} - Inserted {len(trades_data)} trades for {trading_pair}")
+                await timescale_client.delete_candles(connector_name=self.connector_name, trading_pair=trading_pair,
+                                                      interval=self.interval,
+                                                      timestamp=cutoff_timestamp)
 
             except Exception as e:
-                logging.exception(f"{now} - An error occurred during the data load for trading pair {trading_pair}:\n {e}")
+                logging.exception(
+                    f"{now} - An error occurred during the data load for trading pair {trading_pair}:\n {e}")
                 continue
 
         await timescale_client.close()
 
 
+async def main(config):
+    candles_downloader_task = CandlesDownloaderTask(
+        name="Candles Downloader",
+        frequency=timedelta(hours=1),
+        config=config
+    )
+    await candles_downloader_task.execute()
+
 if __name__ == "__main__":
     config = {
         'connector_name': 'binance_perpetual',
         'quote_asset': 'USDT',
+        'interval': '15m',
+        'days_data_retention': 7,
         'min_notional_size': 10.0,
         'db_host': 'localhost',
         'db_port': 5432,
         'db_name': 'timescaledb'
     }
-
-    task = TradesDownloaderTask("Trades Downloader", timedelta(hours=1), config)
-    asyncio.run(task.execute())
+    asyncio.run(main(config))
