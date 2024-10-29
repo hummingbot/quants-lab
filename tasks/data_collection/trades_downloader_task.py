@@ -34,7 +34,7 @@ class TradesDownloaderTask(BaseTask):
         logging.info(f"{now} - Quote asset: {self.quote_asset}, Min notional size: {self.min_notional_size}")
 
         timescale_client = TimescaleClient(
-            host=os.getenv("POSTGRES_HOST", "localhost"),
+            host=os.getenv("TIMESCALE_HOST", "localhost"),
             port=5432,
             user=os.getenv("POSTGRES_USER", "admin"),
             password=os.getenv("POSTGRES_PASSWORD", "admin"),
