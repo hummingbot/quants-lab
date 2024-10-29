@@ -9,7 +9,7 @@ from typing import Any, Dict
 import pandas as pd
 
 from core.data_sources import CLOBDataSource
-from core.services import TimescaleClient
+from core.services.timescale_client import TimescaleClient
 from core.task_base import BaseTask
 
 logging.basicConfig(level=logging.INFO)

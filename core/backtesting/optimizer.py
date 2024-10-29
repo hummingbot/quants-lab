@@ -9,7 +9,7 @@ import optuna
 from pydantic import BaseModel
 
 from core.backtesting import BacktestingEngine
-from core.services import TimescaleClient
+from core.services.timescale_client import TimescaleClient
 from hummingbot.strategy_v2.backtesting.backtesting_engine_base import BacktestingEngineBase
 from hummingbot.strategy_v2.controllers import ControllerConfigBase
 
@@ -75,7 +75,7 @@ class StrategyOptimizer:
     """
 
     def __init__(self, root_path: str = "", database_name: str = "optimization_database",
-                 load_cached_data: bool = False, resolution: str = "1m"):
+                 load_cached_data: bool = False, resolution: str = "1m", db_client: Optional[TimescaleClient] = None):
         """
         Initialize the optimizer with a backtesting engine and database configuration.
 
@@ -86,13 +86,7 @@ class StrategyOptimizer:
             resolution (str): The resolution or time frame of the data (e.g., '1h', '1d').
         """
         self._backtesting_engine = BacktestingEngine(load_cached_data=load_cached_data)
-        self._db_client = TimescaleClient(
-            host=os.getenv("POSTGRES_HOST", "localhost"),
-            port=os.getenv("POSTGRES_PORT", 5432),
-            user=os.getenv("POSTGRES_USER", "admin"),
-            password=os.getenv("POSTGRES_PASSWORD", "admin"),
-            database=os.getenv("POSTGRES_DB", "timescaledb")
-        )
+        self._db_client = db_client
 
         self.resolution = resolution
         db_path = os.path.join(root_path, "data", "backtesting", f"{database_name}.db")
@@ -132,6 +126,7 @@ class StrategyOptimizer:
         """
         study = self.get_study(study_name)
         df = study.trials_dataframe()
+        df.dropna(inplace=True)
         # Renaming the columns that start with 'user_attrs_'
         df.rename(columns={col: col.replace('user_attrs_', '') for col in df.columns if col.startswith('user_attrs_')},
                   inplace=True)
@@ -306,7 +301,7 @@ class StrategyOptimizer:
             trial.set_user_attr("config", backtesting_result.controller_config.json())
 
             # Return the value you want to optimize
-            return strategy_analysis["net_pnl"]
+            return strategy_analysis["sharpe_ratio"]
         except Exception as e:
             print(f"An error occurred during optimization: {str(e)}")
             traceback.print_exc()

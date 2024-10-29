@@ -23,7 +23,6 @@ class BinancePerpetualTradesFeed(TradesFeedBase):
     def __init__(self):
         super().__init__()
         self._request_timestamps = []
-        self._session = aiohttp.ClientSession()
 
     @classmethod
     def logger(cls):

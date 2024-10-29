@@ -2,7 +2,32 @@
 
 QuantsLab is a Python project designed for quantitative research with Hummingbot. It provides functionalities for fetching historical data, calculating metrics, backtesting, and generating trading configurations.
 
-### Data Sources
+## Installation
+
+### Prerequisites
+- Anaconda (or Miniconda) must be installed on your system. You can download it from [https://www.anaconda.com/products/distribution](https://www.anaconda.com/products/distribution)
+
+### Steps
+1. Clone the repository:
+   ```
+   git clone https://github.com/hummingbot/quants-lab.git
+   cd quants-lab
+   ```
+
+2. Create and activate the Conda environment:
+   ```
+   make install
+   ```
+   This command will create a new Conda environment and install all the necessary dependencies.
+
+3. Activate the environment:
+   ```
+   conda activate quants-lab
+   ```
+
+You're now ready to use QuantsLab!
+
+## Data Sources
 - **CLOB (Central Limit Order Book)**
   - Last Traded Price
   - Current Order Book

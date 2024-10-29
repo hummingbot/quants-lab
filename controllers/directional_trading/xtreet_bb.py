@@ -2,6 +2,8 @@ from decimal import Decimal
 from typing import List, Optional, Tuple
 
 import pandas_ta as ta  # noqa: F401
+from pydantic import Field, validator
+
 from hummingbot.client.config.config_data_types import ClientFieldData
 from hummingbot.core.data_type.common import TradeType
 from hummingbot.data_feed.candles_feed.data_types import CandlesConfig
@@ -12,7 +14,6 @@ from hummingbot.strategy_v2.controllers.directional_trading_controller_base impo
 from hummingbot.strategy_v2.executors.dca_executor.data_types import DCAExecutorConfig, DCAMode
 from hummingbot.strategy_v2.executors.position_executor.data_types import TrailingStop
 from hummingbot.strategy_v2.models.executors import CloseType
-from pydantic import Field, validator
 
 
 class XtreetBBControllerConfig(DirectionalTradingControllerConfigBase):
@@ -50,9 +51,10 @@ class XtreetBBControllerConfig(DirectionalTradingControllerConfigBase):
     dca_spreads: List[Decimal] = Field(
         default="0.001,0.018,0.15,0.25",
         client_data=ClientFieldData(
-            prompt=lambda mi: "Enter the spreads for each DCA level (comma-separated) if dynamic_spread=True this value "
-                              "will multiply the Bollinger Bands width, e.g. if the Bollinger Bands width is 0.1 (10%)"
-                              "and the spread is 0.2, the distance of the order to the current price will be 0.02 (2%) ",
+            prompt=lambda
+                mi: "Enter the spreads for each DCA level (comma-separated) if dynamic_spread=True this value "
+                    "will multiply the Bollinger Bands width, e.g. if the Bollinger Bands width is 0.1 (10%)"
+                    "and the spread is 0.2, the distance of the order to the current price will be 0.02 (2%) ",
             prompt_on_new=False))
     dca_amounts_pct: List[Decimal] = Field(
         default=None,
@@ -70,6 +72,31 @@ class XtreetBBControllerConfig(DirectionalTradingControllerConfigBase):
         client_data=ClientFieldData(
             prompt=lambda mi: "Do you want to make the target dynamic? (Yes/No) ",
             prompt_on_new=False))
+    min_stop_loss: Decimal = Field(
+        default=Decimal("0.01"),
+        client_data=ClientFieldData(
+            prompt=lambda mi: "Enter the minimum stop loss (as a decimal, e.g., 0.01 for 1%): ",
+            prompt_on_new=False))
+    max_stop_loss: Decimal = Field(
+        default=Decimal("0.1"),
+        client_data=ClientFieldData(
+            prompt=lambda mi: "Enter the maximum stop loss (as a decimal, e.g., 0.1 for 10%): ",
+            prompt_on_new=False))
+    min_trailing_stop: Decimal = Field(
+        default=Decimal("0.005"),
+        client_data=ClientFieldData(
+            prompt=lambda mi: "Enter the minimum trailing stop (as a decimal, e.g., 0.01 for 1%): ",
+            prompt_on_new=False))
+    max_trailing_stop: Decimal = Field(
+        default=Decimal("0.2"),
+        client_data=ClientFieldData(
+            prompt=lambda mi: "Enter the maximum trailing stop (as a decimal, e.g., 0.1 for 10%): ",
+            prompt_on_new=False))
+    min_distance_between_orders: Decimal = Field(
+        default=Decimal("0.01"),
+        client_data=ClientFieldData(
+            prompt=lambda mi: "Enter the minimum distance between orders (as a decimal, e.g., 0.01 for 1%): ",
+            prompt_on_new=False))
 
     activation_bounds: Optional[List[Decimal]] = Field(
         default=None,
@@ -81,8 +108,7 @@ class XtreetBBControllerConfig(DirectionalTradingControllerConfigBase):
         default=60 * 5, ge=0,
         client_data=ClientFieldData(
             is_updatable=True,
-            prompt_on_new=False,
-            prompt=lambda mi: "Specify the cooldown time in seconds after executing a signal (e.g., 300 for 5 minutes):"))
+            prompt_on_new=False))
 
     @validator("activation_bounds", pre=True, always=True)
     def parse_activation_bounds(cls, v):
@@ -148,9 +174,10 @@ class XtreetBBController(DirectionalTradingControllerBase):
     Mean reversion strategy with Grid execution making use of Bollinger Bands indicator to make spreads dynamic
     and shift the mid-price.
     """
+
     def __init__(self, config: XtreetBBControllerConfig, *args, **kwargs):
         self.config = config
-        self.max_records = config.bb_length
+        self.max_records = config.bb_length + 20
         if len(self.config.candles_config) == 0:
             self.config.candles_config = [CandlesConfig(
                 connector=config.candles_connector,
@@ -189,9 +216,10 @@ class XtreetBBController(DirectionalTradingControllerBase):
             executors=self.executors_info,
             filter_func=lambda x: not x.is_active)
         if len(closed_executors) > 0:
-            last_closed_executor = closed_executors[-1]
-            last_executor_side = 1 if last_closed_executor.side == TradeType.BUY else -1
-            if (last_closed_executor.close_type == CloseType.STOP_LOSS) and (last_executor_side == signal):
+            closed_executors_sorted = sorted(closed_executors, key=lambda x: x.close_timestamp, reverse=True)
+            last_closed_executor = closed_executors_sorted[0]
+            side = TradeType.BUY if signal > 0 else TradeType.SELL
+            if (last_closed_executor.close_type == CloseType.STOP_LOSS) and (last_closed_executor.side == side):
                 return False
         return super().can_create_executor(signal)
 
@@ -210,13 +238,14 @@ class XtreetBBController(DirectionalTradingControllerBase):
             prices = [price * (1 - spread * spread_multiplier) for spread in spread]
         else:
             prices = [price * (1 + spread * spread_multiplier) for spread in spread]
-        if self.config.dynamic_target:
-            stop_loss = self.config.stop_loss * spread_multiplier
-            trailing_stop = TrailingStop(activation_price=self.config.trailing_stop.activation_price * spread_multiplier,
-                                         trailing_delta=self.config.trailing_stop.trailing_delta * spread_multiplier)
-        else:
-            stop_loss = self.config.stop_loss
-            trailing_stop = self.config.trailing_stop
+        stop_loss = max(self.config.min_stop_loss,
+                        min(self.config.max_stop_loss, self.config.stop_loss * spread_multiplier))
+        take_profit_activation_price = max(self.config.min_trailing_stop,
+                                           min(self.config.max_trailing_stop,
+                                               self.config.trailing_stop.activation_price * spread_multiplier))
+        trailing_stop = TrailingStop(activation_price=take_profit_activation_price,
+                                     trailing_delta=self.config.trailing_stop.trailing_delta * take_profit_activation_price)
+
         return DCAExecutorConfig(
             timestamp=self.market_data_provider.time(),
             connector_name=self.config.connector_name,
@@ -226,7 +255,6 @@ class XtreetBBController(DirectionalTradingControllerBase):
             prices=prices,
             amounts_quote=amounts_quote,
             time_limit=self.config.time_limit,
-            take_profit=self.config.take_profit,
             stop_loss=stop_loss,
             trailing_stop=trailing_stop,
             leverage=self.config.leverage,
