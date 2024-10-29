@@ -13,11 +13,8 @@ services:
     environment:
       - POSTGRES_USER=${POSTGRES_USER}
       - POSTGRES_PASSWORD=${POSTGRES_PASSWORD}
-      - POSTGRES_HOST=timescaledb
-      - OPTUNA_POSTGRES_HOST=optuna-db
-      - OPTUNA_POSTGRES_USER=${POSTGRES_USER}
-      - OPTUNA_POSTGRES_PASSWORD=${POSTGRES_PASSWORD}
-      - OPTUNA_POSTGRES_DB=${OPTUNA_POSTGRES_DB_NAME}
+      - TIMESCALE_HOST=${TIMESCALE_HOST}
+      - OPTUNA_HOST=${OPTUNA_HOST}
     command: conda run --no-capture-output -n quants-lab python3 tasks/task_runner.py
     networks:
       - quants-lab-network

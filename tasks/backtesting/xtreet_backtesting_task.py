@@ -43,7 +43,7 @@ class BacktestingTask(BaseTask):
 
     async def execute(self):
         ts_client = TimescaleClient(
-            host=os.getenv("POSTGRES_HOST", "localhost"),
+            host=os.getenv("TIMESCALE_HOST", "localhost"),
             port=5432,
             user=os.getenv("POSTGRES_USER", "admin"),
             password=os.getenv("POSTGRES_PASSWORD", "admin"),
