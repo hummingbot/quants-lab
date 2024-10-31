@@ -105,7 +105,7 @@ class ReportGeneratorTask(BaseTask):
 
     async def get_final_df(self, trading_pairs):
         final_data = []
-        for i, trading_pair in enumerate(trading_pairs[:3]):
+        for i, trading_pair in enumerate(trading_pairs):
             today_general_metrics = await self.get_general_metrics(trading_pair=trading_pair,
                                                                    day="CURRENT_DATE", cond=">=")
             previous_general_metrics = await self.get_general_metrics(trading_pair=trading_pair,
