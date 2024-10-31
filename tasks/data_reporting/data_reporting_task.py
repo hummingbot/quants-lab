@@ -95,14 +95,6 @@ class ReportGeneratorTask(BaseTask):
             logging.error("An error occurred: while running Report Generator%s", e)
             print(f"Error: {e}")
 
-    def get_base(self):
-        query = """
-            SELECT table_schema, table_name
-            FROM information_schema.tables
-            WHERE table_type = 'BASE TABLE'
-        """
-        return pd.read_sql(query, self.engine)
-
     async def get_final_df(self, trading_pairs):
         final_data = []
         for i, trading_pair in enumerate(trading_pairs):
