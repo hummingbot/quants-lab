@@ -44,9 +44,9 @@ class BacktestingTask(BaseTask):
     async def execute(self):
         ts_client = TimescaleClient(
             host=os.getenv("TIMESCALE_HOST", "localhost"),
-            port=5432,
-            user=os.getenv("POSTGRES_USER", "admin"),
-            password=os.getenv("POSTGRES_PASSWORD", "admin"),
+            port=os.getenv("TIMESCALE_PORT", 5432),
+            user=os.getenv("TIMESCALE_USER", "admin"),
+            password=os.getenv("TIMESCALE_PASSWORD", "admin"),
             database="timescaledb"
         )
         await ts_client.connect()
@@ -56,8 +56,15 @@ class BacktestingTask(BaseTask):
         top_markets_df = self.generate_top_markets_report(metrics_df)
 
         resolution = self.resolution
-        optimizer = StrategyOptimizer(resolution=resolution, db_client=ts_client)
-
+        optimizer = StrategyOptimizer(engine="postgres",
+                                      root_path=root_path,
+                                      resolution=resolution,
+                                      db_client=ts_client,
+                                      db_host=os.getenv("OPTUNA_HOST", "localhost"),
+                                      db_port=os.getenv("OPTUNA_DOCKER_PORT", 5433),
+                                      db_user=os.getenv("OPTUNA_USER", "admin"),
+                                      db_pass=os.getenv("OPTUNA_PASSWORD", "admin"),
+    )
         logger.info("Optimizing strategy")
         for index, row in top_markets_df.iterrows():
             connector_name = row["connector_name"]
