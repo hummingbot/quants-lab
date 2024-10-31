@@ -35,7 +35,7 @@ class TradesDownloaderTask(BaseTask):
         logging.info(f"{now} - Start date: {start_time}, End date: {end_time}")
         logging.info(f"{now} - Quote asset: {self.quote_asset}, Min notional size: {self.min_notional_size}")
 
-        ts_client = TimescaleClient(
+        timescale_client = TimescaleClient(
             host=os.getenv("TIMESCALE_HOST", "localhost"),
             port=os.getenv("TIMESCALE_PORT", 5432),
             user=os.getenv("TIMESCALE_USER", "admin"),
