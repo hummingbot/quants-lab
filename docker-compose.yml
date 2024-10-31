@@ -11,10 +11,15 @@ services:
       - ./controllers:/quants-lab/controllers
       - ./services:/quants-lab/services
     environment:
-      - POSTGRES_USER=${POSTGRES_USER}
-      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD}
       - TIMESCALE_HOST=${TIMESCALE_HOST}
+      - TIMESCALE_PORT=${TIMESCALE_PORT}
+      - TIMESCALE_USER=${TIMESCALE_USER}
+      - TIMESCALE_PASSWORD=${TIMESCALE_PASSWORD}
       - OPTUNA_HOST=${OPTUNA_HOST}
+      - OPTUNA_LOCAL_PORT=${OPTUNA_LOCAL_PORT}
+      - OPTUNA_DOCKER_PORT=${OPTUNA_DOCKER_PORT}
+      - OPTUNA_USER=${OPTUNA_USER}
+      - OPTUNA_PASSWORD=${OPTUNA_PASSWORD}
     command: conda run --no-capture-output -n quants-lab python3 tasks/task_runner.py
     networks:
       - quants-lab-network
@@ -26,9 +31,8 @@ services:
     container_name: timescaledb
     image: timescale/timescaledb:latest-pg14
     environment:
-      - POSTGRES_USER=${POSTGRES_USER}
-      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD}
-      - TIMESCALE_HOST=${TIMESCALE_HOST}
+      - POSTGRES_USER=${TIMESCALE_USER}
+      - POSTGRES_PASSWORD=${TIMESCALE_PASSWORD}
       - POSTGRES_DB=timescaledb
     volumes:
       - timescale-data:/var/lib/postgresql/data
@@ -41,9 +45,8 @@ services:
     container_name: optuna-db
     image: postgres:latest
     environment:
-      - POSTGRES_USER=${POSTGRES_USER}
-      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD}
-      - OPTUNA_HOST=${OPTUNA_HOST}
+      - POSTGRES_USER=${OPTUNA_USER}
+      - POSTGRES_PASSWORD=${OPTUNA_PASSWORD}
       - POSTGRES_DB=optimization_database
     volumes:
       - optuna-data:/var/lib/postgresql/data

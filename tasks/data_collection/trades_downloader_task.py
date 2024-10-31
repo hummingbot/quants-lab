@@ -5,6 +5,7 @@ import time
 from datetime import datetime, timedelta, timezone
 from decimal import Decimal
 from typing import Any, Dict
+from dotenv import load_dotenv
 
 import pandas as pd
 
@@ -13,6 +14,7 @@ from core.services.timescale_client import TimescaleClient
 from core.task_base import BaseTask
 
 logging.basicConfig(level=logging.INFO)
+load_dotenv()
 
 
 class TradesDownloaderTask(BaseTask):
@@ -33,11 +35,11 @@ class TradesDownloaderTask(BaseTask):
         logging.info(f"{now} - Start date: {start_time}, End date: {end_time}")
         logging.info(f"{now} - Quote asset: {self.quote_asset}, Min notional size: {self.min_notional_size}")
 
-        timescale_client = TimescaleClient(
+        ts_client = TimescaleClient(
             host=os.getenv("TIMESCALE_HOST", "localhost"),
-            port=5432,
-            user=os.getenv("POSTGRES_USER", "admin"),
-            password=os.getenv("POSTGRES_PASSWORD", "admin"),
+            port=os.getenv("TIMESCALE_PORT", 5432),
+            user=os.getenv("TIMESCALE_USER", "admin"),
+            password=os.getenv("TIMESCALE_PASSWORD", "admin"),
             database="timescaledb"
         )
         await timescale_client.connect()
