@@ -82,26 +82,39 @@ class StrategyOptimizer:
     Class for optimizing trading strategies using Optuna and a backtesting engine.
     """
 
-    def __init__(self, load_cached_data: bool = False, resolution: str = "1m",
-                 db_client: Optional[TimescaleClient] = None):
+    def __init__(self, engine: str = "sqlite", root_path: str = "", database_name: str = "optimization_database",
+                 load_cached_data: bool = False, resolution: str = "1m", db_client: Optional[TimescaleClient] = None,
+                 db_host: str = None, db_port: int = None, db_user: str = None, db_pass: str = None):
         """
         Initialize the optimizer with a backtesting engine and database configuration.
 
         Args:
+            engine (str): "sqlite" or "postgres".
+            root_path (str): Root path for storing database files.
+            database_name (str): Name of the SQLite database for storing optimization results.
             load_cached_data (bool): Whether to load cached backtesting data.
             resolution (str): The resolution or time frame of the data (e.g., '1h', '1d').
+            db_host (str): Database Host
+            db_port (int): Database Port
+            db_user (str): Database User
+            db_pass (str): Database Password
         """
         self._backtesting_engine = BacktestingEngine(load_cached_data=load_cached_data)
         self._db_client = db_client
-
         self.resolution = resolution
-        self.optuna_postgres_user = os.getenv("POSTGRES_USER", "admin")
-        self.optuna_postgres_password = os.getenv("POSTGRES_PASSWORD", "admin")
-        self.optuna_postgres_host = os.getenv("OPTUNA_HOST", "localhost")
-        self.optuna_postgres_db_name = "optimization_database"
-        self.optuna_postgres_port = 5432 if self.optuna_postgres_host == "optuna-db" else 5433
-        self._storage_name = f"postgresql://{self.optuna_postgres_user}:{self.optuna_postgres_password}@{self.optuna_postgres_host}:{self.optuna_postgres_port}/{self.optuna_postgres_db_name}"
-        logging.info(f"Connecting to {self._storage_name}")
+        if engine == "sqlite":
+            db_path = os.path.join(root_path, "data", "backtesting", f"{database_name}.db")
+            self._storage_name = f"sqlite:///{db_path}"
+        elif engine == "postgres":
+            if not all([db_host, db_port, db_user, db_pass]):
+                missing_params = [param for param in ["db_host", "db_port", "db_user", "db_pass"]
+                                  if locals().get(param) is None]
+                raise ValueError(f"Missing required parameters for PostgreSQL connection: {', '.join(missing_params)}")
+
+            # Assuming the default PostgreSQL driver is "psycopg2"
+            self._storage_name = f"postgresql+psycopg2://{db_user}:{db_pass}@{db_host}:{db_port}/{database_name}"
+        else:
+            raise ValueError(f"Invalid engine specified: '{engine}'. Use 'sqlite' or 'postgres'.")
         self.dashboard_process = None
 
     def get_all_study_names(self):
