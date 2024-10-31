@@ -80,6 +80,8 @@ class TradesDownloaderTask(BaseTask):
                 cutoff_timestamp = (today_start - timedelta(days=self.days_data_retention)).timestamp()
                 await timescale_client.delete_trades(connector_name=self.connector_name, trading_pair=trading_pair,
                                                      timestamp=cutoff_timestamp)
+                # TODO: isolate resampling and metrics management in another module
+                # TODO: pass list of intervals to perform better
                 await timescale_client.compute_resampled_ohlc(connector_name=self.connector_name,
                                                               trading_pair=trading_pair, interval="1s")
                 await timescale_client.append_metrics(connector_name=self.connector_name,
