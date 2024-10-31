@@ -29,7 +29,7 @@ async def main():
         'connector_name': 'binance_perpetual',
         'quote_asset': 'USDT',
         'min_notional_size': 10.0,
-        'days_data_retention': 3
+        'days_data_retention': 10
     }
     trades_downloader_task = TradesDownloaderTask("Trades Downloader Binance", timedelta(hours=5),
                                                   trades_downloader_config)
