@@ -59,10 +59,10 @@ class BacktestingTask(BaseTask):
                                       root_path=self.root_path,
                                       resolution=resolution,
                                       db_client=ts_client,
-                                      db_host=os.getenv("OPTUNA_HOST", "localhost"),
-                                      db_port=os.getenv("OPTUNA_DOCKER_PORT", 5433),
-                                      db_user=os.getenv("OPTUNA_USER", "admin"),
-                                      db_pass=os.getenv("OPTUNA_PASSWORD", "admin"))
+                                      db_host=self.config.get("OPTUNA_HOST", "localhost"),
+                                      db_port=self.config.get("OPTUNA_DOCKER_PORT", 5433),
+                                      db_user=self.config.get("OPTUNA_USER", "admin"),
+                                      db_pass=self.config.get("OPTUNA_PASSWORD", "admin"))
         logger.info("Optimizing strategy for top markets: {}".format(top_markets_df.shape[0]))
         for index, row in top_markets_df.iterrows():
             connector_name = row["connector_name"]
