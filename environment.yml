@@ -19,7 +19,7 @@ dependencies:
       - pandas_ta==0.3.14b
       - pyyaml
       - jupyter
-      - optuna
+      - optuna==4.0.0
       - optuna-dashboard
       - pathlib
       - pydantic==1.10.4
