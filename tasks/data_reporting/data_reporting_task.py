@@ -244,7 +244,7 @@ async def main():
     task = ReportGeneratorTask(
         name="Report Generator",
         config={
-            "host": "63.250.52.93",
+            "host": "localhost",
             "port": 5432,
             "user": "admin",
             "password": "admin",
