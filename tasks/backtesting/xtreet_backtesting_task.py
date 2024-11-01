@@ -11,7 +11,6 @@ from dotenv import load_dotenv
 from core.backtesting.optimizer import StrategyOptimizer
 from core.services.timescale_client import TimescaleClient
 from core.task_base import BaseTask
-from core.utils import load_dict_from_yaml
 from research_notebooks.xtreet_bb.xtreet_bt import XtreetBacktesting
 from research_notebooks.xtreet_bb.xtreet_config_gen_simple import XtreetConfigGenerator
 
@@ -24,29 +23,29 @@ class BacktestingTask(BaseTask):
     def __init__(self, name: str, frequency: timedelta, config: Dict[str, Any]):
         super().__init__(name, frequency, config)
         self.resolution = self.config["resolution"]
-        self.screener_config = self.config["config"]
-        self.root_path = config.get('root_path', "")
+        self.screener_config = self.config
+        self.root_path = self.config.get('root_path', "")
 
     def generate_top_markets_report(self, metrics_df: pd.DataFrame):
         metrics_df.sort_values(by=['trading_pair', 'to_timestamp'], ascending=[True, False])
         screener_report = metrics_df.drop_duplicates(subset='trading_pair', keep='first')
         screener_report.sort_values("mean_natr", ascending=False, inplace=True)
         natr_percentile = screener_report['mean_natr'].astype(float).quantile(
-            self.screener_config["screener_params"]["volatility_threshold"])
+            self.screener_config["volatility_threshold"])
         volume_percentile = screener_report['average_volume_per_hour'].astype(float).quantile(
-            self.screener_config["screener_params"]["volume_threshold"])
+            self.screener_config["volume_threshold"])
         screener_top_markets = screener_report[
             (screener_report['mean_natr'] > natr_percentile) &
             (screener_report['average_volume_per_hour'] > volume_percentile)
-            ].sort_values(by="average_volume_per_hour").head(self.screener_config["screener_params"]["max_top_markets"])
+            ].sort_values(by="average_volume_per_hour").head(self.screener_config["max_top_markets"])
         return screener_top_markets[["connector_name", "trading_pair", "from_timestamp", "to_timestamp"]]
 
     async def execute(self):
         ts_client = TimescaleClient(
-            host=os.getenv("TIMESCALE_HOST", "localhost"),
-            port=os.getenv("TIMESCALE_PORT", 5432),
-            user=os.getenv("TIMESCALE_USER", "admin"),
-            password=os.getenv("TIMESCALE_PASSWORD", "admin"),
+            host=self.config.get("TIMESCALE_HOST", "localhost"),
+            port=self.config.get("TIMESCALE_PORT", 5432),
+            user=self.config.get("TIMESCALE_USER", "admin"),
+            password=self.config.get("TIMESCALE_PASSWORD", "admin"),
             database="timescaledb"
         )
         await ts_client.connect()
@@ -57,23 +56,24 @@ class BacktestingTask(BaseTask):
 
         resolution = self.resolution
         optimizer = StrategyOptimizer(engine="postgres",
-                                      root_path=root_path,
+                                      root_path=self.root_path,
                                       resolution=resolution,
                                       db_client=ts_client,
                                       db_host=os.getenv("OPTUNA_HOST", "localhost"),
                                       db_port=os.getenv("OPTUNA_DOCKER_PORT", 5433),
                                       db_user=os.getenv("OPTUNA_USER", "admin"),
-                                      db_pass=os.getenv("OPTUNA_PASSWORD", "admin"),
-    )
-        logger.info("Optimizing strategy")
+                                      db_pass=os.getenv("OPTUNA_PASSWORD", "admin"))
+        logger.info("Optimizing strategy for top markets: {}".format(top_markets_df.shape[0]))
         for index, row in top_markets_df.iterrows():
             connector_name = row["connector_name"]
             trading_pair = row["trading_pair"]
             start_date = pd.Timestamp(row["from_timestamp"].timestamp(), unit="s")
             end_date = pd.Timestamp(row["to_timestamp"].timestamp(), unit="s")
+            logger.info(f"Optimizing strategy for {connector_name} {trading_pair} {start_date} {end_date}")
             config_generator = XtreetConfigGenerator(start_date=start_date, end_date=end_date,
                                                      backtester=XtreetBacktesting())
             config_generator.trading_pair = trading_pair
+            logger.info(f"Fetching candles for {connector_name} {trading_pair} {start_date} {end_date}")
             candles = await optimizer._db_client.get_candles(connector_name, trading_pair,
                                                              resolution, start_date.timestamp(), end_date.timestamp())
             start_time = candles.data["timestamp"].min()
@@ -84,15 +84,46 @@ class BacktestingTask(BaseTask):
             config_generator.end = end_time
 
             today_str = datetime.datetime.now().strftime("%Y-%m-%d")
-            await optimizer.optimize(study_name=f"xtreet_bb_task_{today_str}",
+            logger.info(f"Optimizing {connector_name} {trading_pair} {start_time} {end_time}")
+            await optimizer.optimize(study_name=f"jabalajoiii_{today_str}",
                                      config_generator=config_generator, n_trials=50)
 
 
-if __name__ == "__main__":
-    root_path = os.path.abspath(os.path.join(os.path.dirname(__file__), '..'))
+async def main():
     config = {
-        'config': load_dict_from_yaml(file_name="binance_config.yml", folder=f"{root_path}/config"),
-        'resolution': "1s",
+        "root_path": os.path.abspath(os.path.join(os.path.dirname(__file__), '..')),
+        "total_amount": 500,
+        "activation_bounds": 0.002,
+        "max_executors_per_side": 1,
+        "cooldown_time": 0,
+        "leverage": 20,
+        "time_limit": 86400,  # 60 * 60 * 24
+        "bb_lengths": [50, 100, 200],
+        "bb_stds": [1.0, 1.4, 1.8, 2.0, 3.0],
+        "intervals": ["1m", "5m", "15m"],
+        "volume_threshold": 0.5,
+        "volatility_threshold": 0.5,
+        "ts_delta_multiplier": 0.2,
+        "max_top_markets": 20,
+        "max_dca_amount_ratio": 5,
+        "backtesting_resolution": "1s",
+        "min_distance_between_orders": 0.01,
+        "max_ts_sl_ratio": 0.5,
+        "lookback_days": 7,
+        "resolution": "1s",
+        "TIMESCALE_HOST": "localhost",
+        "TIMESCALE_PORT": 5432,
+        "TIMESCALE_USER": "admin",
+        "TIMESCALE_PASSWORD": "admin",
+        "OPTUNA_HOST": "localhost",
+        "OPTUNA_DOCKER_PORT": 5433,
+        "OPTUNA_USER": "admin",
+        "OPTUNA_PASSWORD": "admin",
     }
+
     task = BacktestingTask("Backtesting", timedelta(hours=24), config)
-    asyncio.run(task.execute())
+    await task.execute()
+
+
+if __name__ == "__main__":
+    asyncio.run(main())
