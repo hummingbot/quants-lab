@@ -102,6 +102,7 @@ class StrategyOptimizer:
         self._backtesting_engine = BacktestingEngine(load_cached_data=load_cached_data)
         self._db_client = db_client
         self.resolution = resolution
+        logger.info(f"Connecting to {engine} database...")
         if engine == "sqlite":
             db_path = os.path.join(root_path, "data", "backtesting", f"{database_name}.db")
             self._storage_name = f"sqlite:///{db_path}"
@@ -182,6 +183,7 @@ class StrategyOptimizer:
         Returns:
             optuna.Study: The created or loaded study.
         """
+        logger.info("About to create a study...")
         return optuna.create_study(
             direction=direction,
             study_name=study_name,
@@ -202,6 +204,7 @@ class StrategyOptimizer:
             load_if_exists (bool): Whether to load an existing study if available.
         """
         study = self._create_study(study_name, load_if_exists=load_if_exists)
+        logger.info("About to start optimizing...")
         await self._optimize_async(study, config_generator, n_trials=n_trials)
 
     async def optimize_custom_configs(self, study_name: str, config_generator: Type[BaseStrategyConfigGenerator],

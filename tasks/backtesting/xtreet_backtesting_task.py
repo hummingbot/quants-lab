@@ -84,8 +84,7 @@ class BacktestingTask(BaseTask):
             config_generator.end = end_time
 
             today_str = datetime.datetime.now().strftime("%Y-%m-%d")
-            logger.info(f"Optimizing {connector_name} {trading_pair} {start_time} {end_time}")
-            await optimizer.optimize(study_name=f"jabalajoiii_{today_str}",
+            await optimizer.optimize(study_name=f"xtreet_bb_task_{today_str}",
                                      config_generator=config_generator, n_trials=50)
 
 
