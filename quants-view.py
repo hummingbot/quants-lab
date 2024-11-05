@@ -243,8 +243,11 @@ async def main():
         col1, col2 = st.columns(2)
         col1.subheader("Deploy")
         if col1.button("Start bot"):
+            config_id = st.text_input("Controller ID", "el_amigo")
+            version = st.text_input("Select version", "0.1")
             msg = await backend_api_client.add_controller_config(config)
             col1.info(msg)
+            config["id"] = config_id + "_" + version
             msg = await backend_api_client.deploy_script_with_controllers(
                 bot_name="first_deploy_from_quants_view",
                 controller_configs=[config["id"] + ".yml"],
