@@ -13,6 +13,31 @@ services:
     command: conda run --no-capture-output -n quants-lab python3 tasks/task_runner.py
     network_mode: host
 
+  backtesting-runner:
+    image: hummingbot/quants_lab:latest
+    volumes:
+      - ./data:/quants-lab/data
+      - ./core:/quants-lab/core
+      - ./tasks:/quants-lab/tasks
+      - ./research_notebooks:/quants-lab/research_notebooks
+      - ./controllers:/quants-lab/controllers
+      - ./services:/quants-lab/services
+    environment:
+      - TIMESCALE_HOST=${TIMESCALE_HOST}
+      - TIMESCALE_PORT=${TIMESCALE_PORT}
+      - TIMESCALE_USER=${TIMESCALE_USER}
+      - TIMESCALE_PASSWORD=${TIMESCALE_PASSWORD}
+      - OPTUNA_HOST=${OPTUNA_HOST}
+      - OPTUNA_LOCAL_PORT=${OPTUNA_LOCAL_PORT}
+      - OPTUNA_DOCKER_PORT=${OPTUNA_DOCKER_PORT}
+      - OPTUNA_USER=${OPTUNA_USER}
+      - OPTUNA_PASSWORD=${OPTUNA_PASSWORD}
+    command: conda run --no-capture-output -n quants-lab python3 tasks/backtesting_runner.py
+    networks:
+      - quants-lab-network
+    depends_on:
+      - optuna-db  # Ensure Optuna database starts first
+
   timescaledb:
     container_name: timescaledb
     image: timescale/timescaledb:latest-pg14
