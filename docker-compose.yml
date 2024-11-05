@@ -36,7 +36,7 @@ services:
     networks:
       - quants-lab-network
     depends_on:
-      - optuna-db  # Ensure Optuna database starts first
+      - optunadb  # Ensure Optuna database starts first
 
   timescaledb:
     container_name: timescaledb
@@ -59,13 +59,13 @@ services:
       - POSTGRES_USER=${OPTUNA_USER}
       - POSTGRES_PASSWORD=${OPTUNA_PASSWORD}
       - POSTGRES_DB=optimization_database
+      - PGPORT=5433
     volumes:
       - optuna-data:/var/lib/postgresql/data
     ports:
       - "5433:5432"
     networks:
       - quants-lab-network
-
 
 networks:
   quants-lab-network:
