@@ -120,7 +120,7 @@ async def main():
         "OPTUNA_PASSWORD": "admin",
     }
 
-    task = BacktestingTask("Backtesting", timedelta(hours=24), config)
+    task = BacktestingTask("Backtesting", timedelta(hours=12), config)
     await task.execute()
 
 
