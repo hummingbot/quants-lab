@@ -1,15 +1,14 @@
-from typing import List, Dict, Any
-
-import streamlit as st
-import json
-import pandas as pd
 import asyncio
+import json
+from typing import Dict, List
 
+import pandas as pd
 import plotly.express as px
+import streamlit as st
 
+from core.backtesting.optimizer import StrategyOptimizer
 from core.services.backend_api_client import BackendAPIClient
 from core.services.timescale_client import TimescaleClient
-from core.backtesting.optimizer import StrategyOptimizer
 
 st.set_page_config(layout="wide", page_title="Quants-View")
 
@@ -161,15 +160,15 @@ def get_screener_top_markets_gantt_fig(df: pd.DataFrame):
 
 async def main():
     st.title("Welcome to Quants-View")
-    ts_client = TimescaleClient(host="63.250.52.93")
+    ts_client = TimescaleClient(host="localhost")
     await ts_client.connect()
     optimizer = StrategyOptimizer(engine="postgres",
                                   db_client=ts_client,
-                                  db_host="63.250.52.93",
+                                  db_host="localhost",
                                   db_user="admin",
                                   db_pass="admin",
                                   db_port=5433)
-    backend_api_client = BackendAPIClient(host="63.250.52.140")
+    backend_api_client = BackendAPIClient(host="localhost")
 
     # Define the variables to initialize and their respective functions
     initial_vars = {
