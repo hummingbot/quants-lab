@@ -15,6 +15,21 @@ async def main():
     from core.task_base import TaskOrchestrator
     from tasks.backtesting.xtreet_backtesting_task import BacktestingTask
     orchestrator = TaskOrchestrator()
+
+    timescale_config = {
+        "host": os.getenv("TIMESCALE_HOST", "localhost"),
+        "port": os.getenv("TIMESCALE_PORT", 5432),
+        "user": os.getenv("TIMESCALE_USER", "admin"),
+        "password": os.getenv("TIMESCALE_PASSWORD", "admin"),
+        "database": os.getenv("TIMESCALE_DB", "timescaledb")
+    }
+    optuna_config = {
+        "host": os.getenv("OPTUNA_HOST", "localhost"),
+        "port": os.getenv("OPTUNA_PORT", 5433),
+        "user": os.getenv("OPTUNA_USER", "admin"),
+        "password": os.getenv("OPTUNA_PASSWORD", "admin"),
+        "database": os.getenv("OPTUNA_DB", "optimization_database")
+    }
     config = {
         "root_path": os.path.abspath(os.path.join(os.path.dirname(__file__), '..')),
         "total_amount": 500,
@@ -36,14 +51,8 @@ async def main():
         "max_ts_sl_ratio": 0.5,
         "lookback_days": 7,
         "resolution": "1s",
-        "TIMESCALE_HOST": "localhost",
-        "TIMESCALE_PORT": 5432,
-        "TIMESCALE_USER": "admin",
-        "TIMESCALE_PASSWORD": "admin",
-        "OPTUNA_HOST": "optunadb",
-        "OPTUNA_DOCKER_PORT": 5433,
-        "OPTUNA_USER": "admin",
-        "OPTUNA_PASSWORD": "admin",
+        "timescale_config": timescale_config,
+        "optuna_config": optuna_config
     }
 
     backtesting_task = BacktestingTask("Backtesting", timedelta(hours=12), config)

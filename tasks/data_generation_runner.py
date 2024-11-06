@@ -18,25 +18,29 @@ async def main():
 
     orchestrator = TaskOrchestrator()
 
-    trades_downloader_config = {
-        'connector_name': 'binance_perpetual',
-        'quote_asset': 'USDT',
-        'min_notional_size': 10.0,
-        'days_data_retention': 10
+    timescale_config = {
+        "host": os.getenv("TIMESCALE_HOST", "localhost"),
+        "port": os.getenv("TIMESCALE_PORT", 5432),
+        "user": os.getenv("TIMESCALE_USER", "admin"),
+        "password": os.getenv("TIMESCALE_PASSWORD", "admin"),
+        "database": os.getenv("TIMESCALE_DB", "timescaledb")
     }
+
     trades_downloader_task = TradesDownloaderTask(
-        "Trades Downloader Binance",
-        timedelta(hours=5),
-        trades_downloader_config)
+        name="Trades Downloader Binance",
+        config={
+            "timescale_config": timescale_config,
+            'connector_name': 'binance_perpetual',
+            'quote_asset': 'USDT',
+            'min_notional_size': 10.0,
+            'days_data_retention': 10
+        },
+        frequency=timedelta(hours=5))
 
     report_task = ReportGeneratorTask(
         name="Report Generator",
         config={
-            "host": "localhost",
-            "port": 5432,
-            "user": "admin",
-            "password": "admin",
-            "database": "timescaledb",
+            "timescale_config": timescale_config,
         },
         frequency=timedelta(hours=24))
 
