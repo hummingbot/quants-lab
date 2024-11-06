@@ -42,11 +42,11 @@ class BacktestingTask(BaseTask):
 
     async def execute(self):
         ts_client = TimescaleClient(
-            host=self.config.get("TIMESCALE_HOST", "localhost"),
-            port=self.config.get("TIMESCALE_PORT", 5432),
-            user=self.config.get("TIMESCALE_USER", "admin"),
-            password=self.config.get("TIMESCALE_PASSWORD", "admin"),
-            database="timescaledb"
+            host=self.config["timescale_config"]["host"],
+            port=self.config["timescale_config"]["port"],
+            user=self.config["timescale_config"]["user"],
+            password=self.config["timescale_config"]["password"],
+            database=self.config["timescale_config"]["database"]
         )
         await ts_client.connect()
 
@@ -59,10 +59,12 @@ class BacktestingTask(BaseTask):
                                       root_path=self.root_path,
                                       resolution=resolution,
                                       db_client=ts_client,
-                                      db_host=self.config.get("OPTUNA_HOST", "localhost"),
-                                      db_port=self.config.get("OPTUNA_DOCKER_PORT", 5433),
-                                      db_user=self.config.get("OPTUNA_USER", "admin"),
-                                      db_pass=self.config.get("OPTUNA_PASSWORD", "admin"))
+                                      db_host=self.config["optuna_config"]["host"],
+                                      db_port=self.config["optuna_config"]["port"],
+                                      db_user=self.config["optuna_config"]["user"],
+                                      db_pass=self.config["optuna_config"]["password"],
+                                      database_name=self.config["optuna_config"]["database"],
+                                      )
         logger.info("Optimizing strategy for top markets: {}".format(top_markets_df.shape[0]))
         for index, row in top_markets_df.iterrows():
             connector_name = row["connector_name"]

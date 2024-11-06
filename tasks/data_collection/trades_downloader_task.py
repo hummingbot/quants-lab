@@ -1,13 +1,12 @@
 import asyncio
 import logging
-import os
 import time
 from datetime import datetime, timedelta, timezone
 from decimal import Decimal
 from typing import Any, Dict
-from dotenv import load_dotenv
 
 import pandas as pd
+from dotenv import load_dotenv
 
 from core.data_sources import CLOBDataSource
 from core.services.timescale_client import TimescaleClient
@@ -36,11 +35,11 @@ class TradesDownloaderTask(BaseTask):
         logging.info(f"{now} - Quote asset: {self.quote_asset}, Min notional size: {self.min_notional_size}")
 
         timescale_client = TimescaleClient(
-            host=os.getenv("TIMESCALE_HOST", "localhost"),
-            port=os.getenv("TIMESCALE_PORT", 5432),
-            user=os.getenv("TIMESCALE_USER", "admin"),
-            password=os.getenv("TIMESCALE_PASSWORD", "admin"),
-            database="timescaledb"
+            host=self.config["timescale_config"]["host"],
+            port=self.config["timescale_config"]["port"],
+            user=self.config["timescale_config"]["user"],
+            password=self.config["timescale_config"]["password"],
+            database=self.config["timescale_config"]["database"]
         )
         await timescale_client.connect()
 
