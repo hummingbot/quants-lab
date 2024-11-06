@@ -1,25 +1,24 @@
 import datetime
+import logging
 import os.path
 import subprocess
 import traceback
 from abc import ABC, abstractmethod
 from typing import List, Optional, Type
-from dotenv import load_dotenv
 
 import optuna
+from dotenv import load_dotenv
+from hummingbot.strategy_v2.backtesting.backtesting_engine_base import BacktestingEngineBase
+from hummingbot.strategy_v2.controllers import ControllerConfigBase
 from pydantic import BaseModel
-import logging
-
-logging.basicConfig(level=logging.INFO)
-logger = logging.getLogger(__name__)
 
 from core.backtesting import BacktestingEngine
 from core.services.timescale_client import TimescaleClient
-from hummingbot.strategy_v2.backtesting.backtesting_engine_base import BacktestingEngineBase
-from hummingbot.strategy_v2.controllers import ControllerConfigBase
-
 
 load_dotenv()
+
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
 
 
 class BacktestingConfig(BaseModel):
@@ -329,7 +328,7 @@ class StrategyOptimizer:
             executors_df = backtesting_result.executors_df.copy()
             executors_df["close_type"] = executors_df["close_type"].apply(lambda x: x.name)
             executors_df["status"] = executors_df["status"].apply(lambda x: x.name)
-            executors_df.drop(columns=["config", "custom_info"], inplace=True)
+            executors_df.drop(columns=["config"], inplace=True)
             trial.set_user_attr("executors", executors_df.to_json())
 
             # Return the value you want to optimize
