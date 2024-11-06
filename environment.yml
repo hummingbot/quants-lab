@@ -30,7 +30,6 @@ dependencies:
       - commlib-py
       - rich
       - python-dotenv
-      - psycopg2-binary
       - streamlit
       - asyncpg
       - psycopg2-binary
