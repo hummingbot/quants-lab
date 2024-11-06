@@ -21,20 +21,15 @@ logging.basicConfig(level=logging.INFO)
 class ReportGeneratorTask(BaseTask):
     def __init__(self, name: str, frequency: timedelta, config: Dict[str, Any]):
         super().__init__(name, frequency, config)
-        self.host = config["host"]
-        self.port = config["port"]
-        self.user = config["user"]
-        self.password = config["password"]
-        self.database = config["database"]
         self.pool = None
 
     async def connect(self):
         self.pool = await asyncpg.create_pool(
-            host=self.host,
-            port=self.port,
-            user=self.user,
-            password=self.password,
-            database=self.database
+            host=self.config["timescale_config"]["host"],
+            port=self.config["timescale_config"]["port"],
+            user=self.config["timescale_config"]["user"],
+            password=self.config["timescale_config"]["password"],
+            database=self.config["timescale_config"]["database"]
         )
 
     async def execute_query(self, query: str):
