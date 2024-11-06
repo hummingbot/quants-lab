@@ -286,6 +286,8 @@ class StrategyOptimizer:
                 for key, value in strategy_analysis.items():
                     trial.set_user_attr(key, value)
                 trial.set_user_attr("config", backtesting_result.controller_config.json())
+                trial.set_user_attr("start_bt", start)
+                trial.set_user_attr("end_bt", end)
 
                 # Return the value you want to optimize
                 value = strategy_analysis["net_pnl"]
