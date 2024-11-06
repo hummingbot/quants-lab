@@ -160,15 +160,15 @@ def get_screener_top_markets_gantt_fig(df: pd.DataFrame):
 
 async def main():
     st.title("Welcome to Quants-View")
-    ts_client = TimescaleClient(host="localhost")
+    ts_client = TimescaleClient(host="63.250.52.93")
     await ts_client.connect()
     optimizer = StrategyOptimizer(engine="postgres",
                                   db_client=ts_client,
-                                  db_host="localhost",
+                                  db_host="63.250.52.93",
                                   db_user="admin",
                                   db_pass="admin",
                                   db_port=5433)
-    backend_api_client = BackendAPIClient(host="localhost")
+    backend_api_client = BackendAPIClient(host="63.250.52.140")
 
     # Define the variables to initialize and their respective functions
     initial_vars = {
@@ -227,36 +227,38 @@ async def main():
         )
         trial_performance["net_pnl"] = trial_performance["net_pnl"].apply(lambda x: f"{x * 100:.2f}%")
 
-        st.dataframe(trial_performance,
-                     hide_index=True,
-                     column_config={
-                         "cum_net_pnl_quote": st.column_config.LineChartColumn("Cum. Net Pnl Quote", width=400),
-                     },
-                     use_container_width=True)
+        st.data_editor(trial_performance,
+                       hide_index=True,
+                       column_config={
+                           "cum_net_pnl_quote": st.column_config.LineChartColumn("Cum. Net Pnl Quote", width=400),
+                       },
+                       use_container_width=True)
         st.subheader("Select your favorite trial")
-        study_name = st.selectbox("Study Name", trial_performance["study_name"].unique())
-        trial_numbers = filtered_trials.loc[filtered_trials["study_name"] == study_name, "number"].unique()
-        trial_number = st.selectbox("Trial Number", trial_numbers)
-        config = filtered_trials.loc[(filtered_trials["study_name"] == study_name) & (filtered_trials["number"] == trial_number),
-                                     "config"].iloc[0]
-        col1, col2 = st.columns(2)
-        col1.subheader("Deploy")
-        if col1.button("Start bot"):
-            config_id = st.text_input("Controller ID", "el_amigo")
+        c1, c2, c3 = st.columns([1, 1, 0.5])
+        with c1:
+            study_name = st.selectbox("Study Name", trial_performance["study_name"].unique())
+        with c2:
+            trial_numbers = filtered_trials.loc[filtered_trials["study_name"] == study_name, "number"].unique()
+            trial_number = st.selectbox("Trial Number", trial_numbers)
+        config = filtered_trials.loc[(filtered_trials["study_name"] == study_name) &
+                                     (filtered_trials["number"] == trial_number), "config"].iloc[0].copy()
+        with c1:
+            config_id = st.text_input("Controller ID", config["id"])
+        with c2:
             version = st.text_input("Select version", "0.1")
-            msg = await backend_api_client.add_controller_config(config)
-            col1.info(msg)
             config["id"] = config_id + "_" + version
-            msg = await backend_api_client.deploy_script_with_controllers(
-                bot_name="first_deploy_from_quants_view",
-                controller_configs=[config["id"] + ".yml"],
-                image_name="hummingbot/hummingbot:latest",
-                max_global_drawdown=30,
-                max_controller_drawdown=20,
-            )
-            col1.info(msg)
-        col2.subheader("Config Detected")
-        col2.json(config)
+        with c3:
+            backtest_button = st.button("Backtest")
+            save_config_button = st.button("Upload to Backend API")
+
+        if backtest_button:
+            # NANUPO MOSTRA EL BT
+            pass
+        if save_config_button:
+            msg = await backend_api_client.add_controller_config(config)
+            st.info(msg)
+
+        st.json(config, expanded=False)
 
     with db_status_tab:
         col1, col2, col3 = st.columns(3)
