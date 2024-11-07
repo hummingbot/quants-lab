@@ -262,6 +262,10 @@ class StrategyOptimizer:
                 trading_pair = bt_config.config.trading_pair
                 start = bt_config.start
                 end = bt_config.end
+
+                trial.set_user_attr("config", bt_config.config.json())
+                trial.set_user_attr("start_bt", start)
+                trial.set_user_attr("end_bt", end)
                 candles = await self._db_client.get_candles(connector_name,
                                                             trading_pair,
                                                             self.resolution, start, end)
@@ -285,9 +289,10 @@ class StrategyOptimizer:
 
                 for key, value in strategy_analysis.items():
                     trial.set_user_attr(key, value)
-                trial.set_user_attr("config", backtesting_result.controller_config.json())
-                trial.set_user_attr("start_bt", start)
-                trial.set_user_attr("end_bt", end)
+                executors_df = backtesting_result.executors_df.copy()
+                trial.set_user_attr("executors", executors_df.to_json())
+                executors_df["close_type"] = executors_df["close_type"].apply(lambda x: x.name)
+                executors_df["status"] = executors_df["status"].apply(lambda x: x.name)
 
                 # Return the value you want to optimize
                 value = strategy_analysis["net_pnl"]
