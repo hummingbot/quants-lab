@@ -29,15 +29,13 @@ INTERVAL_MAPPING = {
 
 class TimescaleClient:
     def __init__(self, host: str = "localhost", port: int = 5432,
-                 user: str = "admin", password: str = "admin", database: str = "timescaledb",
-                 volatility_config: VolatilityConfig = VolatilityConfig()):
+                 user: str = "admin", password: str = "admin", database: str = "timescaledb"):
         self.host = host
         self.port = port
         self.user = user
         self.password = password
         self.database = database
         self.pool = None
-        self.volatility_config = volatility_config
 
     async def connect(self):
         self.pool = await asyncpg.create_pool(
@@ -66,20 +64,15 @@ class TimescaleClient:
                 CREATE TABLE IF NOT EXISTS {self.metrics_table_name} (
                 connector_name TEXT NOT NULL,
                 trading_pair TEXT NOT NULL,
-                interval TEXT NOT NULL,
+                trade_amount NUMERIC,
+                price_avg NUMERIC,
+                price_max NUMERIC,
+                price_min NUMERIC,
+                price_median NUMERIC,
                 from_timestamp TIMESTAMPTZ NOT NULL,
                 to_timestamp TIMESTAMPTZ NOT NULL,
-                mean_volatility NUMERIC,
-                mean_natr NUMERIC,
-                mean_bb_100_2_width NUMERIC,
-                total_volume_usd NUMERIC,
-                average_volume_per_hour NUMERIC,
-                last_price NUMERIC,
-                min_price_increment NUMERIC,
-                price_step_pct NUMERIC,
-                total_volume_usd_24h NUMERIC,
-                mean_natr_24h NUMERIC,
-                mean_bb_100_2_width_24h NUMERIC
+                volume_usd NUMERIC,
+                total_hours NUMERIC
             );
             ''')
 
@@ -271,35 +264,27 @@ class TimescaleClient:
                 for i, row in candles.data.iterrows()
             ])
 
-    async def compute_candles_metrics(self, connector_name: str, trading_pair: str, interval: str):
+    async def execute_query(self, query: str):
+        async with self.pool.acquire() as connection:
+            return await connection.fetch(query)
+
+    def metrics_query_str(self, connector_name, trading_pair, cond='>=', day='CURRENT_DATE'):
         table_name = self.get_trades_table_name(connector_name, trading_pair)
-        # when passing an interval like 5m or 15m and setting from_trades to true, will resample automatically
-        candle = await self.get_candles(connector_name, trading_pair, interval, from_trades=True)
-        candle.add_features([Volatility(self.volatility_config)])
-        from_timestamp = await self.get_min_timestamp(table_name)
-        to_timestamp = await self.get_max_timestamp(table_name)
-        df = candle.data.copy()
-        df["volume_usd"] = df["volume"] * df["close"]
-        total_volume_usd = df["volume_usd"].sum()
-        total_hours = (df.index[-1] - df.index[0]).total_seconds() / 3600
-        average_volume_per_hour = total_volume_usd / total_hours
-        df_24h = df[df["timestamp"] >= to_timestamp - 24 * 60 * 60]
-        return {
-            "connector_name": connector_name,
-            "trading_pair": trading_pair,
-            "interval": interval,
-            "from_timestamp": from_timestamp,
-            "to_timestamp": to_timestamp,
-            "mean_volatility": df['volatility'].mean(),
-            "mean_natr": df['natr'].mean(),
-            "mean_bb_100_2_width": df['bb_width'].mean(),
-            "total_volume_usd": total_volume_usd,
-            "average_volume_per_hour": average_volume_per_hour,
-            "last_price": df["close"].iloc[-1],
-            "total_volume_usd_24h": df_24h["volume_usd"].sum(),
-            "mean_natr_24h": df_24h["natr"].mean(),
-            "mean_bb_100_2_width_24h": df_24h["bb_width"].mean()
-        }
+        return f'''
+            SELECT '{connector_name}' AS connector_name,
+                   '{trading_pair}' AS trading_pair,
+                   COUNT(*) AS trade_amount,
+                   AVG(price) AS price_avg,
+                   MAX(price) AS price_max,
+                   MIN(price) AS price_min,
+                   PERCENTILE_CONT(0.5) WITHIN GROUP (ORDER BY price) AS price_median,
+                   MIN(timestamp) AS from_timestamp,
+                   MAX(timestamp) AS to_timestamp,
+                   SUM(price * volume) AS volume_usd,
+                   (MAX(timestamp) - MIN(timestamp)) / (60 * 60) AS total_hours
+            FROM {table_name}
+            WHERE timestamp::DATE {cond} {day}
+        '''
 
     async def get_metrics_df(self):
         async with self.pool.acquire() as conn:
@@ -309,63 +294,41 @@ class TimescaleClient:
         df_cols = [
             "connector_name",
             "trading_pair",
-            "interval",
+            "trade_amount",
+            "price_avg",
+            "price_max",
+            "price_min",
+            "price_median",
             "from_timestamp",
             "to_timestamp",
-            "mean_volatility",
-            "mean_natr",
-            "mean_bb_100_2_width",
-            "total_volume_usd",
-            "average_volume_per_hour",
-            "last_price",
-            "min_price_increment",
-            "price_step_pct",
-            "total_volume_usd_24h",
-            "mean_natr_24h",
-            "mean_bb_100_2_width_24h"
+            "volume_usd",
+            "total_hours",
         ]
         df = pd.DataFrame(rows, columns=df_cols)
         return df
 
     async def append_metrics(self, connector_name: str, trading_pair: str, interval: str):
         async with self.pool.acquire() as conn:
+            query = self.metrics_query_str(connector_name, trading_pair)
+            metrics = await self.execute_query(query)
+            metrics_dict = dict(metrics[0])
+
+            columns = ", ".join(metrics_dict.keys())
+            placeholders = ", ".join([f"${i + 1}" for i in range(len(metrics_dict))])
+
+            # Build the update clause dynamically for each key
+            update_clause = ", ".join([f"{key} = EXCLUDED.{key}" for key in metrics_dict.keys()])
+
+            # Create the table if it doesn't exist
             await self.create_metrics_table()
-            metrics = await self.compute_candles_metrics(connector_name, trading_pair, interval)
-            # Use parameter placeholders instead of direct f-string interpolation
+
+            # Execute the upsert query
             await conn.execute(f'''
-                       INSERT INTO {self.metrics_table_name} (
-                           connector_name,
-                           trading_pair,
-                           interval,
-                           from_timestamp,
-                           to_timestamp,
-                           mean_volatility,
-                           mean_natr,
-                           mean_bb_100_2_width,
-                           total_volume_usd,
-                           average_volume_per_hour,
-                           last_price,
-                           total_volume_usd_24h,
-                           mean_natr_24h,
-                           mean_bb_100_2_width_24h)
-                       VALUES (
-                           $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14
-                       )
-                   ''',
-                               metrics["connector_name"],
-                               metrics["trading_pair"],
-                               metrics["interval"],
-                               datetime.fromtimestamp(metrics["from_timestamp"]),
-                               datetime.fromtimestamp(metrics["to_timestamp"]),
-                               metrics["mean_volatility"],
-                               metrics["mean_natr"],
-                               metrics["mean_bb_100_2_width"],
-                               metrics["total_volume_usd"],
-                               metrics["average_volume_per_hour"],
-                               metrics["last_price"],
-                               metrics["total_volume_usd_24h"],
-                               metrics["mean_natr_24h"],
-                               metrics["mean_bb_100_2_width_24h"])
+                INSERT INTO {self.metrics_table_name} ({columns})
+                VALUES ({placeholders})
+                ON CONFLICT (connector_name, trading_pair)
+                DO UPDATE SET {update_clause}
+            ''', *metrics_dict.values())
 
     async def get_candles(self, connector_name: str, trading_pair: str, interval: str,
                           start_time: Optional[float] = None,
