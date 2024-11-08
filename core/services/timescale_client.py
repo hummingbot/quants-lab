@@ -61,7 +61,8 @@ class TimescaleClient:
     async def create_metrics_table(self):
         async with self.pool.acquire() as conn:
             await conn.execute(f'''
-                CREATE TABLE IF NOT EXISTS {self.metrics_table_name                    connector_name TEXT NOT NULL,
+                CREATE TABLE IF NOT EXISTS {self.metrics_table_name} (
+                    connector_name TEXT NOT NULL,
                     trading_pair TEXT NOT NULL,
                     trade_amount REAL,
                     price_avg REAL,
