@@ -22,7 +22,6 @@ def get_study_names(_optimizer: StrategyOptimizer) -> List[str]:
 @st.cache_data
 def get_study_trials_df_dict(_optimizer: StrategyOptimizer, study_names: List[str]) -> Dict[str, pd.DataFrame]:
     study_trials_df_dict = {}
-    study_names = ["macdmt_task_2024-11-07"]
     for study in study_names:
         try:
             df = _optimizer.get_study_trials_df(study)
