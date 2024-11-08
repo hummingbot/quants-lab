@@ -28,7 +28,7 @@ class BacktestingTask(BaseTask):
 
     def generate_top_markets_report(self, status_db_df: pd.DataFrame):
         df = status_db_df.copy()
-        df.sort_values("total_volume_usd", ascending=False, inplace=True)
+        df.sort_values("volume_usd", ascending=False, inplace=True)
         screener_top_markets = df.head(self.screener_config["max_top_markets"])
         return screener_top_markets[["connector_name", "trading_pair", "from_timestamp", "to_timestamp"]]
 
