@@ -15,18 +15,18 @@ class XtreetConfigGenerator(BaseStrategyConfigGenerator):
         trading_pair = self.trading_pair
         interval = trial.suggest_categorical("interval", ["1m"])
         # Generate specific Xtreet metrics
-        bb_length = trial.suggest_int("bb_length", 20, 220, step=40)
+        bb_length = trial.suggest_int("bb_length", 50, 200, step=50)
         bb_std = trial.suggest_float("bb_std", 0.5, 2.5, step=1.0)
 
         # Metrics management
-        dca_spread_1 = trial.suggest_float("last_spread", 0.1, 0.8, step=0.1)
+        dca_spread_1 = trial.suggest_float("last_spread", 0.2, 0.8, step=0.2)
         dca_amount_1 = trial.suggest_float("last_amount", 1.0, 3.0, step=1.0)
 
         # Triple barrier metrics
-        stop_loss = trial.suggest_float("stop_loss", 0.1, 0.8, step=0.1)
-        max_executors_per_side = trial.suggest_int("max_executors_per_side", 1, 3, step=2)
-        trailing_stop_activation = trial.suggest_float("trailing_stop_activation", 0.1, 0.5, step=0.1)
-        trailing_stop_delta = trial.suggest_float("trailing_stop_delta", 0.2, 0.6, step=0.2)
+        stop_loss = trial.suggest_float("stop_loss", 0.2, 0.8, step=0.2)
+        max_executors_per_side = 1
+        trailing_stop_activation = trial.suggest_float("trailing_stop_activation", 0.2, 0.6, step=0.2)
+        trailing_stop_delta = trial.suggest_float("trailing_stop_delta", 0.3, 0.6, step=0.3)
         trailing_stop = TrailingStop(
             activation_price=Decimal(trailing_stop_activation),
             trailing_delta=Decimal(trailing_stop_delta)
@@ -56,11 +56,11 @@ class XtreetConfigGenerator(BaseStrategyConfigGenerator):
             dynamic_target=True,
             min_stop_loss=Decimal("0.007"),
             max_stop_loss=Decimal("0.1"),
-            min_trailing_stop=Decimal("0.0025"),
+            min_trailing_stop=Decimal("0.004"),
             max_trailing_stop=Decimal("0.03"),
             min_distance_between_orders=Decimal("0.004"),
             time_limit=60 * 60 * 2,
             max_executors_per_side=max_executors_per_side,
-            cooldown_time=60 * 5
+            cooldown_time=0
         )
         return BacktestingConfig(config=config, start=self.start, end=self.end)
