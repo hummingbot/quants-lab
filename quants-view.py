@@ -22,9 +22,13 @@ def get_study_names(_optimizer: StrategyOptimizer) -> List[str]:
 @st.cache_data
 def get_study_trials_df_dict(_optimizer: StrategyOptimizer, study_names: List[str]) -> Dict[str, pd.DataFrame]:
     study_trials_df_dict = {}
+    study_names = ["macdmt_task_2024-11-07"]
     for study in study_names:
-        df = _optimizer.get_study_trials_df(study)
-        study_trials_df_dict[study] = preprocess_trials_df(df)
+        try:
+            df = _optimizer.get_study_trials_df(study)
+            study_trials_df_dict[study] = preprocess_trials_df(df)
+        except Exception as e:
+            print(f"Ignoring {study} since it hasn't stored executors")
     return study_trials_df_dict
 
 
@@ -121,20 +125,12 @@ def download_csv_button(df: pd.DataFrame, file_name: str):
                        mime="text/csv")
 
 
-def generate_top_markets_report(metrics_df: pd.DataFrame, volatility_threshold: float,
-                                volume_threshold: float, max_top_markets: int = 50):
-    metrics_df.sort_values(by=['trading_pair', 'to_timestamp'], ascending=[True, False])
-    screener_report = metrics_df.drop_duplicates(subset='trading_pair', keep='first')
-    screener_report.sort_values("mean_natr", ascending=False, inplace=True)
-    natr_percentile = screener_report['mean_natr'].astype(float).quantile(volatility_threshold)
-    volume_percentile = screener_report['average_volume_per_hour'].astype(float).quantile(volume_threshold)
-    screener_top_markets = screener_report[
-        (screener_report['mean_natr'] > natr_percentile) &
-        (screener_report['average_volume_per_hour'] > volume_percentile)].head(max_top_markets)
-    screener_top_markets["market"] = screener_top_markets["connector_name"] + "_" + screener_top_markets[
-        "trading_pair"]
-    screener_top_markets.sort_values("to_timestamp", ascending=False, inplace=True)
-    return screener_top_markets
+def generate_top_markets_report(status_db_df: pd.DataFrame, max_top_markets: int = 50):
+    df = status_db_df.copy()
+    df.sort_values("volume_usd", ascending=False, inplace=True)
+    df["market"] = df["connector_name"] + "_" + df["trading_pair"]
+    screener_top_markets = df.head(max_top_markets)
+    return screener_top_markets[["connector_name", "trading_pair", "from_timestamp", "to_timestamp", "market"]]
 
 
 def get_screener_top_markets_gantt_fig(df: pd.DataFrame):
@@ -198,10 +194,10 @@ async def main():
                                     (trials_df["net_pnl"] >= min_net_pnl_pct)]
         sharpe_vs_total_positions_fig = px.scatter(filtered_trials, x="total_executors", y="sharpe_ratio",
                                                    color="net_pnl",
-                                                   hover_data=["study_name", "number", "interval", "total_volume"])
+                                                   hover_data=["study_name", "number", "total_volume"])
         net_pnl_vs_max_drawdown_fig = px.scatter(filtered_trials, x="max_drawdown_pct", y="net_pnl",
                                                  color="total_positions",
-                                                 hover_data=["study_name", "number", "interval",
+                                                 hover_data=["study_name", "number",
                                                              "sharpe_ratio", "total_volume"])
         col1, col2 = st.columns(2)
         col1.plotly_chart(sharpe_vs_total_positions_fig, use_container_width=True)
@@ -263,16 +259,33 @@ async def main():
         st.json(config, expanded=False)
 
     with db_status_tab:
+        def get_data_quality_bar_plot_fig(df: pd.DataFrame):
+            df['days_recorded'] = (df['to_timestamp'] - df['from_timestamp']).dt.days + 1
+
+            # Sort by number of recorded days
+            df_sorted = df.sort_values(by='days_recorded', ascending=True)
+
+            # Create a bar plot with Plotly
+            fig = px.bar(
+                df_sorted,
+                x='days_recorded',
+                y='market',
+                orientation='h',
+                title='Number of Recorded Days per Market',
+                labels={'days_recorded': 'Days Recorded', 'market': 'Market'},
+                color='days_recorded',
+                color_continuous_scale='Blues'
+            )
+            return fig
+
         col1, col2, col3 = st.columns(3)
-        metrics_df = await ts_client.get_db_status_df()
-        volatility_threshold = col1.number_input("Volatility Percentile Threshold", 0.0)
-        volume_threshold = col2.number_input("Volume Percentile Threshold", 0.0)
-        max_top_markets = col3.number_input("Max Top Markets", 10)
-        screener_top_markets = generate_top_markets_report(metrics_df=metrics_df,
-                                                           volatility_threshold=volatility_threshold,
-                                                           volume_threshold=volume_threshold,
+        status_db_df = await ts_client.get_db_status_df()
+        max_top_markets = col3.number_input("Max Top Markets", 50)
+        screener_top_markets = generate_top_markets_report(status_db_df=status_db_df,
                                                            max_top_markets=max_top_markets)
+        data_quality_bar_plot_fig = get_data_quality_bar_plot_fig(screener_top_markets)
         screener_top_markets_gantt_fig = get_screener_top_markets_gantt_fig(screener_top_markets)
+        st.plotly_chart(data_quality_bar_plot_fig, use_container_width=True)
         st.plotly_chart(screener_top_markets_gantt_fig, use_container_width=True)
 
     with audit_tab:
