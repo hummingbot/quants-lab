@@ -97,7 +97,7 @@ async def main():
         "volume_threshold": 0.5,
         "volatility_threshold": 0.5,
         "ts_delta_multiplier": 0.2,
-        "max_top_markets": 20,
+        "max_top_markets": 50,
         "max_dca_amount_ratio": 5,
         "backtesting_resolution": "1s",
         "min_distance_between_orders": 0.01,
