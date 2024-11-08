@@ -61,19 +61,17 @@ class TimescaleClient:
     async def create_metrics_table(self):
         async with self.pool.acquire() as conn:
             await conn.execute(f'''
-                CREATE TABLE IF NOT EXISTS {self.metrics_table_name} (
-                connector_name TEXT NOT NULL,
-                trading_pair TEXT NOT NULL,
-                trade_amount NUMERIC,
-                price_avg NUMERIC,
-                price_max NUMERIC,
-                price_min NUMERIC,
-                price_median NUMERIC,
-                from_timestamp TIMESTAMPTZ NOT NULL,
-                to_timestamp TIMESTAMPTZ NOT NULL,
-                volume_usd NUMERIC,
-                total_hours NUMERIC
-            );
+                CREATE TABLE IF NOT EXISTS {self.metrics_table_name                    connector_name TEXT NOT NULL,
+                    trading_pair TEXT NOT NULL,
+                    trade_amount REAL,
+                    price_avg REAL,
+                    price_max REAL,
+                    price_min REAL,
+                    price_median REAL,
+                    from_timestamp TIMESTAMPTZ NOT NULL,
+                    to_timestamp TIMESTAMPTZ NOT NULL,
+                    volume_usd REAL
+                );
             ''')
 
     async def create_trades_table(self, table_name: str):
@@ -268,22 +266,18 @@ class TimescaleClient:
         async with self.pool.acquire() as connection:
             return await connection.fetch(query)
 
-    def metrics_query_str(self, connector_name, trading_pair, cond='>=', day='CURRENT_DATE'):
+    def metrics_query_str(self, connector_name, trading_pair):
         table_name = self.get_trades_table_name(connector_name, trading_pair)
         return f'''
-            SELECT '{connector_name}' AS connector_name,
-                   '{trading_pair}' AS trading_pair,
-                   COUNT(*) AS trade_amount,
+            SELECT COUNT(*) AS trade_amount,
                    AVG(price) AS price_avg,
                    MAX(price) AS price_max,
                    MIN(price) AS price_min,
                    PERCENTILE_CONT(0.5) WITHIN GROUP (ORDER BY price) AS price_median,
                    MIN(timestamp) AS from_timestamp,
                    MAX(timestamp) AS to_timestamp,
-                   SUM(price * volume) AS volume_usd,
-                   (MAX(timestamp) - MIN(timestamp)) / (60 * 60) AS total_hours
+                   SUM(price * volume) AS volume_usd
             FROM {table_name}
-            WHERE timestamp::DATE {cond} {day}
         '''
 
     async def get_metrics_df(self):
@@ -307,28 +301,53 @@ class TimescaleClient:
         df = pd.DataFrame(rows, columns=df_cols)
         return df
 
-    async def append_metrics(self, connector_name: str, trading_pair: str, interval: str):
+    async def append_metrics(self, connector_name: str, trading_pair: str):
         async with self.pool.acquire() as conn:
             query = self.metrics_query_str(connector_name, trading_pair)
             metrics = await self.execute_query(query)
-            metrics_dict = dict(metrics[0])
+            metric_data = dict(metrics[0])
+            metric_data["connector_name"] = connector_name
+            metric_data["trading_pair"] = trading_pair
+            await self.refresh_metric(metric_data)
 
-            columns = ", ".join(metrics_dict.keys())
-            placeholders = ", ".join([f"${i + 1}" for i in range(len(metrics_dict))])
-
-            # Build the update clause dynamically for each key
-            update_clause = ", ".join([f"{key} = EXCLUDED.{key}" for key in metrics_dict.keys()])
-
-            # Create the table if it doesn't exist
+    async def refresh_metric(self, metric_data):
+        delete_query = f"""
+            DELETE FROM {self.metrics_table_name}
+            WHERE connector_name = '{metric_data["connector_name"]}' AND trading_pair = '{metric_data["trading_pair"]}';
+            """
+        query = f"""
+            INSERT INTO {self.metrics_table_name} (
+                connector_name,
+                trading_pair,
+                trade_amount,
+                price_avg,
+                price_max,
+                price_min,
+                price_median,
+                from_timestamp,
+                to_timestamp,
+                volume_usd
+            )
+            VALUES (
+                $1, $2, $3, $4, $5, $6, $7, $8, $9, $10
+            );
+        """
+        async with self.pool.acquire() as conn:
             await self.create_metrics_table()
-
-            # Execute the upsert query
-            await conn.execute(f'''
-                INSERT INTO {self.metrics_table_name} ({columns})
-                VALUES ({placeholders})
-                ON CONFLICT (connector_name, trading_pair)
-                DO UPDATE SET {update_clause}
-            ''', *metrics_dict.values())
+            await conn.execute(delete_query)
+            await conn.execute(
+                query,
+                metric_data['connector_name'],
+                metric_data['trading_pair'],
+                metric_data['trade_amount'],
+                metric_data['price_avg'],
+                metric_data['price_max'],
+                metric_data['price_min'],
+                metric_data['price_median'],
+                metric_data['from_timestamp'],
+                metric_data['to_timestamp'],
+                metric_data['volume_usd']
+            )
 
     async def get_candles(self, connector_name: str, trading_pair: str, interval: str,
                           start_time: Optional[float] = None,
