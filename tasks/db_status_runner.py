@@ -10,7 +10,7 @@ from core.task_base import BaseTask
 logging.basicConfig(level=logging.INFO)
 
 
-class MetricsReportTask(BaseTask):
+class DbStatusTask(BaseTask):
     def __init__(self, name: str, frequency: timedelta, config: Dict[str, Any]):
         super().__init__(name, frequency, config)
 
@@ -43,5 +43,5 @@ if __name__ == "__main__":
         'db_port': 5432,
     }
 
-    task = MetricsReportTask("Metrics Report", timedelta(hours=1), config)
+    task = DbStatusTask("Metrics Report", timedelta(hours=1), config)
     asyncio.run(task.execute())
