@@ -1,8 +1,13 @@
 import asyncio
 import logging
 import time
+import os
+import sys
 from datetime import datetime, timedelta, timezone
 from typing import Any, Dict
+
+project_root = os.path.abspath(os.path.join(os.path.dirname(__file__), '..'))
+sys.path.insert(0, project_root)
 
 from core.services.timescale_client import TimescaleClient
 from core.task_base import BaseTask
