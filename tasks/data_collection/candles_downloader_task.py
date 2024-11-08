@@ -80,6 +80,7 @@ class CandlesDownloaderTask(BaseTask):
                     await timescale_client.delete_candles(connector_name=self.connector_name, trading_pair=trading_pair,
                                                           interval=interval,
                                                           timestamp=cutoff_timestamp)
+                    await asyncio.sleep(1)
 
                 except Exception as e:
                     logging.exception(
