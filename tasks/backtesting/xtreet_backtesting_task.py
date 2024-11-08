@@ -86,7 +86,7 @@ class BacktestingTask(BaseTask):
             config_generator.end = end_time
 
             today_str = datetime.datetime.now().strftime("%Y-%m-%d")
-            await optimizer.optimize(study_name=f"xtreet_bb_task_{today_str}",
+            await optimizer.optimize(study_name=f"data_server_xtreet_bb_task_{today_str}",
                                      config_generator=config_generator, n_trials=50)
 
 
@@ -100,8 +100,8 @@ async def main():
         "leverage": 20,
         "time_limit": 86400,  # 60 * 60 * 24
         "bb_lengths": [50, 100, 200],
-        "bb_stds": [1.0, 1.4, 1.8, 2.0, 3.0],
-        "intervals": ["1m", "5m", "15m"],
+        "bb_stds": [1.0, 2.0, 3.0],
+        "intervals": ["1m"],
         "volume_threshold": 0.5,
         "volatility_threshold": 0.5,
         "ts_delta_multiplier": 0.2,
