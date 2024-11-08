@@ -281,7 +281,7 @@ class TimescaleClient:
             FROM {table_name}
         '''
 
-    async def get_metrics_df(self):
+    async def get_db_status_df(self):
         async with self.pool.acquire() as conn:
             rows = await conn.fetch("""
             SELECT *
@@ -296,8 +296,7 @@ class TimescaleClient:
             "price_median",
             "from_timestamp",
             "to_timestamp",
-            "volume_usd",
-            "total_hours",
+            "volume_usd"
         ]
         df = pd.DataFrame(rows, columns=df_cols)
         return df

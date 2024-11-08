@@ -264,7 +264,7 @@ async def main():
 
     with db_status_tab:
         col1, col2, col3 = st.columns(3)
-        metrics_df = await ts_client.get_metrics_df()
+        metrics_df = await ts_client.get_db_status_df()
         volatility_threshold = col1.number_input("Volatility Percentile Threshold", 0.0)
         volume_threshold = col2.number_input("Volume Percentile Threshold", 0.0)
         max_top_markets = col3.number_input("Max Top Markets", 10)

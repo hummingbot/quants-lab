@@ -51,7 +51,7 @@ class BacktestingTask(BaseTask):
         await ts_client.connect()
 
         logger.info("Generating top markets report")
-        metrics_df = await ts_client.get_metrics_df()
+        metrics_df = await ts_client.get_db_status_df()
         top_markets_df = self.generate_top_markets_report(metrics_df)
 
         resolution = self.resolution
