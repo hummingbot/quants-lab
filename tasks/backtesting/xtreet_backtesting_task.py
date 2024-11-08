@@ -26,18 +26,10 @@ class BacktestingTask(BaseTask):
         self.screener_config = self.config
         self.root_path = self.config.get('root_path', "")
 
-    def generate_top_markets_report(self, metrics_df: pd.DataFrame):
-        metrics_df.sort_values(by=['trading_pair', 'to_timestamp'], ascending=[True, False])
-        screener_report = metrics_df.drop_duplicates(subset='trading_pair', keep='first')
-        screener_report.sort_values("mean_natr", ascending=False, inplace=True)
-        natr_percentile = screener_report['mean_natr'].astype(float).quantile(
-            self.screener_config["volatility_threshold"])
-        volume_percentile = screener_report['average_volume_per_hour'].astype(float).quantile(
-            self.screener_config["volume_threshold"])
-        screener_top_markets = screener_report[
-            (screener_report['mean_natr'] > natr_percentile) &
-            (screener_report['average_volume_per_hour'] > volume_percentile)
-            ].sort_values(by="average_volume_per_hour").head(self.screener_config["max_top_markets"])
+    def generate_top_markets_report(self, status_db_df: pd.DataFrame):
+        df = status_db_df.copy()
+        df.sort_values("total_volume_usd", ascending=False, inplace=True)
+        screener_top_markets = df.head(self.screener_config["max_top_markets"])
         return screener_top_markets[["connector_name", "trading_pair", "from_timestamp", "to_timestamp"]]
 
     async def execute(self):
