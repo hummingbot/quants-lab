@@ -34,7 +34,8 @@ class DbStatusTask(BaseTask):
             logging.info(f"{now} - Fetching trades for {trading_pair} [{i} from {len(available_trading_pairs)}]")
             try:
                 logging.info(f"{now} - Updated metrics for {trading_pair}")
-                await timescale_client.append_metrics(connector_name=connector_name, trading_pair=trading_pair)
+                await timescale_client.append_db_status_metrics(connector_name=connector_name,
+                                                                trading_pair=trading_pair)
             except Exception as e:
                 logging.exception(f"{now} - An error occurred during the data load for trading pair {trading_pair}:\n {e}")
                 continue

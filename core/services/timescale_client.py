@@ -301,53 +301,50 @@ class TimescaleClient:
         df = pd.DataFrame(rows, columns=df_cols)
         return df
 
-    async def append_metrics(self, connector_name: str, trading_pair: str):
+    async def append_db_status_metrics(self, connector_name: str, trading_pair: str):
         async with self.pool.acquire() as conn:
             query = self.metrics_query_str(connector_name, trading_pair)
             metrics = await self.execute_query(query)
             metric_data = dict(metrics[0])
             metric_data["connector_name"] = connector_name
             metric_data["trading_pair"] = trading_pair
-            await self.refresh_metric(metric_data)
-
-    async def refresh_metric(self, metric_data):
-        delete_query = f"""
-            DELETE FROM {self.metrics_table_name}
-            WHERE connector_name = '{metric_data["connector_name"]}' AND trading_pair = '{metric_data["trading_pair"]}';
+            delete_query = f"""
+                DELETE FROM {self.metrics_table_name}
+                WHERE connector_name = '{metric_data["connector_name"]}' AND trading_pair = '{metric_data["trading_pair"]}';
+                """
+            query = f"""
+                INSERT INTO {self.metrics_table_name} (
+                    connector_name,
+                    trading_pair,
+                    trade_amount,
+                    price_avg,
+                    price_max,
+                    price_min,
+                    price_median,
+                    from_timestamp,
+                    to_timestamp,
+                    volume_usd
+                )
+                VALUES (
+                    $1, $2, $3, $4, $5, $6, $7, $8, $9, $10
+                );
             """
-        query = f"""
-            INSERT INTO {self.metrics_table_name} (
-                connector_name,
-                trading_pair,
-                trade_amount,
-                price_avg,
-                price_max,
-                price_min,
-                price_median,
-                from_timestamp,
-                to_timestamp,
-                volume_usd
-            )
-            VALUES (
-                $1, $2, $3, $4, $5, $6, $7, $8, $9, $10
-            );
-        """
-        async with self.pool.acquire() as conn:
-            await self.create_metrics_table()
-            await conn.execute(delete_query)
-            await conn.execute(
-                query,
-                metric_data['connector_name'],
-                metric_data['trading_pair'],
-                metric_data['trade_amount'],
-                metric_data['price_avg'],
-                metric_data['price_max'],
-                metric_data['price_min'],
-                metric_data['price_median'],
-                metric_data['from_timestamp'],
-                metric_data['to_timestamp'],
-                metric_data['volume_usd']
-            )
+            async with self.pool.acquire() as conn:
+                await self.create_metrics_table()
+                await conn.execute(delete_query)
+                await conn.execute(
+                    query,
+                    metric_data['connector_name'],
+                    metric_data['trading_pair'],
+                    metric_data['trade_amount'],
+                    metric_data['price_avg'],
+                    metric_data['price_max'],
+                    metric_data['price_min'],
+                    metric_data['price_median'],
+                    metric_data['from_timestamp'],
+                    metric_data['to_timestamp'],
+                    metric_data['volume_usd']
+                )
 
     async def get_candles(self, connector_name: str, trading_pair: str, interval: str,
                           start_time: Optional[float] = None,
