@@ -23,6 +23,7 @@ class CandlesDownloaderTask(BaseTask):
         self.connector_name = config['connector_name']
         self.days_data_retention = config.get("days_data_retention", 7)
         self.intervals = config.get("intervals", ["1m"])
+        self.first_time_upload = config.get("first_time_upload")
         self.quote_asset = config.get('quote_asset', "USDT")
         self.min_notional_size = Decimal(str(config.get('min_notional_size', 10.0)))
         self.clob = CLOBDataSource()
@@ -56,31 +57,47 @@ class CandlesDownloaderTask(BaseTask):
                 try:
                     table_name = timescale_client.get_ohlc_table_name(self.connector_name, trading_pair, interval)
                     await timescale_client.create_candles_table(table_name)
-                    last_candle_timestamp = await timescale_client.get_last_candle_timestamp(
-                        connector_name=self.connector_name,
-                        trading_pair=trading_pair,
-                        interval=interval)
-                    start_time = last_candle_timestamp if last_candle_timestamp else start_time
-                    candles = await self.clob.get_candles(
-                        self.connector_name,
-                        trading_pair,
-                        interval,
-                        int(start_time),
-                        int(end_time.timestamp()),
-                    )
+                    if self.first_time_upload is None:
+                        last_candle_timestamp = await timescale_client.get_last_candle_timestamp(
+                            connector_name=self.connector_name,
+                            trading_pair=trading_pair,
+                            interval=interval)
+                        start_time = last_candle_timestamp if last_candle_timestamp else start_time
+                        candles = await self.clob.get_candles(
+                            self.connector_name,
+                            trading_pair,
+                            interval,
+                            int(start_time),
+                            int(end_time.timestamp()),
+                        )
 
-                    if candles.data.empty:
-                        logging.info(f"{now} - No new trades for {trading_pair}")
-                        continue
+                        if candles.data.empty:
+                            logging.info(f"{now} - No new trades for {trading_pair}")
+                            continue
 
-                    await timescale_client.append_candles(table_name=table_name,
-                                                          candles=candles.data.values.tolist())
-                    today_start = datetime.utcnow().replace(hour=0, minute=0, second=0, microsecond=0)
-                    cutoff_timestamp = (today_start - timedelta(days=self.days_data_retention)).timestamp()
-                    await timescale_client.delete_candles(connector_name=self.connector_name, trading_pair=trading_pair,
-                                                          interval=interval,
-                                                          timestamp=cutoff_timestamp)
-                    await asyncio.sleep(1)
+                        await timescale_client.append_candles(table_name=table_name,
+                                                              candles=candles.data.values.tolist())
+                        today_start = datetime.utcnow().replace(hour=0, minute=0, second=0, microsecond=0)
+                        cutoff_timestamp = (today_start - timedelta(days=self.days_data_retention)).timestamp()
+                        await timescale_client.delete_candles(connector_name=self.connector_name, trading_pair=trading_pair,
+                                                              interval=interval,
+                                                              timestamp=cutoff_timestamp)
+                        await asyncio.sleep(1)
+                    else:
+                        start_time = datetime.now() - timedelta(days=self.days_data_retention)
+                        candles = await self.clob.get_candles(
+                            self.connector_name,
+                            trading_pair,
+                            interval,
+                            int(start_time),
+                            int(datetime.now()),
+                        )
+                        await timescale_client.delete_candles(connector_name=self.connector_name, trading_pair=trading_pair,
+                                                              interval=interval,
+                                                              timestamp=datetime.now())
+                        await timescale_client.append_candles(table_name=table_name,
+                                                              candles=candles.data.values.tolist())
+                        await asyncio.sleep(1)
 
                 except Exception as e:
                     logging.exception(
@@ -104,6 +121,7 @@ if __name__ == "__main__":
         'quote_asset': 'USDT',
         'intervals': ['1m', '3m', '5m', '15m', '1h'],
         'days_data_retention': 30,
+        'first_time_load': True,
         'min_notional_size': 10,
         'db_host': os.getenv("TIMESCALE_HOST", 'localhost'),
         'db_port': 5432,
