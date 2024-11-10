@@ -1,4 +1,5 @@
 import asyncio
+import json
 import logging
 from typing import Dict, Any
 
@@ -53,6 +54,7 @@ class MarketScreenerTask(BaseTask):
 
             interval_screener_metrics = await self.calculate_interval_metrics(connector_name, trading_pair)
             screener_metrics.update(interval_screener_metrics)
+            screener_metrics = {key: json.dumps(value) if isinstance(value, dict) else value for key, value in screener_metrics.items()}
 
             await self.ts_client.append_screener_metrics(screener_metrics)
 
@@ -65,13 +67,14 @@ class MarketScreenerTask(BaseTask):
         """Calculate metrics for each selected interval."""
         interval_screener_metrics = {}
         for selected_interval in self.intervals:
+            mapped_interval = self.interval_mapping[selected_interval]
             try:
                 candles = await self.ts_client.get_candles(connector_name, trading_pair, interval=selected_interval)
-                mapped_interval = self.interval_mapping[selected_interval]
                 interval_screener_metrics[mapped_interval] = self.calculate_interval_screener_metrics(candles.data)
             except Exception as e:
                 logging.exception(
                     f"{self.now()} - Error processing interval {selected_interval} for {trading_pair}\n {e}")
+                interval_screener_metrics[mapped_interval] = {}
         return interval_screener_metrics
 
     def calculate_global_screener_metrics(self, candles_df: pd.DataFrame, connector_name: str, trading_pair: str):
@@ -84,8 +87,8 @@ class MarketScreenerTask(BaseTask):
         global_metrics = {
             "connector_name": connector_name,
             "trading_pair": trading_pair,
-            "start_time": df.index.min(),
-            "end_time": df.index.max(),
+            "start_time": df.index.min().tz_localize("UTC"),  # or your desired timezone
+            "end_time": df.index.max().tz_localize("UTC"),
             "price": df["close"].describe().to_dict()}
 
         # Price Change Over Periods (% CBO 24h, 1w, 1m)

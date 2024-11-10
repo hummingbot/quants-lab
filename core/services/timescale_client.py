@@ -83,7 +83,7 @@ class TimescaleClient:
     async def create_screener_table(self):
         async with self.pool.acquire() as conn:
             await conn.execute(f'''
-                CREATE TABLE IF NOT EXISTS {self.metrics_table_name} (
+                CREATE TABLE IF NOT EXISTS {self.screener_table_name} (
                     connector_name TEXT NOT NULL,
                     trading_pair TEXT NOT NULL,
                     price JSONB NOT NULL,
@@ -94,7 +94,9 @@ class TimescaleClient:
                     three_min JSONB NOT NULL,
                     five_min JSONB NOT NULL,
                     fifteen_min JSONB NOT NULL,
-                    one_hour JSONB NOT NULL
+                    one_hour JSONB NOT NULL,
+                    start_time TIMESTAMPTZ NOT NULL,
+                    end_time TIMESTAMPTZ NOT NULL
                 );
             ''')
 
@@ -195,14 +197,16 @@ class TimescaleClient:
                             three_min,
                             five_min,
                             fifteen_min,
-                            one_hour
+                            one_hour,
+                            start_time,
+                            end_time
                         )
                         VALUES (
-                            $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11
+                            $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13
                         );
                     """
             async with self.pool.acquire() as conn:
-                await self.create_metrics_table()
+                await self.create_screener_table()
                 await conn.execute(delete_query)
                 await conn.execute(
                     query,
@@ -216,7 +220,10 @@ class TimescaleClient:
                     screener_metrics["three_min"],
                     screener_metrics["five_min"],
                     screener_metrics["fifteen_min"],
-                    screener_metrics["one_hour"]
+                    screener_metrics["one_hour"],
+                    screener_metrics["start_time"],
+                    screener_metrics["end_time"],
+
                 )
 
     async def get_last_trade_id(self, connector_name: str, trading_pair: str, table_name: str) -> int:
