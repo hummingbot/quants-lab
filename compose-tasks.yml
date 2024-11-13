@@ -5,7 +5,7 @@ services:
       - .:/quants-lab
     env_file:
       - .env
-    command: conda run --no-capture-output -n quants-lab python3 tasks/data_generation_runner.py
+    command: conda run --no-capture-output -n quants-lab python3 tasks/trades_downloader_runner.py
     network_mode: host
 
   backtesting-runner:
@@ -17,15 +17,6 @@ services:
     command: conda run --no-capture-output -n quants-lab python3 tasks/backtesting_runner.py
     network_mode: host
 
-  db-status-runner:
-    image: hummingbot/quants-lab:latest
-    volumes:
-      - .:/quants-lab
-    env_file:
-      - .env
-    command: conda run --no-capture-output -n quants-lab python3 tasks/db_status_runner.py
-    network_mode: host
-
   candles-downloader-runner:
     image: hummingbot/quants-lab:latest
     volumes:
@@ -35,16 +26,8 @@ services:
     command: conda run --no-capture-output -n quants-lab python3 tasks/candles_downloader_runner.py
     network_mode: host
 
-  screener-runner:
-    image: hummingbot/quants-lab:latest
-    volumes:
-      - .:/quants-lab
-    env_file:
-      - .env
-    command: conda run --no-capture-output -n quants-lab python3 tasks/screener_runner.py
-    network_mode: host
 
-  report-runner:
+  screeners-report-runner:
     image: hummingbot/quants-lab:latest
     volumes:
       - .:/quants-lab
