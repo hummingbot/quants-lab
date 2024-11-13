@@ -14,7 +14,6 @@ logger = logging.getLogger(__name__)
 async def main():
     from core.task_base import TaskOrchestrator
     from tasks.data_collection.trades_downloader_task import TradesDownloaderTask
-    from tasks.data_reporting.data_reporting_task import ReportGeneratorTask
 
     orchestrator = TaskOrchestrator()
 
@@ -30,23 +29,14 @@ async def main():
         name="Trades Downloader Binance",
         config={
             "timescale_config": timescale_config,
-            'connector_name': 'binance_perpetual',
-            'quote_asset': 'USDT',
-            'min_notional_size': 10.0,
-            'days_data_retention': 10
+            "connector_name": "binance_perpetual",
+            "quote_asset": "USDT",
+            "min_notional_size": 10.0,
+            "days_data_retention": 10
         },
         frequency=timedelta(hours=5))
 
-    report_task = ReportGeneratorTask(
-        name="Report Generator",
-        config={
-            "timescale_config": timescale_config,
-        },
-        frequency=timedelta(hours=24))
-
     orchestrator.add_task(trades_downloader_task)
-    orchestrator.add_task(report_task)
-
     await orchestrator.run()
 
 
