@@ -104,9 +104,7 @@ class ReportGeneratorTask(TaskBase):
         base_metrics['when'] = None
         base_metrics['is_new'] = False
         base_metrics.apply(self.is_new, axis=1)
-        # TODO: check path
-        base_metrics.dropna(subset=["when"]).to_csv("data/all_daily_metrics.csv", index=False)
-        self.base_metrics = base_metrics.copy()
+        self.base_metrics = base_metrics.dropna(subset=["when"]).copy()
 
     async def generate_heatmap(self):
         # Load the all_daily_metrics CSV into a DataFrame
@@ -171,6 +169,7 @@ class ReportGeneratorTask(TaskBase):
 
         # Attach CSV files, heatmap PDF, and other files
         # for filename in ["all_daily_metrics.csv", heatmap_pdf] + [f"{k}.csv" for k in csv_dict]:
+        # TODO: try to replace all_daily_metrics by a class attribute like self.daily_metrics
         for filename in ["all_daily_metrics.csv"] + [f"{k}.csv" for k in csv_dict]:
             try:
                 self.add_attachment(message, filename)
@@ -240,7 +239,8 @@ class ReportGeneratorTask(TaskBase):
             "new_pairs": final_df[final_df['trading_pair'].isin(new_pairs_list)]
         }
         return report, {key: df for key, df in csv_dict.items() if len(df) > 20}
-# Usage
+
+
 async def main():
     config = {
         "host": os.getenv("TIMESCALE_HOST", "localhost"),

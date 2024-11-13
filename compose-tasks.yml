@@ -43,3 +43,12 @@ services:
       - .env
     command: conda run --no-capture-output -n quants-lab python3 tasks/screener_runner.py
     network_mode: host
+
+  report-runner:
+    image: hummingbot/quants-lab:latest
+    volumes:
+      - .:/quants-lab
+    env_file:
+      - .env
+    command: conda run --no-capture-output -n quants-lab python3 tasks/report_runner.py
+    network_mode: host
