@@ -2,251 +2,246 @@ import asyncio
 import logging
 import os
 import smtplib
-from datetime import timedelta
 from email import encoders
 from email.mime.base import MIMEBase
 from email.mime.multipart import MIMEMultipart
 from email.mime.text import MIMEText
-from typing import Any, Dict
+from typing import Any, Dict, List, Optional
+from datetime import datetime, timedelta
+import plotly.express as px
+from dotenv import load_dotenv
 
 import asyncpg
-import numpy as np
 import pandas as pd
+import numpy as np
 
+from core.services.timescale_client import TimescaleClient
 from core.task_base import BaseTask
 
+load_dotenv()
 logging.basicConfig(level=logging.INFO)
 
 
-class ReportGeneratorTask(BaseTask):
+# Base class for common functionalities like database connection and email sending
+class TaskBase(BaseTask):
     def __init__(self, name: str, frequency: timedelta, config: Dict[str, Any]):
         super().__init__(name, frequency, config)
-        self.pool = None
-
-    async def connect(self):
-        self.pool = await asyncpg.create_pool(
-            host=self.config["timescale_config"]["host"],
-            port=self.config["timescale_config"]["port"],
-            user=self.config["timescale_config"]["user"],
-            password=self.config["timescale_config"]["password"],
-            database=self.config["timescale_config"]["database"]
-        )
+        self.name = name
+        self.frequency = frequency
+        self.config = config
+        self.export = self.config.get("export", False)
+        self.ts_client = TimescaleClient(host=self.config.get("host", "localhost"))
 
     async def execute_query(self, query: str):
+        """Executes a query and returns the result."""
         async with self.pool.acquire() as connection:
             return await connection.fetch(query)
 
-    async def get_base_tables(self):
-        query = """
-            SELECT table_schema, table_name
-            FROM information_schema.tables
-            WHERE table_type = 'BASE TABLE'
-        """
-        return await self.execute_query(query)
+    def create_email(self, subject: str, sender_email: str, recipients: List[str], body: str) -> MIMEMultipart:
+        """Creates a basic email structure."""
+        message = MIMEMultipart()
+        message["From"] = sender_email
+        message["To"] = ", ".join(recipients)
+        message["Subject"] = subject
+        message.attach(MIMEText(body, "plain"))
+        return message
 
-    async def execute(self):
-        await self.connect()
-        base = await self.get_base_tables()
-        trading_pairs = [table["table_name"] for table in base if table["table_name"].endswith("_trades")]
-        final_df = await self.get_final_df(trading_pairs)
-
-        try:
-            # Email configuration
-            sender_email = 'thinkingscience.ts@gmail.com'
-            recipients = ['palmiscianoblas@gmail.com', 'federico.cardoso.e@gmail.com',
-                          'tomasgaudino8@gmail.com', 'apelsantiago@gmail.com']
-            subject = "Database Refresh Report - Thinking Science Journal"
-
-            # Set up the MIME
-            message = MIMEMultipart()
-            message['From'] = sender_email
-            message['To'] = ", ".join(recipients)
-            message['Subject'] = subject
-
-            # Attach the generated report
-            generated_report, csv_dict = self.print_str(trading_pairs, final_df)
-            message.attach(MIMEText(generated_report, 'plain'))  # Use 'plain' or 'html' depending on formatting
-
-            # Attach the CSV file to the message
-            message.attach(self.get_part_attach("trades_analizer_output.csv"))
-            message.attach(self.get_part_attach("top_price_deviation_mkts.csv"))
-
-            for c in csv_dict.keys():
-                csv_dict[c].to_csv(f"{c}.csv")
-                message.attach(self.get_part_attach(f"{c}.csv"))
-
-            smtp_server = 'smtp.gmail.com'
-            smtp_port = 587
-
-            # Send the email
-            with smtplib.SMTP(smtp_server, smtp_port) as server:
-                server.starttls()  # Secure the connection
-                server.login(sender_email, 'dqtn zjkf aumv esak')  # App password used here
-                server.sendmail(sender_email, recipients, message.as_string())
-
-            print('Email sent successfully')
-
-        except Exception as e:
-            logging.error("An error occurred: while running Report Generator%s", e)
-            print(f"Error: {e}")
-
-    async def get_final_df(self, trading_pairs):
-        final_data = []
-        for i, trading_pair in enumerate(trading_pairs):
-            today_general_metrics = await self.get_general_metrics(trading_pair=trading_pair,
-                                                                   day="CURRENT_DATE", cond=">=")
-            previous_general_metrics = await self.get_general_metrics(trading_pair=trading_pair,
-                                                                      day="CURRENT_DATE - INTERVAL '1 day'", cond=">=")
-            if today_general_metrics['trade_amount'] > 0:
-                general_metrics = today_general_metrics
-                general_metrics["when"] = "today"
-                general_metrics['is_new'] = True if previous_general_metrics['trade_amount'] == 0 else False
-
-            elif previous_general_metrics['trade_amount'] > 0:
-                general_metrics = previous_general_metrics
-                general_metrics["when"] = "yesterday"
-                general_metrics["is_new"] = False
-            else:
-                print("No data available for this trading pair")
-                return
-            general_metrics["trading_pair"] = trading_pair
-            final_data.append(general_metrics)
-        final_df = pd.DataFrame(final_data)
-        final_df["price_avg"] = pd.to_numeric(final_df["price_avg"])
-        final_df["price_max"] = pd.to_numeric(final_df["price_max"])
-        final_df["price_min"] = pd.to_numeric(final_df["price_min"])
-        final_df["price_median"] = pd.to_numeric(final_df["price_median"])
-        final_df['abs_diff'] = np.maximum(
-            (final_df['price_max'] - final_df['price_median']) / final_df['price_median'],
-            (final_df['price_median'] - final_df['price_min']) / final_df['price_median']
-        )
-        final_df.to_csv("trades_analizer_output.csv", index=False)
-        return final_df
-
-    def query_str(self, cond='>=', trading_pair="binance_perpetual_xvg_usdt_trades", day='CURRENT_DATE'):
-        return f"""
-            SELECT count(*) trade_amount,
-                avg(price) price_avg,
-                max(price) price_max,
-                min(price) price_min,
-                PERCENTILE_CONT(0.5) WITHIN GROUP (ORDER BY price) AS price_median,
-                max(timestamp) max_timestamp
-            FROM {trading_pair}
-            WHERE timestamp::DATE {cond} {day}
-        """
-
-    async def get_general_metrics(self, cond=">=", day="CURRENT_DATE", trading_pair="binance_perpetual_xvg_usdt_trades"):
-        df_data = await self.execute_query(self.query_str(cond=cond, day=day, trading_pair=trading_pair))
-        return dict(df_data[0])
-
-    def tune_df(self, df, c, when='today'):
-        df['trading_pair'] = c
-        df['when'] = when
-        return pd.DataFrame(df, df.index)
-
-    def print_str(self, trading_pairs, final_df):
-        missing_pairs_list = [c for c in trading_pairs if c not in final_df['trading_pair'].unique() and c != "trades"]
-        outdated_pairs_list = [c for c in trading_pairs if
-                               c in final_df[final_df['when'] == 'yesterday'][
-                                   'trading_pair'].unique() and c != "trades"]
-        correct_trading_pairs_list = [c for c in trading_pairs if
-                                      c in final_df[final_df['when'] == 'today'][
-                                          'trading_pair'].unique() and c != "trades"]
-        new_trading_pairs_list = [c for c in trading_pairs if
-                                  c in final_df[final_df['is_new']]['trading_pair'].unique() and c != "trades"]
-
-        missing_trading_pairs = (
-            "\n".join(f' ----- {c}' for c in missing_pairs_list)
-            if len(missing_pairs_list) < 25
-            else "----- Too many trading pairs missing, check missing_trading_pairs.csv for more info"
-        )
-        outdated_trading_pairs = (
-            "\n".join(f' ----- {c}' for c in outdated_pairs_list)
-            if len(outdated_pairs_list) < 25
-            else "----- Too many outdated trading pairs, check outdated_trading_pairs.csv for more info"
-        )
-
-        new_trading_pairs = (
-            "\n".join(f' ----- {c}' for c in new_trading_pairs_list)
-            if len(new_trading_pairs_list) < 25
-            else "----- Too many new trading pairs, check new_trading_pairs.csv for more info"
-        )
-
-        report = f"\n\nHello Mr. Pickantell,\n\nHere's a quick review on the database '{self.database}', stored in {self.host}:"
-        if missing_trading_pairs + outdated_trading_pairs == "":
-            report += "\n\n --> Great job! Every trading pair in the database has been updated today."
-        if missing_trading_pairs != "":
-            report += f"\n\n --> Some trading pairs have not been updated for 2 days:\n{missing_trading_pairs}"
-        if outdated_trading_pairs != "":
-            report += f"\n\n --> Trading pairs that have not been updated since yesterday (outdated):\n{outdated_trading_pairs}"
-        if correct_trading_pairs_list != "":
-            report += f"\n\n --> This trading pairs have been correctly updated today:\n{correct_trading_pairs_list}"
-        if new_trading_pairs != "":
-            report += f"\n\n --> These are the new trading pairs, uploaded today for the first time:\n{new_trading_pairs}"
-        else:
-            report += "\n\n --> No new trading pairs registered.."
-
-        top_markets = final_df[final_df['abs_diff'] > final_df['abs_diff'].quantile(0.95)].sort_values('abs_diff',
-                                                                                                       ascending=False)
-        top_markets['trading_pair'] = top_markets['trading_pair'].str.replace("_trades", "", regex=True)
-        top_markets[
-            ['trading_pair', 'abs_diff', 'price_min', 'price_median', 'price_avg', 'price_max', 'trade_amount',
-             'is_new',
-             'max_timestamp']].to_csv("top_price_deviation_mkts.csv")
-
-        missing_perc = len(missing_pairs_list) / len(trading_pairs)
-        outdated_perc = len(outdated_pairs_list) / len(trading_pairs)
-        correct_perc = len(correct_trading_pairs_list) / len(trading_pairs)
-        new_perc = len(new_trading_pairs_list) / len(trading_pairs)
-
-        report += "\n\n\nAdditional Database Flux Information:\n"
-        report += f"\n--> Amount of trading pairs missing (no info for 2 days) out of total pairs: {missing_perc * 100:,.2f}%\n"
-        report += f"\n--> Outdated pairs (no info since yesterday) out of total pairs: {outdated_perc * 100:,.2f}%\n"
-        report += f"\n--> Correct pairs (updated info) out of total pairs: {correct_perc * 100:,.2f}%\n"
-        report += f"\n--> New pairs out of total pairs: {new_perc * 100:,.2f}%\n"
-        report += "\n\nFor more information visit the attached files: \n ++ trades_analizer_output.csv: " \
-                  "general information about current databases \n ++ top_price_deviation_mkts.csv: " \
-                  "Hot markets with nice tolles"
-        report += "\n\nSee you soon and don't forget to be awesome!!"
-
-        dict_report = {
-            "missing_pairs_df": final_df[final_df['trading_pair'].isin(missing_pairs_list)],
-            "outdated_pairs_df": final_df[final_df['trading_pair'].isin(outdated_pairs_list)],
-            "correct_trading_pairs_df": final_df[final_df['trading_pair'].isin(correct_trading_pairs_list)],
-            "new_trading_pairs_df": final_df[final_df['trading_pair'].isin(new_trading_pairs_list)],
-        }
-
-        return report, {k: v for k, v in dict_report.items() if len(v) > 25}
-
-    def get_part_attach(self, path=""):
+    def add_attachment(self, message: MIMEMultipart, path: str):
+        """Attaches a file to the email."""
         with open(path, "rb") as attachment:
-            # Set up the MIMEBase with the file
             part = MIMEBase("application", "octet-stream")
             part.set_payload(attachment.read())
-
-        # Encode the payload in Base64
         encoders.encode_base64(part)
+        part.add_header("Content-Disposition", f"attachment; filename= {os.path.basename(path)}")
+        message.attach(part)
 
-        # Add header to the attachment
-        part.add_header(
-            "Content-Disposition",
-            f"attachment; filename= {os.path.basename(path)}",
+    def send_email(self, message: MIMEMultipart, sender_email: str, app_password: str, smtp_server="smtp.gmail.com",
+                   smtp_port=587):
+        """Sends an email using the specified SMTP server."""
+        try:
+            with smtplib.SMTP(smtp_server, smtp_port) as server:
+                server.starttls()
+                server.login(sender_email, app_password)
+                server.sendmail(sender_email, message["To"].split(", "), message.as_string())
+            logging.info("Email sent successfully.")
+        except Exception as e:
+            logging.error(f"Failed to send email: {e}")
+
+
+class ReportGeneratorTask(TaskBase):
+    def __init__(self, name: str, frequency: timedelta, config: Dict[str, Any]):
+        super().__init__(name, frequency, config)
+        self.base_metrics = None
+
+    async def get_base_tables(self):
+        available_pairs = await self.ts_client.get_available_pairs()
+        table_names = [self.ts_client.get_trades_table_name(connector_name, trading_pair)
+                       for connector_name, trading_pair in available_pairs]
+        return table_names
+
+    @staticmethod
+    def is_new(row):
+        # last_data_today = pd.to_datetime(row['to_timestamp']).timestamp() >= datetime.now().timestamp()
+        last_data_today = pd.to_datetime(row['to_timestamp']).timestamp() >= (datetime.now() - timedelta(days=1)).timestamp()
+        last_data_yesterday = pd.to_datetime(row['to_timestamp']).timestamp() >= (datetime.now() - timedelta(days=2)).timestamp()
+        first_data_yesterday = pd.to_datetime(row['from_timestamp']).timestamp() >= (datetime.now() - timedelta(days=2)).timestamp()
+
+        if last_data_today:
+            when = 'today'
+        elif last_data_yesterday:
+            when = 'yesterday'
+        else:
+            when = None
+
+        row['is_new'] = last_data_today & first_data_yesterday
+        row['when'] = when
+
+    async def set_base_metrics(self):
+        base_metrics = await self.ts_client.get_db_status_df()
+        base_metrics["table_names"] = base_metrics.apply(lambda x: self.ts_client.get_trades_table_name(x["connector_name"], x["trading_pair"]), axis=1)
+        base_metrics['when'] = None
+        base_metrics['is_new'] = False
+        base_metrics.apply(self.is_new, axis=1)
+        # TODO: check path
+        base_metrics.dropna(subset=["when"]).to_csv("data/all_daily_metrics.csv", index=False)
+        self.base_metrics = base_metrics.copy()
+
+    async def generate_heatmap(self):
+        # Load the all_daily_metrics CSV into a DataFrame
+        base_metrics = self.base_metrics
+        # Calculate total trade amounts by trading pair and percentage
+        total_trade_amounts = base_metrics.groupby('trading_pair')['trade_amount'].transform('sum')
+        base_metrics['trade_amount_pct'] = (base_metrics['trade_amount'] / total_trade_amounts) * 100
+
+        # Pivot data for heatmap-ready format with trade_amount as percentage
+        heatmap_data = base_metrics.pivot(index='trading_pair', columns='day', values='trade_amount_pct')
+
+        # Create the heatmap using Plotly
+        fig = px.imshow(
+            heatmap_data,
+            color_continuous_scale="Reds",
+            labels={'color': 'Trade Amount (%)'},
+            title="Trade Amount Heatmap by Date and Trading Pair"
         )
-        return part
 
+        # Customize the layout for readability
+        fig.update_layout(
+            xaxis_title="Date",
+            yaxis_title="Trading Pair",
+            title_font_size=18,
+            xaxis_title_font_size=14,
+            yaxis_title_font_size=14,
+            xaxis_tickfont_size=12,
+            yaxis_tickfont_size=12
+        )
+        pdf_filename = "trade_amount_heatmap.pdf"
+        # Save to PDF if required
+        fig.write_image(pdf_filename)
 
+        # Show interactive heatmap in a notebook or webpage
+        fig.show()
+
+        return pdf_filename
+
+    async def execute(self):
+        await self.ts_client.connect()
+        available_pairs = await self.ts_client.get_available_pairs()
+        table_names = [self.ts_client.get_trades_table_name(connector_name, trading_pair)
+                       for connector_name, trading_pair in available_pairs]
+        await self.set_base_metrics()
+
+        # Generate the heatmap PDF
+        # heatmap_pdf = await self.generate_heatmap()
+
+        # Generate the report and prepare the email
+        report, csv_dict = self.generate_report(table_names)
+
+        message = self.create_email(
+            subject="Database Refresh Report - Thinking Science Journal",
+            sender_email=self.config["email"],
+            recipients=self.config["recipients"],
+            body=report
+        )
+
+        # Attach CSV files, heatmap PDF, and other files
+        # for filename in ["all_daily_metrics.csv", heatmap_pdf] + [f"{k}.csv" for k in csv_dict]:
+        for filename in ["all_daily_metrics.csv"] + [f"{k}.csv" for k in csv_dict]:
+            try:
+                self.add_attachment(message, filename)
+            except Exception as e:
+                print(f"Unable to attach file {filename}: {e}")
+
+        # Send the email
+        self.send_email(message, sender_email=self.config["email"], app_password=self.config["email_password"])
+
+    def generate_report(self, table_names: List[str]) -> (str, Dict[str, pd.DataFrame]):
+        final_df = self.base_metrics
+        missing_pairs_list = [pair for pair in table_names if pair not in final_df['table_names'].unique()]
+        outdated_pairs_list = [pair for pair in table_names if
+                               pair in final_df[final_df['when'] == 'yesterday']['table_names'].unique()]
+        correct_pairs_list = [pair for pair in table_names if
+                              pair in final_df[final_df['when'] == 'today']['table_names'].unique()]
+        new_pairs_list = [pair for pair in table_names if
+                          pair in final_df[final_df['is_new']]['table_names'].unique()]
+
+        report = f"\n\nHello Mr Pickantell!:\n"
+        report = f"\nHere's a quick review on your database:\n"
+        if not missing_pairs_list and not outdated_pairs_list:
+            report += "\n--> All trading pairs have been updated today."
+        if missing_pairs_list:
+            if len(missing_pairs_list) > 20:
+                report += "\n\n--> Missing trading pairs (not updated in 2 days):\nToo many pairs, printing missing_pairs.csv file instead"
+            else:
+                report += "\n\n--> Missing trading pairs (not updated in 2 days):\n" + "\n".join(
+                    f" - {pair}" for pair in missing_pairs_list)
+        if outdated_pairs_list:
+            if len(outdated_pairs_list) > 20:
+                report += "\n\n--> Outdated trading pairs (not updated since yesterday):\nToo many pairs, printing outdated_pairs.csv file instead"
+            else:
+                report += "\n\n--> Outdated trading pairs (not updated since yesterday):\n" + "\n".join(
+                    f" - {pair}" for pair in outdated_pairs_list)
+        if correct_pairs_list:
+            if len(correct_pairs_list) > 20:
+                report += "\n\n--> Correct trading pairs (up to date):\nToo many pairs, printing correct_pairs.csv file instead"
+            else:
+                report += "\n\n--> Correct trading pairs (up to date):\n" + "\n".join(
+                    f" - {pair}" for pair in correct_pairs_list)
+        if new_pairs_list:
+            if len(new_pairs_list) > 20:
+                report += "\n\n--> New trading pairs (up to date):\nToo many pairs, printing new_pairs.csv file instead"
+            else:
+                report += "\n\n--> New trading pairs (up to date):\n" + "\n".join(
+                    f" - {pair}" for pair in new_pairs_list)
+        report += f"\n\nAdditional Database Flux Information:\n\n"
+
+        report += f"--> Amount of trading pairs missing (no info for 2 days) out of total pairs:{(len(missing_pairs_list)/len(table_names)):.2f}%\n"
+        report += f"--> Outdated pairs (no info since yesterday) out of total pairs: {(len(outdated_pairs_list)/len(table_names)):.2f}%\n"
+        report += f"--> Correct pairs (updated info) out of total pairs: {(len(correct_pairs_list) / len(table_names)):.2f}%\n"
+        report += f"--> New pairs out of total pairs:: {(len(new_pairs_list) / len(table_names)):.2f}%\n\n"
+
+        report += f"\n\nFor more information visit the attached files:\n++ all_daily_metrics.csv: general information about current databases\n++ trade_amount_heatmap.pdf: Per trading pair - % of total trades downloaded per day\n\n"
+        report += "See you soon and don't forget to be awesome!!"
+
+        csv_dict = {
+            "missing_pairs": final_df[final_df['trading_pair'].isin(missing_pairs_list)],
+            "outdated_pairs": final_df[final_df['trading_pair'].isin(outdated_pairs_list)],
+            "correct_pairs": final_df[final_df['trading_pair'].isin(correct_pairs_list)],
+            "new_pairs": final_df[final_df['trading_pair'].isin(new_pairs_list)]
+        }
+        return report, {key: df for key, df in csv_dict.items() if len(df) > 20}
+# Usage
 async def main():
-    task = ReportGeneratorTask(
-        name="Report Generator",
-        config={
-            "host": "localhost",
-            "port": 5432,
-            "user": "admin",
-            "password": "admin",
-            "database": "timescaledb",
-        },
-        frequency=timedelta(hours=12))
+    config = {
+        "host": os.getenv("TIMESCALE_HOST", "localhost"),
+        "email": "thinkingscience.ts@gmail.com",
+        "email_password": "dqtn zjkf aumv esak",
+        # "recipients": ["palmiscianoblas@gmail.com", "federico.cardoso.e@gmail.com", "apelsantiago@gmail.com",  "tomasgaudino8@gmail.com"]
+        "recipients": ["palmiscianoblas@gmail.com"],
+        "export": True
+    }
+    task = ReportGeneratorTask(name="Report Generator", frequency=timedelta(hours=12), config=config)
     await task.execute()
+
 
 if __name__ == "__main__":
     asyncio.run(main())
