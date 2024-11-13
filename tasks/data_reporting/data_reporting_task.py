@@ -1,4 +1,5 @@
 import asyncio
+import json
 import logging
 import os
 import smtplib
@@ -15,6 +16,7 @@ import asyncpg
 import pandas as pd
 import numpy as np
 
+from core.services.backend_api_client import BackendAPIClient
 from core.services.timescale_client import TimescaleClient
 from core.task_base import BaseTask
 
@@ -31,6 +33,7 @@ class TaskBase(BaseTask):
         self.config = config
         self.export = self.config.get("export", False)
         self.ts_client = TimescaleClient(host=self.config.get("host", "localhost"))
+        self.backend_api_client = BackendAPIClient(host=self.config.get("backend_api_host", "localhost"))
 
     async def execute_query(self, query: str):
         """Executes a query and returns the result."""
@@ -149,11 +152,15 @@ class ReportGeneratorTask(TaskBase):
                        for connector_name, trading_pair in available_pairs]
         await self.set_base_metrics()
 
+        active_bots_status = await self.backend_api_client.get_active_bots_status()
+        performance_data = active_bots_status["data"]
+        performance_by_bot_dict = {instance_name: data.get("performance") for instance_name, data in performance_data.items()}
+        performance_string = json.dumps(performance_by_bot_dict, indent=4)
         # Generate the heatmap PDF
         # heatmap_pdf = await self.generate_heatmap()
 
         # Generate the report and prepare the email
-        report, csv_dict = self.generate_report(table_names)
+        report, csv_dict = self.generate_report(table_names, performance_string)
 
         message = self.create_email(
             subject="Database Refresh Report - Thinking Science Journal",
@@ -173,7 +180,7 @@ class ReportGeneratorTask(TaskBase):
         # Send the email
         self.send_email(message, sender_email=self.config["email"], app_password=self.config["email_password"])
 
-    def generate_report(self, table_names: List[str]) -> (str, Dict[str, pd.DataFrame]):
+    def generate_report(self, table_names: List[str], bots_report: str = None) -> (str, Dict[str, pd.DataFrame]):
         final_df = self.base_metrics
         missing_pairs_list = [pair for pair in table_names if pair not in final_df['table_names'].unique()]
         outdated_pairs_list = [pair for pair in table_names if
@@ -184,7 +191,12 @@ class ReportGeneratorTask(TaskBase):
                           pair in final_df[final_df['is_new']]['table_names'].unique()]
 
         report = f"\n\nHello Mr Pickantell!:\n"
-        report = f"\nHere's a quick review on your database:\n"
+        report += f"Here are your fucking bots running:\n"
+        if len(bots_report) < 10:
+            report += f"You have no fucking bots\n"
+        else:
+            report += str(bots_report) + "\n\n"
+        report += f"\nHere's a quick review on your database:\n"
         if not missing_pairs_list and not outdated_pairs_list:
             report += "\n--> All trading pairs have been updated today."
         if missing_pairs_list:
@@ -232,6 +244,7 @@ class ReportGeneratorTask(TaskBase):
 async def main():
     config = {
         "host": os.getenv("TIMESCALE_HOST", "localhost"),
+        "backend_api_host": os.getenv("TRADING_HOST", "localhost"),
         "email": "thinkingscience.ts@gmail.com",
         "email_password": "dqtn zjkf aumv esak",
         # "recipients": ["palmiscianoblas@gmail.com", "federico.cardoso.e@gmail.com", "apelsantiago@gmail.com",  "tomasgaudino8@gmail.com"]
