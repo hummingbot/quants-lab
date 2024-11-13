@@ -13,7 +13,7 @@ logger = logging.getLogger(__name__)
 
 async def main():
     from core.task_base import TaskOrchestrator
-    from tasks.backtesting.xtreet_backtesting_task import BacktestingTask
+    from tasks.backtesting.xtreet_backtesting_task import XtreetBacktestingTask
     orchestrator = TaskOrchestrator()
 
     timescale_config = {
@@ -55,7 +55,7 @@ async def main():
         "optuna_config": optuna_config
     }
 
-    backtesting_task = BacktestingTask("Backtesting", timedelta(hours=12), config)
+    backtesting_task = XtreetBacktestingTask("Backtesting", timedelta(hours=12), config)
     orchestrator.add_task(backtesting_task)
 
     await orchestrator.run()

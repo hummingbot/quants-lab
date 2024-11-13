@@ -19,7 +19,7 @@ logger = logging.getLogger(__name__)
 load_dotenv()
 
 
-class BacktestingTask(BaseTask):
+class XtreetBacktestingTask(BaseTask):
     def __init__(self, name: str, frequency: timedelta, config: Dict[str, Any]):
         super().__init__(name, frequency, config)
         self.resolution = self.config["resolution"]
@@ -114,7 +114,7 @@ async def main():
         "OPTUNA_PASSWORD": "admin",
     }
 
-    task = BacktestingTask("Backtesting", timedelta(hours=12), config)
+    task = XtreetBacktestingTask("Backtesting", timedelta(hours=12), config)
     await task.execute()
 
 
