@@ -31,3 +31,4 @@ dependencies:
       - rich
       - python-dotenv
       - asyncpg
+      - psycopg2-binary

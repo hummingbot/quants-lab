@@ -14,6 +14,7 @@ COPY core/ core/
 COPY environment.yml .
 COPY research_notebooks/ research_notebooks/
 COPY controllers/ controllers/
+COPY tasks/ tasks/
 
 # Create the environment from the environment.yml file
 # If cchardet fails, we'll install it separately

@@ -2,6 +2,10 @@ import asyncio
 from abc import ABC, abstractmethod
 from datetime import datetime, timedelta
 from typing import Any, Dict
+import logging
+
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
 
 
 class BaseTask(ABC):
@@ -23,7 +27,7 @@ class BaseTask(ABC):
                     self.last_run = now
                     await self.execute()
                 except Exception as e:
-                    print(f"Error executing task {self.name}: {e}")
+                    logger.info(f" Error executing task {self.name}: {e}")
             await asyncio.sleep(1)  # Check every second
 
 

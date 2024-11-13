@@ -1,12 +1,13 @@
 import asyncio
 import time
 from datetime import datetime, timedelta
-from typing import Dict, List, Optional, Tuple, Union
+from typing import Dict, List, Optional, Tuple, Union, Any
 
 import asyncpg
 import pandas as pd
 
 from core.data_structures.candles import Candles
+from core.features.candles.volatility import Volatility, VolatilityConfig
 
 INTERVAL_MAPPING = {
     '1s': 's',  # seconds
@@ -52,6 +53,69 @@ class TimescaleClient:
     @staticmethod
     def get_ohlc_table_name(connector_name: str, trading_pair: str, interval: str) -> str:
         return f"{connector_name}_{trading_pair.lower().replace('-', '_')}_{interval}"
+
+    @property
+    def metrics_table_name(self):
+        return "summary_metrics"
+
+    @property
+    def screener_table_name(self):
+        return "screener_metrics"
+
+    async def create_candles_table(self, table_name: str):
+        async with self.pool.acquire() as conn:
+            await conn.execute(f'''
+                CREATE TABLE IF NOT EXISTS {table_name} (
+                    timestamp TIMESTAMPTZ NOT NULL,
+                    open NUMERIC NOT NULL,
+                    high NUMERIC NOT NULL,
+                    low NUMERIC NOT NULL,
+                    close NUMERIC NOT NULL,
+                    volume NUMERIC NOT NULL,
+                    quote_asset_volume NUMERIC NOT NULL,
+                    n_trades INTEGER NOT NULL,
+                    taker_buy_base_volume NUMERIC NOT NULL,
+                    taker_buy_quote_volume NUMERIC NOT NULL,
+                    PRIMARY KEY (timestamp)
+                )
+            ''')
+
+    async def create_screener_table(self):
+        async with self.pool.acquire() as conn:
+            await conn.execute(f'''
+                CREATE TABLE IF NOT EXISTS {self.screener_table_name} (
+                    connector_name TEXT NOT NULL,
+                    trading_pair TEXT NOT NULL,
+                    price JSONB NOT NULL,
+                    volume_24h REAL NOT NULL,
+                    price_cbo JSONB NOT NULL,
+                    volume_cbo JSONB NOT NULL,
+                    one_min JSONB NOT NULL,
+                    three_min JSONB NOT NULL,
+                    five_min JSONB NOT NULL,
+                    fifteen_min JSONB NOT NULL,
+                    one_hour JSONB NOT NULL,
+                    start_time TIMESTAMPTZ NOT NULL,
+                    end_time TIMESTAMPTZ NOT NULL
+                );
+            ''')
+
+    async def create_metrics_table(self):
+        async with self.pool.acquire() as conn:
+            await conn.execute(f'''
+                CREATE TABLE IF NOT EXISTS {self.metrics_table_name} (
+                    connector_name TEXT NOT NULL,
+                    trading_pair TEXT NOT NULL,
+                    trade_amount REAL,
+                    price_avg REAL,
+                    price_max REAL,
+                    price_min REAL,
+                    price_median REAL,
+                    from_timestamp TIMESTAMPTZ NOT NULL,
+                    to_timestamp TIMESTAMPTZ NOT NULL,
+                    volume_usd REAL
+                );
+            ''')
 
     async def create_trades_table(self, table_name: str):
         async with self.pool.acquire() as conn:
@@ -104,24 +168,6 @@ class TimescaleClient:
                 ON CONFLICT (connector_name, trading_pair, trade_id) DO NOTHING
             ''', trades)
 
-    async def create_candles_table(self, table_name: str):
-        async with self.pool.acquire() as conn:
-            await conn.execute(f'''
-                CREATE TABLE IF NOT EXISTS {table_name} (
-                    timestamp TIMESTAMPTZ NOT NULL,
-                    open NUMERIC NOT NULL,
-                    high NUMERIC NOT NULL,
-                    low NUMERIC NOT NULL,
-                    close NUMERIC NOT NULL,
-                    volume NUMERIC NOT NULL,
-                    quote_asset_volume NUMERIC NOT NULL,
-                    n_trades INTEGER NOT NULL,
-                    taker_buy_base_volume NUMERIC NOT NULL,
-                    taker_buy_quote_volume NUMERIC NOT NULL,
-                    PRIMARY KEY (timestamp)
-                )
-            ''')
-
     async def append_candles(self, table_name: str, candles: List[Tuple[float, float, float, float, float]]):
         async with self.pool.acquire() as conn:
             await self.create_candles_table(table_name)
@@ -131,6 +177,54 @@ class TimescaleClient:
                 VALUES (to_timestamp($1), $2, $3, $4, $5, $6, $7, $8, $9, $10)
                 ON CONFLICT (timestamp) DO NOTHING
             ''', candles)
+
+    async def append_screener_metrics(self, screener_metrics: Dict[str, Any]):
+        async with self.pool.acquire() as conn:
+            await self.create_screener_table()
+            delete_query = f"""
+                        DELETE FROM {self.screener_table_name}
+                        WHERE connector_name = '{screener_metrics["connector_name"]}' AND trading_pair = '{screener_metrics["trading_pair"]}';
+                        """
+            query = f"""
+                        INSERT INTO {self.screener_table_name} (
+                            connector_name,
+                            trading_pair,
+                            price,
+                            volume_24h,
+                            price_cbo,
+                            volume_cbo,
+                            one_min,
+                            three_min,
+                            five_min,
+                            fifteen_min,
+                            one_hour,
+                            start_time,
+                            end_time
+                        )
+                        VALUES (
+                            $1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13
+                        );
+                    """
+            async with self.pool.acquire() as conn:
+                await self.create_screener_table()
+                await conn.execute(delete_query)
+                await conn.execute(
+                    query,
+                    screener_metrics["connector_name"],
+                    screener_metrics["trading_pair"],
+                    screener_metrics["price"],
+                    screener_metrics["volume_24h"],
+                    screener_metrics["price_cbo"],
+                    screener_metrics["volume_cbo"],
+                    screener_metrics["one_min"],
+                    screener_metrics["three_min"],
+                    screener_metrics["five_min"],
+                    screener_metrics["fifteen_min"],
+                    screener_metrics["one_hour"],
+                    screener_metrics["start_time"],
+                    screener_metrics["end_time"],
+
+                )
 
     async def get_last_trade_id(self, connector_name: str, trading_pair: str, table_name: str) -> int:
         async with self.pool.acquire() as conn:
@@ -159,6 +253,13 @@ class TimescaleClient:
                 SELECT MIN(timestamp) FROM {table_name}
                 ''')
             return start_time.timestamp()
+
+    async def get_max_timestamp(self, table_name):
+        async with self.pool.acquire() as conn:
+            end_timestamp = await conn.fetchval(f'''
+                SELECT MAX(timestamp) FROM {table_name}
+                ''')
+            return end_timestamp.timestamp()
 
     async def get_trades(self, connector_name: str, trading_pair: str, start_time: Optional[float],
                          end_time: Optional[float] = None, chunk_size: timedelta = timedelta(hours=6)) -> pd.DataFrame:
@@ -233,6 +334,112 @@ class TimescaleClient:
                 )
                 for i, row in candles.data.iterrows()
             ])
+
+    async def execute_query(self, query: str):
+        async with self.pool.acquire() as connection:
+            return await connection.fetch(query)
+
+    def metrics_query_str(self, connector_name, trading_pair):
+        table_name = self.get_trades_table_name(connector_name, trading_pair)
+        return f'''
+            SELECT COUNT(*) AS trade_amount,
+                   AVG(price) AS price_avg,
+                   MAX(price) AS price_max,
+                   MIN(price) AS price_min,
+                   PERCENTILE_CONT(0.5) WITHIN GROUP (ORDER BY price) AS price_median,
+                   MIN(timestamp) AS from_timestamp,
+                   MAX(timestamp) AS to_timestamp,
+                   SUM(price * volume) AS volume_usd
+            FROM {table_name}
+        '''
+
+    async def get_screener_df(self):
+        async with self.pool.acquire() as conn:
+            rows = await conn.fetch(f"""
+            SELECT *
+            FROM {self.screener_table_name}""")
+        df_cols = [
+            "connector_name",
+            "trading_pair",
+            "price",
+            "volume_24h",
+            "price_cbo",
+            "volume_cbo",
+            "one_min",
+            "three_min",
+            "five_min",
+            "fifteen_min",
+            "one_hour",
+            "start_time",
+            "end_time"
+        ]
+        df = pd.DataFrame(rows, columns=df_cols)
+        return df
+
+    async def get_db_status_df(self):
+        async with self.pool.acquire() as conn:
+            rows = await conn.fetch("""
+            SELECT *
+            FROM summary_metrics""")
+        df_cols = [
+            "connector_name",
+            "trading_pair",
+            "trade_amount",
+            "price_avg",
+            "price_max",
+            "price_min",
+            "price_median",
+            "from_timestamp",
+            "to_timestamp",
+            "volume_usd"
+        ]
+        df = pd.DataFrame(rows, columns=df_cols)
+        return df
+
+    async def append_db_status_metrics(self, connector_name: str, trading_pair: str):
+        async with self.pool.acquire() as conn:
+            query = self.metrics_query_str(connector_name, trading_pair)
+            metrics = await self.execute_query(query)
+            metric_data = dict(metrics[0])
+            metric_data["connector_name"] = connector_name
+            metric_data["trading_pair"] = trading_pair
+            delete_query = f"""
+                DELETE FROM {self.metrics_table_name}
+                WHERE connector_name = '{metric_data["connector_name"]}' AND trading_pair = '{metric_data["trading_pair"]}';
+                """
+            query = f"""
+                INSERT INTO {self.metrics_table_name} (
+                    connector_name,
+                    trading_pair,
+                    trade_amount,
+                    price_avg,
+                    price_max,
+                    price_min,
+                    price_median,
+                    from_timestamp,
+                    to_timestamp,
+                    volume_usd
+                )
+                VALUES (
+                    $1, $2, $3, $4, $5, $6, $7, $8, $9, $10
+                );
+            """
+            async with self.pool.acquire() as conn:
+                await self.create_metrics_table()
+                await conn.execute(delete_query)
+                await conn.execute(
+                    query,
+                    metric_data['connector_name'],
+                    metric_data['trading_pair'],
+                    metric_data['trade_amount'],
+                    metric_data['price_avg'],
+                    metric_data['price_max'],
+                    metric_data['price_min'],
+                    metric_data['price_median'],
+                    metric_data['from_timestamp'],
+                    metric_data['to_timestamp'],
+                    metric_data['volume_usd']
+                )
 
     async def get_candles(self, connector_name: str, trading_pair: str, interval: str,
                           start_time: Optional[float] = None,

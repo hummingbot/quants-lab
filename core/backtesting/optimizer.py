@@ -1,4 +1,5 @@
 import datetime
+import logging
 import os.path
 import subprocess
 import traceback
@@ -6,12 +7,18 @@ from abc import ABC, abstractmethod
 from typing import List, Optional, Type
 
 import optuna
+from dotenv import load_dotenv
+from hummingbot.strategy_v2.backtesting.backtesting_engine_base import BacktestingEngineBase
+from hummingbot.strategy_v2.controllers import ControllerConfigBase
 from pydantic import BaseModel
 
 from core.backtesting import BacktestingEngine
 from core.services.timescale_client import TimescaleClient
-from hummingbot.strategy_v2.backtesting.backtesting_engine_base import BacktestingEngineBase
-from hummingbot.strategy_v2.controllers import ControllerConfigBase
+
+load_dotenv()
+
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
 
 
 class BacktestingConfig(BaseModel):
@@ -74,23 +81,40 @@ class StrategyOptimizer:
     Class for optimizing trading strategies using Optuna and a backtesting engine.
     """
 
-    def __init__(self, root_path: str = "", database_name: str = "optimization_database",
-                 load_cached_data: bool = False, resolution: str = "1m", db_client: Optional[TimescaleClient] = None):
+    def __init__(self, engine: str = "sqlite", root_path: str = "", database_name: str = "optimization_database",
+                 load_cached_data: bool = False, resolution: str = "1m", db_client: Optional[TimescaleClient] = None,
+                 db_host: str = None, db_port: int = None, db_user: str = None, db_pass: str = None):
         """
         Initialize the optimizer with a backtesting engine and database configuration.
 
         Args:
+            engine (str): "sqlite" or "postgres".
             root_path (str): Root path for storing database files.
             database_name (str): Name of the SQLite database for storing optimization results.
             load_cached_data (bool): Whether to load cached backtesting data.
             resolution (str): The resolution or time frame of the data (e.g., '1h', '1d').
+            db_host (str): Database Host
+            db_port (int): Database Port
+            db_user (str): Database User
+            db_pass (str): Database Password
         """
         self._backtesting_engine = BacktestingEngine(load_cached_data=load_cached_data)
         self._db_client = db_client
-
         self.resolution = resolution
-        db_path = os.path.join(root_path, "data", "backtesting", f"{database_name}.db")
-        self._storage_name = f"sqlite:///{db_path}"
+        logger.info(f"Connecting to {engine} database...")
+        if engine == "sqlite":
+            db_path = os.path.join(root_path, "data", "backtesting", f"{database_name}.db")
+            self._storage_name = f"sqlite:///{db_path}"
+        elif engine == "postgres":
+            if not all([db_host, db_port, db_user, db_pass]):
+                missing_params = [param for param in ["db_host", "db_port", "db_user", "db_pass"]
+                                  if locals().get(param) is None]
+                raise ValueError(f"Missing required parameters for PostgreSQL connection: {', '.join(missing_params)}")
+
+            # Assuming the default PostgreSQL driver is "psycopg2"
+            self._storage_name = f"postgresql+psycopg2://{db_user}:{db_pass}@{db_host}:{db_port}/{database_name}"
+        else:
+            raise ValueError(f"Invalid engine specified: '{engine}'. Use 'sqlite' or 'postgres'.")
         self.dashboard_process = None
 
     def get_all_study_names(self):
@@ -158,6 +182,7 @@ class StrategyOptimizer:
         Returns:
             optuna.Study: The created or loaded study.
         """
+        logger.info("About to create a study...")
         return optuna.create_study(
             direction=direction,
             study_name=study_name,
@@ -178,6 +203,7 @@ class StrategyOptimizer:
             load_if_exists (bool): Whether to load an existing study if available.
         """
         study = self._create_study(study_name, load_if_exists=load_if_exists)
+        logger.info("About to start optimizing...")
         await self._optimize_async(study, config_generator, n_trials=n_trials)
 
     async def optimize_custom_configs(self, study_name: str, config_generator: Type[BaseStrategyConfigGenerator],
@@ -236,6 +262,10 @@ class StrategyOptimizer:
                 trading_pair = bt_config.config.trading_pair
                 start = bt_config.start
                 end = bt_config.end
+
+                trial.set_user_attr("config", bt_config.config.json())
+                trial.set_user_attr("start_bt", start)
+                trial.set_user_attr("end_bt", end)
                 candles = await self._db_client.get_candles(connector_name,
                                                             trading_pair,
                                                             self.resolution, start, end)
@@ -259,7 +289,10 @@ class StrategyOptimizer:
 
                 for key, value in strategy_analysis.items():
                     trial.set_user_attr(key, value)
-                trial.set_user_attr("config", backtesting_result.controller_config.json())
+                executors_df = backtesting_result.executors_df.copy()
+                trial.set_user_attr("executors", executors_df.to_json())
+                executors_df["close_type"] = executors_df["close_type"].apply(lambda x: x.name)
+                executors_df["status"] = executors_df["status"].apply(lambda x: x.name)
 
                 # Return the value you want to optimize
                 value = strategy_analysis["net_pnl"]
@@ -299,6 +332,11 @@ class StrategyOptimizer:
             for key, value in strategy_analysis.items():
                 trial.set_user_attr(key, value)
             trial.set_user_attr("config", backtesting_result.controller_config.json())
+            executors_df = backtesting_result.executors_df.copy()
+            executors_df["close_type"] = executors_df["close_type"].apply(lambda x: x.name)
+            executors_df["status"] = executors_df["status"].apply(lambda x: x.name)
+            executors_df.drop(columns=["config"], inplace=True)
+            trial.set_user_attr("executors", executors_df.to_json())
 
             # Return the value you want to optimize
             return strategy_analysis["sharpe_ratio"]
