@@ -355,9 +355,9 @@ class TimescaleClient:
 
     async def get_screener_df(self):
         async with self.pool.acquire() as conn:
-            rows = await conn.fetch("""
+            rows = await conn.fetch(f"""
             SELECT *
-            FROM summary_metrics""")
+            FROM {self.screener_table_name}""")
         df_cols = [
             "connector_name",
             "trading_pair",
@@ -369,7 +369,9 @@ class TimescaleClient:
             "three_min",
             "five_min",
             "fifteen_min",
-            "one_hour"
+            "one_hour",
+            "start_time",
+            "end_time"
         ]
         df = pd.DataFrame(rows, columns=df_cols)
         return df
