@@ -81,10 +81,9 @@ class ReportGeneratorTask(TaskBase):
 
     @staticmethod
     def is_new(row):
-        # last_data_today = pd.to_datetime(row['to_timestamp']).timestamp() >= datetime.now().timestamp()
-        last_data_today = pd.to_datetime(row['to_timestamp']).timestamp() >= (datetime.now() - timedelta(days=1)).timestamp()
-        last_data_yesterday = pd.to_datetime(row['to_timestamp']).timestamp() >= (datetime.now() - timedelta(days=2)).timestamp()
-        first_data_yesterday = pd.to_datetime(row['from_timestamp']).timestamp() >= (datetime.now() - timedelta(days=2)).timestamp()
+        last_data_today = pd.to_datetime(row['to_timestamp']).timestamp() >= datetime.now().timestamp()
+        last_data_yesterday = pd.to_datetime(row['to_timestamp']).timestamp() >= (datetime.now() - timedelta(days=1)).timestamp()
+        first_data_yesterday = pd.to_datetime(row['from_timestamp']).timestamp() >= (datetime.now() - timedelta(days=1)).timestamp()
 
         if last_data_today:
             when = 'today'
