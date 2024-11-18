@@ -35,7 +35,7 @@ async def main():
         "timescale_config": timescale_config
     }
 
-    candles_downloader_task = CandlesDownloaderTask("Metrics Report", timedelta(hours=4), config)
+    candles_downloader_task = CandlesDownloaderTask("Candles Downloader", timedelta(hours=4), config)
     orchestrator.add_task(candles_downloader_task)
 
     await orchestrator.run()
