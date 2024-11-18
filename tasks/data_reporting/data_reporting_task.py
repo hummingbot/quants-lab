@@ -234,9 +234,9 @@ class ReportGeneratorTask(TaskBase):
 
         csv_dict = {
             "missing_pairs": pd.Series(missing_pairs_list),
-            "outdated_pairs": final_df[final_df['table_names'].isin(outdated_pairs_list)],
-            "correct_pairs": final_df[final_df['table_names'].isin(correct_pairs_list)],
-            "new_pairs": final_df[final_df['table_names'].isin(new_pairs_list)]
+            "outdated_pairs": pd.Series(outdated_pairs_list),
+            "correct_pairs": pd.Series(correct_pairs_list),
+            "new_pairs": pd.Series(new_pairs_list)
         }
         return report, {key: df for key, df in csv_dict.items() if len(df) > 20}
 
