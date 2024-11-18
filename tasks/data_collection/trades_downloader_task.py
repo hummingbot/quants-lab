@@ -106,7 +106,7 @@ if __name__ == "__main__":
         'db_host': 'localhost',
         'db_port': 5432,
         'db_name': 'timescaledb',
-        'selected_pairs': ["BTC-USDT", "ETH-USDT"]
+        'selected_pairs': None
     }
 
     task = TradesDownloaderTask("Trades Downloader", timedelta(hours=1), config)

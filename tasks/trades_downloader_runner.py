@@ -32,7 +32,8 @@ async def main():
             "connector_name": "binance_perpetual",
             "quote_asset": "USDT",
             "min_notional_size": 10.0,
-            "days_data_retention": 10
+            "days_data_retention": 10,
+            "selected_pairs": None
         },
         frequency=timedelta(hours=5))
 
