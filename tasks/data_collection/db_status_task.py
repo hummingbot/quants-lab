@@ -45,6 +45,7 @@ class DbStatusTask(BaseTask):
     def now():
         return datetime.now(timezone.utc).strftime('%Y-%m-%d %H:%M:%S.%f UTC')
 
+
 if __name__ == "__main__":
     config = {
         'db_host': 'localhost',
