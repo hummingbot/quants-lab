@@ -20,8 +20,7 @@ class DbStatusTask(BaseTask):
         super().__init__(name, frequency, config)
 
     async def execute(self):
-        now = datetime.now(timezone.utc).strftime('%Y-%m-%d %H:%M:%S.%f UTC')
-        logging.info(f"{now} - Generating metrics report for TimescaleDB at {time.strftime('%Y-%m-%d %H:%M:%S')}")
+        logging.info(f"{self.now()} - Generating metrics report for TimescaleDB at {time.strftime('%Y-%m-%d %H:%M:%S')}")
 
         timescale_client = TimescaleClient(
             host=self.config["db_host"],
@@ -31,17 +30,20 @@ class DbStatusTask(BaseTask):
         available_trading_pairs = await timescale_client.get_available_pairs()
         for i, market_info in enumerate(available_trading_pairs):
             connector_name, trading_pair = market_info
-            logging.info(f"{now} - Fetching trades for {trading_pair} [{i} from {len(available_trading_pairs)}]")
+            logging.info(f"{self.now()} - Fetching trades for {trading_pair} [{i} from {len(available_trading_pairs)}]")
             try:
-                logging.info(f"{now} - Updated metrics for {trading_pair}")
+                logging.info(f"{self.now()} - Updated metrics for {trading_pair}")
                 await timescale_client.append_db_status_metrics(connector_name=connector_name,
                                                                 trading_pair=trading_pair)
             except Exception as e:
-                logging.exception(f"{now} - An error occurred during the data load for trading pair {trading_pair}:\n {e}")
+                logging.exception(f"{self.now()} - An error occurred during the data load for trading pair {trading_pair}:\n {e}")
                 continue
 
         await timescale_client.close()
 
+    @staticmethod
+    def now():
+        return datetime.now(timezone.utc).strftime('%Y-%m-%d %H:%M:%S.%f UTC')
 
 if __name__ == "__main__":
     config = {
