@@ -54,8 +54,8 @@ class TimescaleClient:
         return f"{connector_name}_{trading_pair.lower().replace('-', '_')}_{interval}"
 
     @property
-    def metrics_table_name(self):
-        return "summary_metrics"
+    def trades_summary_table_name(self):
+        return "trades_summary"
 
     @property
     def screener_table_name(self):
@@ -102,7 +102,7 @@ class TimescaleClient:
     async def create_metrics_table(self):
         async with self.pool.acquire() as conn:
             await conn.execute(f'''
-                CREATE TABLE IF NOT EXISTS {self.metrics_table_name} (
+                CREATE TABLE IF NOT EXISTS {self.trades_summary_table_name} (
                     connector_name TEXT NOT NULL,
                     trading_pair TEXT NOT NULL,
                     trade_amount REAL,
@@ -404,11 +404,11 @@ class TimescaleClient:
             metric_data["connector_name"] = connector_name
             metric_data["trading_pair"] = trading_pair
             delete_query = f"""
-                DELETE FROM {self.metrics_table_name}
+                DELETE FROM {self.trades_summary_table_name}
                 WHERE connector_name = '{metric_data["connector_name"]}' AND trading_pair = '{metric_data["trading_pair"]}';
                 """
             query = f"""
-                INSERT INTO {self.metrics_table_name} (
+                INSERT INTO {self.trades_summary_table_name} (
                     connector_name,
                     trading_pair,
                     trade_amount,
