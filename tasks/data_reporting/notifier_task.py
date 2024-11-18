@@ -68,7 +68,7 @@ async def main():
         "email_password": "dqtn zjkf aumv esak",
         # "recipients": ["palmiscianoblas@gmail.com", "federico.cardoso.e@gmail.com", "apelsantiago@gmail.com",  "tomasgaudino8@gmail.com"]
         "recipients": ["palmiscianoblas@gmail.com"],
-        "export": True
+        "export": True,
     }
     task = WarningNotifier(name="Report Generator", frequency=timedelta(hours=12), config=config)
     await task.execute()
