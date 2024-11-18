@@ -49,9 +49,11 @@ class TaskBase(BaseTask):
         message.attach(MIMEText(body, "plain"))
         return message
 
-    def add_attachment(self, message: MIMEMultipart, path: str):
+    def add_attachment(self, message: MIMEMultipart, path: str, table: pd.DataFrame()):
         """Attaches a file to the email."""
-        with open(path, "rb") as attachment:
+        real_path = path + '.csv'
+        table.to_csv(real_path)
+        with open(real_path, "rb") as attachment:
             part = MIMEBase("application", "octet-stream")
             part.set_payload(attachment.read())
         encoders.encode_base64(part)
@@ -74,6 +76,7 @@ class TaskBase(BaseTask):
 class ReportGeneratorTask(TaskBase):
     def __init__(self, name: str, frequency: timedelta, config: Dict[str, Any]):
         super().__init__(name, frequency, config)
+        self.csv_dict = None
         self.base_metrics = None
 
     async def get_base_tables(self):
@@ -158,7 +161,7 @@ class ReportGeneratorTask(TaskBase):
         # heatmap_pdf = await self.generate_heatmap()
 
         # Generate the report and prepare the email
-        report, csv_dict = self.generate_report(table_names, performance_string)
+        report = self.generate_report(table_names, performance_string)
 
         message = self.create_email(
             subject="Database Refresh Report - Thinking Science Journal",
@@ -170,9 +173,9 @@ class ReportGeneratorTask(TaskBase):
         # Attach CSV files, heatmap PDF, and other files
         # for filename in ["all_daily_metrics.csv", heatmap_pdf] + [f"{k}.csv" for k in csv_dict]:
         # TODO: try to replace all_daily_metrics by a class attribute like self.daily_metrics
-        for filename in ["all_daily_metrics.csv"] + [f"{k}.csv" for k in csv_dict]:
+        for filename, table in self.csv_dict.items():
             try:
-                self.add_attachment(message, filename)
+                self.add_attachment(message, filename, table)
             except Exception as e:
                 print(f"Unable to attach file {filename}: {e}")
 
@@ -238,7 +241,9 @@ class ReportGeneratorTask(TaskBase):
             "correct_pairs": pd.Series(correct_pairs_list),
             "new_pairs": pd.Series(new_pairs_list),
         }
-        return report, {key: df for key, df in csv_dict.items() if len(df) > 20}
+        self.csv_dict = {key: df for key, df in csv_dict.items() if len(df) > 20}
+        self.csv_dict['all_daily_metrics'] = self.base_metrics
+        return report
 
 
 async def main():
