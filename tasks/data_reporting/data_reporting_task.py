@@ -190,9 +190,9 @@ class ReportGeneratorTask(TaskBase):
                           pair in final_df[final_df['is_new']]['table_names'].unique()]
 
         report = f"\n\nHello Mr Pickantell!:\n"
-        report += f"Here are your fucking bots running:\n"
+        report += f"Here are your bots running:\n"
         if len(bots_report) < 10:
-            report += f"You have no fucking bots\n"
+            report += f"You have no fucking bots.... please do FALLISMO\n"
         else:
             report += str(bots_report) + "\n\n"
         report += f"\nHere's a quick review on your database:\n"
@@ -233,18 +233,18 @@ class ReportGeneratorTask(TaskBase):
         report += "See you soon and don't forget to be awesome!!"
 
         csv_dict = {
-            "missing_pairs": final_df[final_df['trading_pair'].isin(missing_pairs_list)],
-            "outdated_pairs": final_df[final_df['trading_pair'].isin(outdated_pairs_list)],
-            "correct_pairs": final_df[final_df['trading_pair'].isin(correct_pairs_list)],
-            "new_pairs": final_df[final_df['trading_pair'].isin(new_pairs_list)]
+            "missing_pairs": pd.Series(missing_pairs_list),
+            "outdated_pairs": final_df[final_df['table_names'].isin(outdated_pairs_list)],
+            "correct_pairs": final_df[final_df['table_names'].isin(correct_pairs_list)],
+            "new_pairs": final_df[final_df['table_names'].isin(new_pairs_list)]
         }
         return report, {key: df for key, df in csv_dict.items() if len(df) > 20}
 
 
 async def main():
     config = {
-        "host": os.getenv("TIMESCALE_HOST", "localhost"),
-        "backend_api_host": os.getenv("TRADING_HOST", "localhost"),
+        "host": os.getenv("TIMESCALE_HOST", "63.250.52.93"),
+        "backend_api_host": os.getenv("TRADING_HOST", "63.250.52.93"),
         "email": "thinkingscience.ts@gmail.com",
         "email_password": os.getenv("EMAIL_PASSWORD", "password"),
         "recipients": os.getenv("RECIPIENTS", "").split(","),
