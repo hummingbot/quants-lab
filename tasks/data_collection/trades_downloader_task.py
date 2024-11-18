@@ -48,8 +48,8 @@ class TradesDownloaderTask(BaseTask):
             .filter_by_min_notional_size(self.min_notional_size) \
             .get_all_trading_pairs()
         if self.selected_pairs is not None:
-            trading_pairs = [sorted([trading_pair for trading_pair in trading_pairs
-                                     if trading_pair in self.selected_pairs])]
+            trading_pairs = sorted([trading_pair for trading_pair in trading_pairs
+                                    if trading_pair in self.selected_pairs])
         for i, trading_pair in enumerate(trading_pairs):
             logging.info(f"{self.now()} - Fetching trades for {trading_pair} [{i} from {len(trading_pairs)}]")
             try:
