@@ -316,6 +316,10 @@ class TimescaleClient:
                     low NUMERIC NOT NULL,
                     close NUMERIC NOT NULL,
                     volume NUMERIC NOT NULL,
+                    quote_asset_volume NUMERIC NOT NULL,
+                    n_trades INTEGER NOT NULL,
+                    taker_buy_base_volume NUMERIC NOT NULL,
+                    taker_buy_quote_volume NUMERIC NOT NULL,
                     PRIMARY KEY (timestamp)
                 )
             ''')
@@ -330,7 +334,11 @@ class TimescaleClient:
                     row['high'],
                     row['low'],
                     row['close'],
-                    row['volume']
+                    row['volume'],
+                    0.0,
+                    0,
+                    0.0,
+                    0.0
                 )
                 for i, row in candles.data.iterrows()
             ])
