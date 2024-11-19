@@ -98,7 +98,6 @@ class BinancePerpetualTradesFeed(TradesFeedBase):
         if current_weight_usage >= self.REQUEST_WEIGHT_LIMIT:
             # Calculate how long to sleep to stay within the rate limit
             sleep_time = self.ONE_MINUTE - (current_time - self._request_timestamps[0])
-            self.logger().info(f"Rate limit reached. Sleeping for {sleep_time:.2f} seconds.")
             await asyncio.sleep(sleep_time)
 
     def _record_request(self):
