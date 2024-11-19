@@ -1,28 +1,12 @@
 import asyncio
 import json
-import logging
 import os
-import smtplib
-from email import encoders
-from email.mime.base import MIMEBase
-from email.mime.multipart import MIMEMultipart
-from email.mime.text import MIMEText
-from typing import Any, Dict, List, Optional
-from datetime import datetime, timedelta
-import plotly.express as px
-from dotenv import load_dotenv
-
-import asyncpg
-import pandas as pd
 import numpy as np
-
-from core.services.backend_api_client import BackendAPIClient
-from core.services.timescale_client import TimescaleClient
-
-from data_reporting_task import TaskBase
 from datetime import datetime, timedelta
-from core.services.backend_api_client import BackendAPIClient
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict
+
+from tasks.data_reporting.data_reporting_task import TaskBase
+
 
 class WarningNotifier(TaskBase):
     def __init__(self, name: str, frequency: timedelta, config: Dict[str, Any]):
@@ -44,11 +28,8 @@ class WarningNotifier(TaskBase):
         flag = False
         self.report = "\nHi Mr Pickantell, we regret to tell you some bad news :-( \n"
         await self.ts_client.connect()
-        available_pairs = await self.ts_client.get_available_pairs()
-        table_names = [self.ts_client.get_trades_table_name(connector_name, trading_pair)
-                       for connector_name, trading_pair in available_pairs]
         await self.set_base_metrics()
-        self.base_metrics.sort_values(['to_timestamp'], ascending = False, inplace = True)
+        self.base_metrics.sort_values(['to_timestamp'], ascending=False, inplace=True)
         try:
             max_timestamp = self.base_metrics['to_timestamp'][0]
             now = datetime.now()
@@ -57,7 +38,7 @@ class WarningNotifier(TaskBase):
                 flag = True
                 self.report += f"\nLast Trading Pair Summary Update was in {max_timestamp}, so it is outdated!\n"
                 table_name = self.ts_client.get_trades_table_name(self.base_metrics["connector_name"][0], self.base_metrics["trading_pair"][0])
-                max_timestamp = await execute_query(query = f"select max(date(timestamp)) max_timestamp from {table_name}")
+                max_timestamp = await self.execute_query(query=f"select max(date(timestamp)) max_timestamp from {table_name}")
                 if now - max_timestamp > timedelta(days=1):
                     self.report += f"\nTrading pair {table_name} taken as sample: \nMax timestamp: {max_timestamp}, so it is outdated!\n"
                 else:
@@ -90,6 +71,7 @@ class WarningNotifier(TaskBase):
             self.send_email(message, sender_email=self.config["email"], app_password=self.config["email_password"])
         else:
             print("No mail has been sent")
+
 
 async def main():
     config = {
