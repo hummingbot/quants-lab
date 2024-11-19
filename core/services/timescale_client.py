@@ -325,8 +325,9 @@ class TimescaleClient:
             ''')
             # Insert the resampled candles into the new table
             await conn.executemany(f'''
-                INSERT INTO {ohlc_table_name} (timestamp, open, high, low, close, volume)
-                VALUES ($1, $2, $3, $4, $5, $6)
+                INSERT INTO {ohlc_table_name} (timestamp, open, high, low, close, volume, quote_asset_volume, n_trades,
+                taker_buy_base_volume, taker_buy_quote_volume)
+                VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
             ''', [
                 (
                     datetime.fromtimestamp(row["timestamp"]),
