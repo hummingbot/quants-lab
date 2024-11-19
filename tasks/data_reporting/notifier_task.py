@@ -1,6 +1,28 @@
+import asyncio
+import json
+import logging
+import os
+import smtplib
+from email import encoders
+from email.mime.base import MIMEBase
+from email.mime.multipart import MIMEMultipart
+from email.mime.text import MIMEText
+from typing import Any, Dict, List, Optional
+from datetime import datetime, timedelta
+import plotly.express as px
+from dotenv import load_dotenv
+
+import asyncpg
+import pandas as pd
+import numpy as np
+
+from core.services.backend_api_client import BackendAPIClient
+from core.services.timescale_client import TimescaleClient
+
 from data_reporting_task import TaskBase
 from datetime import datetime, timedelta
 from core.services.backend_api_client import BackendAPIClient
+from typing import Any, Dict, List, Optional
 
 class WarningNotifier(TaskBase):
     def __init__(self, name: str, frequency: timedelta, config: Dict[str, Any]):
@@ -19,6 +41,7 @@ class WarningNotifier(TaskBase):
         self.base_metrics["table_names"] = self.base_metrics.apply(lambda x: self.ts_client.get_trades_table_name(x["connector_name"], x["trading_pair"]), axis=1)
 
     async def execute(self):
+        flag = False
         self.report = "\nHi Mr Pickantell, we regret to tell you some bad news :-( \n"
         await self.ts_client.connect()
         available_pairs = await self.ts_client.get_available_pairs()
@@ -31,6 +54,7 @@ class WarningNotifier(TaskBase):
             now = datetime.now()
             # Check if the difference is greater than 1 day
             if now - max_timestamp > timedelta(days=1):
+                flag = True
                 self.report += f"\nLast Trading Pair Summary Update was in {max_timestamp}, so it is outdated!\n"
                 table_name = self.ts_client.get_trades_table_name(self.base_metrics["connector_name"][0], self.base_metrics["trading_pair"][0])
                 max_timestamp = await execute_query(query = f"select max(date(timestamp)) max_timestamp from {table_name}")
@@ -44,12 +68,17 @@ class WarningNotifier(TaskBase):
         active_bots_status = await self.backend_api_client.get_active_bots_status()
         performance_data = active_bots_status["data"]
         performance_by_bot_dict = {instance_name: data.get("performance") for instance_name, data in performance_data.items()}
-        performance_string = json.dumps(performance_by_bot_dict, indent=4)
-        if len(performance_string) > 0:
+        if len(performance_by_bot_dict) > 0:
+            performance_string = json.dumps(performance_by_bot_dict, indent=4)
             self.report += "\nAt least these bots are running"
             self.report += performance_string
         else:
-            self.report += "\nAlso, you have no fucking bots running!! Aaaaalgo el frendo"
+            if flag:
+                self.report += "\nAlso, you have no fucking bots running!! Aaaaalgo el frendo"
+            else:
+                flag = True
+                self.report += "\nNo bots are running!! Aaaaalgo el frendo"
+
         message = self.create_email(
             subject="Database Refresh Report - Thinking Science Journal",
             sender_email=self.config["email"],
@@ -57,8 +86,10 @@ class WarningNotifier(TaskBase):
             body=self.report
         )
         # Send the email
-        self.send_email(message, sender_email=self.config["email"], app_password=self.config["email_password"])
-
+        if flag:
+            self.send_email(message, sender_email=self.config["email"], app_password=self.config["email_password"])
+        else:
+            print("No mail has been sent")
 
 async def main():
     config = {
