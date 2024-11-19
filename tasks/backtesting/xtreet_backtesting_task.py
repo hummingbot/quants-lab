@@ -57,8 +57,30 @@ class XtreetBacktestingTask(BaseTask):
                                       db_pass=self.config["optuna_config"]["password"],
                                       database_name=self.config["optuna_config"]["database"],
                                       )
+        selected_pairs = [
+            # Cluster 1
+            '1000SHIB-USDT', 'WLD-USDT',
+            # Cluster 2
+            'ACT-USDT', '1000BONK-USDT',
+            # Cluster 3
+            'DOGE-USDT', 'AGLD-USDT',
+            # Cluster 4
+            'SUI-USDT', '1000SATS-USDT',
+            # Cluster 5
+            'MOODENG-USDT', 'NEIRO-USDT',
+            # Cluster 6
+            'HBAR-USDT', 'ENA-USDT',
+            # Cluster 7
+            'HMSTR-USDT', 'TROY-USDT',
+            # Cluster 8
+            '1000PEPE-USDT', '1000X-USDT',
+            # Cluster 9
+            'PNUT-USDT', 'SOL-USDT',
+            # Cluster 10
+            'XRP-USDT', 'SWELL-USDT'
+        ]
         logger.info("Optimizing strategy for top markets: {}".format(top_markets_df.shape[0]))
-        for index, row in top_markets_df.iterrows():
+        for index, row in top_markets_df[top_markets_df["trading_pair"].isin(selected_pairs)].iterrows():
             connector_name = row["connector_name"]
             trading_pair = row["trading_pair"]
             start_date = pd.Timestamp(row["from_timestamp"].timestamp(), unit="s")
@@ -83,6 +105,20 @@ class XtreetBacktestingTask(BaseTask):
 
 
 async def main():
+    timescale_config = {
+        "host": os.getenv("TIMESCALE_HOST", "localhost"),
+        "port": os.getenv("TIMESCALE_PORT", 5432),
+        "user": os.getenv("TIMESCALE_USER", "admin"),
+        "password": os.getenv("TIMESCALE_PASSWORD", "admin"),
+        "database": os.getenv("TIMESCALE_DB", "timescaledb")
+    }
+    optuna_config = {
+        "host": os.getenv("OPTUNA_HOST", "localhost"),
+        "port": os.getenv("OPTUNA_PORT", 5433),
+        "user": os.getenv("OPTUNA_USER", "admin"),
+        "password": os.getenv("OPTUNA_PASSWORD", "admin"),
+        "database": os.getenv("OPTUNA_DB", "optimization_database")
+    }
     config = {
         "root_path": os.path.abspath(os.path.join(os.path.dirname(__file__), '..')),
         "total_amount": 500,
@@ -92,26 +128,20 @@ async def main():
         "leverage": 20,
         "time_limit": 86400,  # 60 * 60 * 24
         "bb_lengths": [50, 100, 200],
-        "bb_stds": [1.0, 2.0, 3.0],
-        "intervals": ["1m"],
+        "bb_stds": [1.0, 1.4, 1.8, 2.0, 3.0],
+        "intervals": ["1m", "5m", "15m"],
         "volume_threshold": 0.5,
         "volatility_threshold": 0.5,
         "ts_delta_multiplier": 0.2,
-        "max_top_markets": 50,
+        "max_top_markets": 20,
         "max_dca_amount_ratio": 5,
         "backtesting_resolution": "1s",
         "min_distance_between_orders": 0.01,
         "max_ts_sl_ratio": 0.5,
         "lookback_days": 7,
         "resolution": "1s",
-        "TIMESCALE_HOST": "localhost",
-        "TIMESCALE_PORT": 5432,
-        "TIMESCALE_USER": "admin",
-        "TIMESCALE_PASSWORD": "admin",
-        "OPTUNA_HOST": "localhost",
-        "OPTUNA_DOCKER_PORT": 5433,
-        "OPTUNA_USER": "admin",
-        "OPTUNA_PASSWORD": "admin",
+        "timescale_config": timescale_config,
+        "optuna_config": optuna_config
     }
 
     task = XtreetBacktestingTask("Backtesting", timedelta(hours=12), config)
