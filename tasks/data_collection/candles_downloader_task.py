@@ -47,9 +47,7 @@ class CandlesDownloaderTask(BaseTask):
         await timescale_client.connect()
 
         trading_rules = await self.clob.get_trading_rules(self.connector_name)
-        trading_pairs = trading_rules.filter_by_quote_asset(self.quote_asset) \
-            .filter_by_min_notional_size(self.min_notional_size) \
-            .get_all_trading_pairs()
+        trading_pairs = trading_rules.get_all_trading_pairs()
         for i, trading_pair in enumerate(trading_pairs):
             for interval in self.intervals:
                 logging.info(f"{now} - Fetching candles for {trading_pair} [{i} from {len(trading_pairs)}]")
@@ -108,9 +106,8 @@ if __name__ == "__main__":
     config = {
         "connector_name": "binance_perpetual",
         "quote_asset": "USDT",
-        "intervals": ["1m", "3m", "5m", "15m", "1h"],
+        "intervals": ["15m", "1h"],
         "days_data_retention": 30,
-        "first_time_load": True,
         "min_notional_size": 10,
         "timescale_config": timescale_config
     }
