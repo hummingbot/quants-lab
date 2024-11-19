@@ -30,7 +30,7 @@ async def main():
     }
 
     data_reporting_task = ReportGeneratorTask("Screener Report", timedelta(hours=8), config)
-    warning_task = WarningNotifier("Warning Task", frequency=2, config=config)
+    warning_task = WarningNotifier("Warning Task", timedelta(2), config=config)
 
     orchestrator.add_task(data_reporting_task)
     orchestrator.add_task(warning_task)
