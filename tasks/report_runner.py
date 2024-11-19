@@ -16,8 +16,8 @@ logger = logging.getLogger(__name__)
 
 async def main():
     from core.task_base import TaskOrchestrator
-    from tasks.data_collection.screener_task import MarketScreenerTask
     from tasks.data_reporting.data_reporting_task import ReportGeneratorTask
+    from tasks.data_reporting.notifier_task import WarningNotifier
 
     orchestrator = TaskOrchestrator()
     config = {
@@ -29,16 +29,11 @@ async def main():
         "export": True
     }
 
-    report_task = ReportGeneratorTask("Screener Report", timedelta(hours=8), config)
-    config = {
-        'connector_name': 'binance_perpetual',
-        'intervals': ['1m', '3m', '5m', '15m', '1h'],
-        'db_host': os.getenv("TIMESCALE_HOST", 'localhost'),
-    }
-    screener_task = MarketScreenerTask("Screener Report", timedelta(hours=4), config)
+    data_reporting_task = ReportGeneratorTask("Screener Report", timedelta(hours=8), config)
+    warning_task = WarningNotifier("Warning Task", frequency=2, config=config)
 
-    orchestrator.add_task(screener_task)
-    orchestrator.add_task(report_task)
+    orchestrator.add_task(data_reporting_task)
+    orchestrator.add_task(warning_task)
 
     await orchestrator.run()
 
