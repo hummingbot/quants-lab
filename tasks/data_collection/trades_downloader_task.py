@@ -1,5 +1,6 @@
 import asyncio
 import logging
+import os
 import time
 from datetime import datetime, timedelta, timezone
 from decimal import Decimal
@@ -57,27 +58,36 @@ class TradesDownloaderTask(BaseTask):
                 last_trade_id = await timescale_client.get_last_trade_id(connector_name=self.connector_name,
                                                                          trading_pair=trading_pair,
                                                                          table_name=table_name)
-                trades = await self.clob.get_trades(
-                    self.connector_name,
-                    trading_pair,
-                    int(start_time.timestamp()),
-                    int(end_time.timestamp()),
-                    last_trade_id
-                )
+                current_start_time = start_time
+                while current_start_time < end_time:
+                    # Calculate the current batch's end time (next day or the overall end_time, whichever is earlier)
+                    current_end_time = min(current_start_time + timedelta(days=1), end_time)
 
-                if trades.empty:
-                    logging.info(f"{self.now()} - No new trades for {trading_pair}")
-                    continue
+                    # Fetch trades for the current day
+                    trades = await self.clob.get_trades(
+                        self.connector_name,
+                        trading_pair,
+                        int(current_start_time.timestamp()),
+                        int(current_end_time.timestamp()),
+                        last_trade_id
+                    )
 
-                trades["connector_name"] = self.connector_name
-                trades["trading_pair"] = trading_pair
+                    if trades.empty:
+                        logging.info(
+                            f"{self.now()} - No new trades for {trading_pair} from {current_start_time} to {current_end_time}")
+                    else:
+                        # Process and append trades
+                        trades["connector_name"] = self.connector_name
+                        trades["trading_pair"] = trading_pair
 
-                trades_data = trades[
-                    ["id", "connector_name", "trading_pair", "timestamp", "price", "volume",
-                     "sell_taker"]].values.tolist()
+                        trades_data = trades[
+                            ["id", "connector_name", "trading_pair", "timestamp", "price", "volume", "sell_taker"]
+                        ].values.tolist()
 
-                await timescale_client.append_trades(table_name=table_name,
-                                                     trades=trades_data)
+                        await timescale_client.append_trades(table_name=table_name, trades=trades_data)
+
+                    # Move to the next batch
+                    current_start_time = current_end_time
                 today_start = datetime.utcnow().replace(hour=0, minute=0, second=0, microsecond=0)
                 cutoff_timestamp = (today_start - timedelta(days=self.days_data_retention)).timestamp()
                 await timescale_client.delete_trades(connector_name=self.connector_name, trading_pair=trading_pair,
@@ -100,16 +110,29 @@ class TradesDownloaderTask(BaseTask):
         return datetime.now(timezone.utc).strftime('%Y-%m-%d %H:%M:%S.%f UTC')
 
 
-if __name__ == "__main__":
-    config = {
-        'connector_name': 'binance_perpetual',
-        'quote_asset': 'USDT',
-        'min_notional_size': 10.0,
-        'db_host': 'localhost',
-        'db_port': 5432,
-        'db_name': 'timescaledb',
-        'selected_pairs': None
+async def main():
+    timescale_config = {
+        "host": os.getenv("TIMESCALE_HOST", "localhost"),
+        "port": os.getenv("TIMESCALE_PORT", 5432),
+        "user": os.getenv("TIMESCALE_USER", "admin"),
+        "password": os.getenv("TIMESCALE_PASSWORD", "admin"),
+        "database": os.getenv("TIMESCALE_DB", "timescaledb")
     }
 
-    task = TradesDownloaderTask("Trades Downloader", timedelta(hours=1), config)
-    asyncio.run(task.execute())
+    trades_downloader_task = TradesDownloaderTask(
+        name="Trades Downloader Binance",
+        config={
+            "timescale_config": timescale_config,
+            "connector_name": "binance_perpetual",
+            "quote_asset": "USDT",
+            "min_notional_size": 10.0,
+            "days_data_retention": 10,
+            "selected_pairs": None
+        },
+        frequency=timedelta(hours=5))
+
+    asyncio.run(trades_downloader_task.execute())
+
+
+if __name__ == "__main__":
+    asyncio.run(main())
