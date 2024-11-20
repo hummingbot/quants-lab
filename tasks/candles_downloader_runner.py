@@ -30,12 +30,12 @@ async def main():
         "connector_name": "binance_perpetual",
         "quote_asset": "USDT",
         "intervals": ["1m", "3m", "5m", "15m", "1h"],
-        "days_data_retention": 30,
+        "days_data_retention": 120,
         "min_notional_size": 10,
         "timescale_config": timescale_config
     }
 
-    candles_downloader_task = CandlesDownloaderTask("Candles Downloader", timedelta(hours=4), config)
+    candles_downloader_task = CandlesDownloaderTask("Candles Downloader", timedelta(hours=1), config)
     orchestrator.add_task(candles_downloader_task)
 
     await orchestrator.run()
