@@ -12,6 +12,14 @@ class Candles(DataStructureBase):
         self.trading_pair = trading_pair
         self.interval = interval
 
+    @property
+    def max_timestamp(self):
+        return self.data["timestamp"].max()
+
+    @property
+    def min_timestamp(self):
+        return self.data["timestamp"].min()
+
     def fig(self, type: str = "candles", height=600, width=1200):
         if type == 'candles':
             return self.candles_fig(height, width)
