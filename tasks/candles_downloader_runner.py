@@ -32,6 +32,7 @@ async def main():
         "intervals": ["1m", "3m", "5m", "15m", "1h"],
         "days_data_retention": 120,
         "min_notional_size": 10,
+        "selected_pairs": None,
         "timescale_config": timescale_config
     }
 
