@@ -58,11 +58,14 @@ class TradesDownloaderTask(BaseTask):
                 last_trade_id = await timescale_client.get_last_trade_id(connector_name=self.connector_name,
                                                                          trading_pair=trading_pair,
                                                                          table_name=table_name)
+                total_days = round((end_time - start_time) / timedelta(days=1), 2)
+                fetched_days = 0
                 current_start_time = start_time
                 while current_start_time < end_time:
+                    fetched_days += 1
                     # Calculate the current batch's end time (next day or the overall end_time, whichever is earlier)
                     current_end_time = min(current_start_time + timedelta(days=1), end_time)
-
+                    logging.info(f"Fetching [{fetched_days}/{int(total_days)}] days from {current_start_time.strftime('%Y-%m-%d %H:%M')} to {current_end_time.strftime('%Y-%m-%d %H:%M')}")
                     # Fetch trades for the current day
                     trades = await self.clob.get_trades(
                         self.connector_name,
