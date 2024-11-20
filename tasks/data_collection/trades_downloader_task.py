@@ -29,7 +29,8 @@ class TradesDownloaderTask(BaseTask):
         self.clob = CLOBDataSource()
 
     async def execute(self):
-        logging.info(f"{self.now()} - Starting trades downloader for {self.connector_name} at {time.strftime('%Y-%m-%d %H:%M:%S')}")
+        logging.info(
+            f"{self.now()} - Starting trades downloader for {self.connector_name} at {time.strftime('%Y-%m-%d %H:%M:%S')}")
         end_time = datetime.now(timezone.utc)
         start_time = pd.Timestamp(self.start_time, unit="s").tz_localize(timezone.utc)
         logging.info(f"{self.now()} - Start date: {start_time}, End date: {end_time}")
@@ -55,43 +56,35 @@ class TradesDownloaderTask(BaseTask):
             logging.info(f"{self.now()} - Fetching trades for {trading_pair} [{i} from {len(trading_pairs)}]")
             try:
                 table_name = timescale_client.get_trades_table_name(self.connector_name, trading_pair)
-                last_trade_id = await timescale_client.get_last_trade_id(connector_name=self.connector_name,
-                                                                         trading_pair=trading_pair,
-                                                                         table_name=table_name)
-                total_days = round((end_time - start_time) / timedelta(days=1), 2)
-                fetched_days = 0
-                current_start_time = start_time
-                while current_start_time < end_time:
-                    fetched_days += 1
-                    # Calculate the current batch's end time (next day or the overall end_time, whichever is earlier)
-                    current_end_time = min(current_start_time + timedelta(days=1), end_time)
-                    logging.info(f"Fetching [{fetched_days}/{int(total_days)}] days from {current_start_time.strftime('%Y-%m-%d %H:%M')} to {current_end_time.strftime('%Y-%m-%d %H:%M')}")
-                    # Fetch trades for the current day
-                    trades = await self.clob.get_trades(
+                last_trade_id = await timescale_client.get_last_trade_id(
+                    connector_name=self.connector_name,
+                    trading_pair=trading_pair,
+                    table_name=table_name
+                )
+
+                # Process trades in chunks
+                async for trades in self.clob.get_trades(
                         self.connector_name,
                         trading_pair,
-                        int(current_start_time.timestamp()),
-                        int(current_end_time.timestamp()),
-                        last_trade_id
-                    )
-
+                        int(start_time.timestamp()),
+                        int(end_time.timestamp()),
+                        last_trade_id,
+                        max_trades_per_call=5000
+                ):
                     if trades.empty:
-                        logging.info(
-                            f"{self.now()} - No new trades for {trading_pair} from {current_start_time} to {current_end_time}")
-                    else:
-                        # Process and append trades
-                        trades["connector_name"] = self.connector_name
-                        trades["trading_pair"] = trading_pair
+                        logging.info(f"{self.now()} - No new trades for {trading_pair}")
+                        continue
 
-                        trades_data = trades[
-                            ["id", "connector_name", "trading_pair", "timestamp", "price", "volume", "sell_taker"]
-                        ].values.tolist()
+                    trades["connector_name"] = self.connector_name
+                    trades["trading_pair"] = trading_pair
 
-                        await timescale_client.append_trades(table_name=table_name, trades=trades_data)
-                        logging.info(f"{self.now()} - Inserted {len(trades_data)} trades for {trading_pair}")
+                    trades_data = trades[
+                        ["id", "connector_name", "trading_pair", "timestamp", "price", "volume",
+                         "sell_taker"]].values.tolist()
 
-                    # Move to the next batch
-                    current_start_time = current_end_time
+                    await timescale_client.append_trades(table_name=table_name, trades=trades_data)
+
+                # Cleanup and metrics after all chunks are processed
                 today_start = datetime.utcnow().replace(hour=0, minute=0, second=0, microsecond=0)
                 cutoff_timestamp = (today_start - timedelta(days=self.days_data_retention)).timestamp()
                 await timescale_client.delete_trades(connector_name=self.connector_name, trading_pair=trading_pair,
@@ -101,7 +94,6 @@ class TradesDownloaderTask(BaseTask):
                 logging.info(f"{self.now()} - Updated metrics for {trading_pair}")
                 await timescale_client.append_db_status_metrics(connector_name=self.connector_name,
                                                                 trading_pair=trading_pair)
-
             except Exception as e:
                 logging.exception(f"{self.now()} - An error occurred during the data load for trading pair {trading_pair}:\n {e}")
                 continue

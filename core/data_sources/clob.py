@@ -247,10 +247,11 @@ class CLOBDataSource:
                 logger.error(f"Error loading {file}: {type(e).__name__} - {e}")
 
     async def get_trades(self, connector_name: str, trading_pair: str, start_time: int, end_time: int,
-                         from_id: Optional[int] = None):
-        return await self.trades_feeds[connector_name].get_historical_trades(trading_pair, start_time, end_time,
-                                                                             from_id)
-
+                         from_id: Optional[int] = None, max_trades_per_call: int = 1_000_000):
+        async for chunk in self.trades_feeds[connector_name].get_historical_trades(
+                trading_pair, start_time, end_time, from_id, max_trades_per_call
+        ):
+            yield chunk
     @staticmethod
     def convert_interval_to_pandas_freq(interval: str) -> str:
         """

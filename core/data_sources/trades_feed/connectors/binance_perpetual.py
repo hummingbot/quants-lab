@@ -34,7 +34,8 @@ class BinancePerpetualTradesFeed(TradesFeedBase):
         base, quote = trading_pair.split("-")
         return f"{base}{quote}"
 
-    async def _get_historical_trades(self, trading_pair: str, start_time: int, end_time: int, from_id: Optional[int] = None):
+    async def _get_historical_trades(self, trading_pair: str, start_time: int, end_time: int,
+                                     from_id: Optional[int] = None, max_trades_per_call: int = 1_000_000):
         all_trades_collected = False
         end_ts = int(end_time * 1000)
         start_ts = int(start_time * 1000)
@@ -58,19 +59,36 @@ class BinancePerpetualTradesFeed(TradesFeedBase):
             if trades:
                 last_timestamp = trades[-1]["T"]
                 all_trades.extend(trades)
-                all_trades_collected = last_timestamp >= end_ts
                 from_id = trades[-1]["a"]
+
+                # Check if the buffer size is sufficient for yielding
+                if len(all_trades) >= max_trades_per_call:
+                    df = pd.DataFrame(all_trades)
+                    df.rename(columns={"T": "timestamp", "p": "price", "q": "volume", "m": "sell_taker", "a": "id"},
+                              inplace=True)
+                    df.drop(columns=["f", "l"], inplace=True)
+                    df["timestamp"] = df["timestamp"] / 1000
+                    df.index = pd.to_datetime(df["timestamp"], unit="s")
+                    df["price"] = df["price"].astype(float)
+                    df["volume"] = df["volume"].astype(float)
+                    yield df
+                    all_trades = []  # Reset buffer after yielding
+
+                all_trades_collected = last_timestamp >= end_ts
             else:
                 all_trades_collected = True
 
-        df = pd.DataFrame(all_trades)
-        df.rename(columns={"T": "timestamp", "p": "price", "q": "volume", "m": "sell_taker", "a": "id"}, inplace=True)
-        df.drop(columns=["f", "l"], inplace=True)
-        df["timestamp"] = df["timestamp"] / 1000
-        df.index = pd.to_datetime(df["timestamp"], unit="s")
-        df["price"] = df["price"].astype(float)
-        df["volume"] = df["volume"].astype(float)
-        return df
+        # Yield any remaining trades after the loop
+        if all_trades:
+            df = pd.DataFrame(all_trades)
+            df.rename(columns={"T": "timestamp", "p": "price", "q": "volume", "m": "sell_taker", "a": "id"},
+                      inplace=True)
+            df.drop(columns=["f", "l"], inplace=True)
+            df["timestamp"] = df["timestamp"] / 1000
+            df.index = pd.to_datetime(df["timestamp"], unit="s")
+            df["price"] = df["price"].astype(float)
+            df["volume"] = df["volume"].astype(float)
+            yield df
 
     async def _get_historical_trades_request(self, params: Dict):
         try:
