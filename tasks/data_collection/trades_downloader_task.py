@@ -81,8 +81,10 @@ class TradesDownloaderTask(BaseTask):
                     trades_data = trades[
                         ["id", "connector_name", "trading_pair", "timestamp", "price", "volume",
                          "sell_taker"]].values.tolist()
-
                     await timescale_client.append_trades(table_name=table_name, trades=trades_data)
+                    first_timestamp = pd.to_datetime(trades['timestamp'], unit="s").min().strftime('%Y-%m-%d %H:%m')
+                    last_timestamp = pd.to_datetime(trades['timestamp'], unit="s").max().strftime('%Y-%m-%d %H:%m')
+                    logging.info(f"Successfully appended {trading_pair} {len(trades_data)} trades from {first_timestamp} to {last_timestamp}")
 
                 # Cleanup and metrics after all chunks are processed
                 today_start = datetime.utcnow().replace(hour=0, minute=0, second=0, microsecond=0)
@@ -126,7 +128,7 @@ async def main():
         },
         frequency=timedelta(hours=5))
 
-    asyncio.run(trades_downloader_task.execute())
+    await trades_downloader_task.execute()
 
 
 if __name__ == "__main__":
