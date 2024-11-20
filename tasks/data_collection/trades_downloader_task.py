@@ -25,6 +25,7 @@ class TradesDownloaderTask(BaseTask):
         self.start_time = time.time() - self.days_data_retention * 24 * 60 * 60
         self.quote_asset = config.get('quote_asset', "USDT")
         self.selected_pairs = config.get('selected_pairs')
+        self.max_trades_per_call = config.get('max_trades_per_call')
         self.min_notional_size = Decimal(str(config.get('min_notional_size', 10.0)))
         self.clob = CLOBDataSource()
 
@@ -69,7 +70,7 @@ class TradesDownloaderTask(BaseTask):
                         int(start_time.timestamp()),
                         int(end_time.timestamp()),
                         last_trade_id,
-                        max_trades_per_call=5000
+                        self.max_trades_per_call
                 ):
                     if trades.empty:
                         logging.info(f"{self.now()} - No new trades for {trading_pair}")
@@ -124,7 +125,8 @@ async def main():
             "quote_asset": "USDT",
             "min_notional_size": 10.0,
             "days_data_retention": 10,
-            "selected_pairs": None
+            "selected_pairs": None,
+            "max_trades_per_call": 1_000_000
         },
         frequency=timedelta(hours=5))
 
