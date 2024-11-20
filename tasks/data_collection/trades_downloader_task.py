@@ -88,6 +88,7 @@ class TradesDownloaderTask(BaseTask):
                         ].values.tolist()
 
                         await timescale_client.append_trades(table_name=table_name, trades=trades_data)
+                        logging.info(f"{self.now()} - Inserted {len(trades_data)} trades for {trading_pair}")
 
                     # Move to the next batch
                     current_start_time = current_end_time
@@ -100,7 +101,6 @@ class TradesDownloaderTask(BaseTask):
                 logging.info(f"{self.now()} - Updated metrics for {trading_pair}")
                 await timescale_client.append_db_status_metrics(connector_name=self.connector_name,
                                                                 trading_pair=trading_pair)
-                logging.info(f"{self.now()} - Inserted {len(trades_data)} trades for {trading_pair}")
 
             except Exception as e:
                 logging.exception(f"{self.now()} - An error occurred during the data load for trading pair {trading_pair}:\n {e}")
