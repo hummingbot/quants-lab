@@ -37,7 +37,7 @@ class XGridTConfigGenerator(BaseStrategyConfigGenerator):
         ema_medium = trial.suggest_int("ema_medium", ema_short + 10, 150)
         ema_long = trial.suggest_int("ema_long", ema_medium + 10, 201)
         donchian_channel_length = trial.suggest_int("donchian_channel_length", 50, 200, step=50)
-        natr_length = trial.suggest_int("natr_length", 100, 201)
+        natr_length = 100
         natr_multiplier = 2.0
         tp_default = trial.suggest_float("tp_default", 0.04, 0.05, step=0.01)
         # Suggest hyperparameters using the trial object
