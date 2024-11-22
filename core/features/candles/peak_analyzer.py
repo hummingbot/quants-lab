@@ -17,8 +17,7 @@ class PeakAnalyzer:
                                num_clusters: int = 3,
                                close_price_filter: bool = True,
                                window_size: int = 100,
-                               calculation_interval: int = 50,
-                               min_distance_between_clusters_pct: float = 0.01) -> List[Dict]:
+                               calculation_interval: int = 50) -> List[Dict]:
         candles_length = len(self.candles)
         if candles_length < window_size:
             raise ValueError(f"Candles length is less than window size: {candles_length} < {window_size}")
@@ -67,6 +66,18 @@ class PeakAnalyzer:
                 }
             )
         return clusters
+
+    def get_peaks(self, prominence_percentage: float = 0.01, distance: int = 5):
+        prominence_nominal = self._calculate_prominence(self.candles, prominence_percentage)
+        high_peaks, low_peaks = self._find_price_peaks(self.candles, prominence_nominal, distance)
+        high_peak_prices = self.candles['high'].iloc[high_peaks]
+        low_peak_prices = self.candles['low'].iloc[low_peaks]
+        high_peaks_index = self.candles.iloc[high_peaks].index
+        low_peaks_index = self.candles.iloc[low_peaks].index
+        return {
+            "high_peaks": [high_peaks_index, high_peak_prices],
+            "low_peaks": [low_peaks_index, low_peak_prices],
+        }
     
 
     def _calculate_prominence(self, candles: pd.DataFrame, prominence_percentage: float) -> float:
