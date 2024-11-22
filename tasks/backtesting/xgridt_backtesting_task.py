@@ -85,7 +85,7 @@ class XGridTBacktestingTask(BaseTask):
             today_str = datetime.datetime.now().strftime("%Y-%m-%d")
             optimizer.load_candles_cache_by_connector_pair(connector_name=connector_name, trading_pair=trading_pair)
             await optimizer.optimize(study_name=f"xgridt_{today_str}",
-                                     config_generator=config_generator, n_trials=200)
+                                     config_generator=config_generator, n_trials=self.config["n_trials"])
 
 
 async def main():
@@ -96,6 +96,7 @@ async def main():
         "lookback_days": 20,
         "end_time_buffer_hours": 6,
         "resolution": "1m",
+        "n_trials": 200,
         # "selected_pairs": ['PNUT-USDT', '1000SHIB-USDT', 'WLD-USDT', '1000BONK-USDT', 'DOGE-USDT', '1000PEPE-USDT',
         #                   'SUI-USDT', '1000SATS-USDT', 'MOODENG-USDT', 'NEIRO-USDT', 'HBAR-USDT', 'ENA-USDT',
         #                   'HMSTR-USDT', 'TROY-USDT', '1000X-USDT', 'SOL-USDT', 'ACT-USDT',
