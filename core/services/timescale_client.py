@@ -512,6 +512,7 @@ class TimescaleClient:
 
     async def get_available_candles(self) -> List[Tuple[str, str, str]]:
         async with self.pool.acquire() as conn:
+            # TODO: fix regex to match intervals
             timeframe_regex = r'_(\d+[smhdw])'
             rows = await conn.fetch('''
                 SELECT table_name
@@ -529,6 +530,8 @@ class TimescaleClient:
             quote = parts[-2].upper()
             trading_pair = f"{base}-{quote}"
             interval = parts[-1]
+            if interval == "trades":
+                continue
             if len(connector_name) > 1:
                 connector_name = '_'.join(connector_name)
             available_candles.append((connector_name, trading_pair, interval))
