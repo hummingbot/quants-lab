@@ -4,7 +4,7 @@ import os.path
 import subprocess
 import traceback
 from abc import ABC, abstractmethod
-from typing import List, Optional, Type
+from typing import List, Optional, Type, Dict
 
 import optuna
 from dotenv import load_dotenv
@@ -36,10 +36,9 @@ class BaseStrategyConfigGenerator(ABC):
     Subclasses should implement the method to provide specific strategy configurations.
     """
 
-    backtester = None
 
     def __init__(self, start_date: datetime.datetime, end_date: datetime.datetime,
-                 backtester: Optional[BacktestingEngineBase] = None):
+                 config: Optional[Dict] = None):
         """
         Initialize with common parameters for backtesting.
 
@@ -49,7 +48,13 @@ class BaseStrategyConfigGenerator(ABC):
         """
         self.start = int(start_date.timestamp())
         self.end = int(end_date.timestamp())
-        self.backtester = backtester
+        if config:
+            self.config = config
+        else:
+            self.config = {}
+
+    def update_config(self, config):
+        self.config.update(config)
 
     @abstractmethod
     async def generate_config(self, trial) -> BacktestingConfig:
@@ -81,9 +86,9 @@ class StrategyOptimizer:
     Class for optimizing trading strategies using Optuna and a backtesting engine.
     """
 
-    def __init__(self, engine: str = "sqlite", root_path: str = "", database_name: str = "optimization_database",
+    def __init__(self, storage_name: Optional[str] = None, root_path: str = "",
                  load_cached_data: bool = False, resolution: str = "1m", db_client: Optional[TimescaleClient] = None,
-                 db_host: str = None, db_port: int = None, db_user: str = None, db_pass: str = None):
+                 custom_backtester: Optional[BacktestingEngineBase] = None):
         """
         Initialize the optimizer with a backtesting engine and database configuration.
 
@@ -98,24 +103,38 @@ class StrategyOptimizer:
             db_user (str): Database User
             db_pass (str): Database Password
         """
-        self._backtesting_engine = BacktestingEngine(load_cached_data=load_cached_data)
+        self._backtesting_engine = BacktestingEngine(load_cached_data=load_cached_data, root_path=root_path,
+                                                     custom_backtester=custom_backtester)
         self._db_client = db_client
         self.resolution = resolution
-        logger.info(f"Connecting to {engine} database...")
-        if engine == "sqlite":
-            db_path = os.path.join(root_path, "data", "backtesting", f"{database_name}.db")
-            self._storage_name = f"sqlite:///{db_path}"
-        elif engine == "postgres":
-            if not all([db_host, db_port, db_user, db_pass]):
-                missing_params = [param for param in ["db_host", "db_port", "db_user", "db_pass"]
-                                  if locals().get(param) is None]
-                raise ValueError(f"Missing required parameters for PostgreSQL connection: {', '.join(missing_params)}")
-
-            # Assuming the default PostgreSQL driver is "psycopg2"
-            self._storage_name = f"postgresql+psycopg2://{db_user}:{db_pass}@{db_host}:{db_port}/{database_name}"
-        else:
-            raise ValueError(f"Invalid engine specified: '{engine}'. Use 'sqlite' or 'postgres'.")
+        self.root_path = root_path
+        self._storage_name = storage_name if storage_name else self.get_storage_name(engine="sqlite", root_path=root_path)
         self.dashboard_process = None
+
+    @classmethod
+    def get_storage_name(cls, engine, **kwargs):
+        if engine == "sqlite":
+            root_path = kwargs.get("root_path", "")
+            database_name = kwargs.get("database_name", "optimization_database")
+            path = os.path.join(root_path, "data", "backtesting", f"{database_name}.db")
+            return f"sqlite:///{path}"
+        elif engine == "postgres":
+            db_host = kwargs.get("db_host", "localhost")
+            db_port = kwargs.get("db_port", 5432)
+            db_user = kwargs.get("db_user", "admin")
+            db_pass = kwargs.get("db_pass", "admin")
+            database_name = kwargs.get("database_name", "optimization_database")
+            return f"postgresql+psycopg2://{db_user}:{db_pass}@{db_host}:{db_port}/{database_name}"
+
+    def load_candles_cache_by_connector_pair(self, connector_name: str, trading_pair: str):
+        """
+        Load the cached candles data for a given connector and trading pair.
+
+        Args:
+            connector_name (str): The name of the connector.
+            trading_pair (str): The trading pair.
+        """
+        self._backtesting_engine.load_candles_cache_by_connector_pair(connector_name, trading_pair, root_path=self.root_path)
 
     def get_all_study_names(self):
         """
@@ -283,7 +302,6 @@ class StrategyOptimizer:
                     start=start,
                     end=end,
                     backtesting_resolution=self.resolution,
-                    backtester=config_generator.backtester,
                 )
                 strategy_analysis = backtesting_result.results
 
@@ -325,7 +343,6 @@ class StrategyOptimizer:
                 start=backtesting_config.start,
                 end=backtesting_config.end,
                 backtesting_resolution=self.resolution,
-                backtester=config_generator.backtester,
             )
             strategy_analysis = backtesting_result.results
 
