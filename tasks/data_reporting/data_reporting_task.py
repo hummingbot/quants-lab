@@ -246,9 +246,8 @@ async def main():
         "host": os.getenv("TIMESCALE_HOST", "localhost"),
         "backend_api_host": os.getenv("TRADING_HOST", "localhost"),
         "email": "thinkingscience.ts@gmail.com",
-        "email_password": "dqtn zjkf aumv esak",
-        # "recipients": ["palmiscianoblas@gmail.com", "federico.cardoso.e@gmail.com", "apelsantiago@gmail.com",  "tomasgaudino8@gmail.com"]
-        "recipients": ["palmiscianoblas@gmail.com"],
+        "email_password": os.getenv("EMAIL_PASSWORD", "password"),
+        "recipients": os.getenv("RECIPIENTS", "").split(","),
         "export": True
     }
     task = ReportGeneratorTask(name="Report Generator", frequency=timedelta(hours=12), config=config)
