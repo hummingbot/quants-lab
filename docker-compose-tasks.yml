@@ -14,15 +14,8 @@ services:
       - .:/quants-lab
     deploy:
       replicas: 10
-    environment:
-      - TIMESCALE_HOST=63.250.52.93
-      - TIMESCALE_PORT=5432
-      - TIMESCALE_USER=admin
-      - TIMESCALE_PASSWORD=admin
-      - OPTUNA_HOST=63.250.52.93
-      - OPTUNA_PORT=5433
-      - OPTUNA_USER=admin
-      - OPTUNA_PASSWORD=admin
+    env_file:
+      - .env
     command: conda run --no-capture-output -n quants-lab python3 tasks/backtesting_runner.py
     network_mode: host
 
