@@ -7,7 +7,6 @@ import asyncpg
 import pandas as pd
 
 from core.data_structures.candles import Candles
-from core.features.candles.volatility import Volatility, VolatilityConfig
 
 INTERVAL_MAPPING = {
     '1s': 's',  # seconds
@@ -148,7 +147,8 @@ class TimescaleClient:
                 params.append(datetime.fromtimestamp(timestamp))
             await conn.execute(query, *params)
 
-    async def delete_candles(self, connector_name: str, trading_pair: str, interval: str, timestamp: Optional[float] = None):
+    async def delete_candles(self, connector_name: str, trading_pair: str, interval: str,
+                             timestamp: Optional[float] = None):
         table_name = self.get_ohlc_table_name(connector_name, trading_pair, interval)
         async with self.pool.acquire() as conn:
             query = f"DELETE FROM {table_name}"
@@ -471,7 +471,8 @@ class TimescaleClient:
             candles_df = pd.DataFrame(rows, columns=['timestamp', 'open', 'high', 'low', 'close', 'volume'])
             # candles_df.set_index('timestamp', inplace=True)
             candles_df['timestamp'] = candles_df['timestamp'].apply(lambda x: x.timestamp())
-            candles_df = candles_df.astype({'open': float, 'high': float, 'low': float, 'close': float, 'volume': float})
+            candles_df = candles_df.astype(
+                {'open': float, 'high': float, 'low': float, 'close': float, 'volume': float})
 
         return Candles(candles_df=candles_df, connector_name=connector_name, trading_pair=trading_pair,
                        interval=interval)
@@ -508,6 +509,47 @@ class TimescaleClient:
             available_pairs.append((connector_name, trading_pair))
 
         return available_pairs
+
+    async def get_available_candles(self) -> List[Tuple[str, str, str]]:
+        async with self.pool.acquire() as conn:
+            # TODO: fix regex to match intervals
+            timeframe_regex = r'_(\d+[smhdw])'
+            rows = await conn.fetch('''
+                SELECT table_name
+                FROM information_schema.tables
+                WHERE table_schema = 'public'
+                AND table_name ~ $1
+                ORDER BY table_name
+            ''', timeframe_regex)
+        available_candles = []
+        for row in rows:
+            table_name = row['table_name']
+            parts = table_name.split('_')
+            connector_name = parts[:-3]
+            base = parts[-3].upper()
+            quote = parts[-2].upper()
+            trading_pair = f"{base}-{quote}"
+            interval = parts[-1]
+            if interval == "trades":
+                continue
+            if len(connector_name) > 1:
+                connector_name = '_'.join(connector_name)
+            available_candles.append((connector_name, trading_pair, interval))
+        return available_candles
+
+    async def get_all_candles(self, connector_name: str, trading_pair: str, interval: str) -> Candles:
+        table_name = self.get_ohlc_table_name(connector_name, trading_pair, interval)
+        query = f'''
+            SELECT * FROM {table_name}
+        '''
+        async with self.pool.acquire() as conn:
+            rows = await conn.fetch(query)
+        return Candles(
+            candles_df=pd.DataFrame(rows, columns=["timestamp", "open", "high", "low", "close", "volume", "quote_asset_volume",
+                                        "n_trades", "taker_buy_base_volume", "taker_buy_quote_volume"]),
+            connector_name=connector_name,
+            trading_pair=trading_pair,
+            interval=interval)
 
     async def get_data_range(self, connector_name: str, trading_pair: str) -> Dict[str, Union[datetime, str]]:
         if not connector_name or not trading_pair:

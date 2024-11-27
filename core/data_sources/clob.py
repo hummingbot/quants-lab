@@ -62,6 +62,21 @@ class CLOBDataSource:
         return {key: Candles(candles_df=value, connector_name=key[0], trading_pair=key[1], interval=key[2])
                 for key, value in self._candles_cache.items()}
 
+    def get_candles_from_cache(self,
+                               connector_name: str,
+                               trading_pair: str,
+                               interval: str):
+        cache_key = (connector_name, trading_pair, interval)
+        if cache_key in self._candles_cache:
+            cached_df = self._candles_cache[cache_key]
+
+            return Candles(candles_df=cached_df, connector_name=connector_name,
+                           trading_pair=trading_pair, interval=interval)
+        else:
+            return None
+
+
+
     async def get_candles(self,
                           connector_name: str,
                           trading_pair: str,
@@ -185,6 +200,8 @@ class CLOBDataSource:
         connector = connector_class(**init_params)
         return connector
 
+    # TODO: ADD ORDER BOOK SNAPSHOT METHOD
+
     async def get_trading_rules(self, connector_name: str):
         connector = self.connectors.get(connector_name)
         await connector._update_trading_rules()
@@ -195,7 +212,14 @@ class CLOBDataSource:
         os.makedirs(candles_path, exist_ok=True)
         for key, df in self._candles_cache.items():
             candles_path = os.path.join(root_path, "data", "candles")
-            df.to_csv(os.path.join(candles_path, f"{key[0]}|{key[1]}|{key[2]}.csv"), index=False)
+            filename = os.path.join(candles_path, f"{key[0]}|{key[1]}|{key[2]}.parquet")
+            df.to_parquet(
+                filename,
+                engine='pyarrow',
+                compression='snappy',
+                index=True
+            )
+
         logger.info("Candles cache dumped")
 
     def load_candles_cache(self, root_path: str = ""):
@@ -210,9 +234,14 @@ class CLOBDataSource:
                 continue
             try:
                 connector_name, trading_pair, interval = file.split(".")[0].split("|")
-                candles = pd.read_csv(os.path.join(candles_path, file))
+                candles = pd.read_parquet(os.path.join(candles_path, file))
                 candles.index = pd.to_datetime(candles.timestamp, unit='s')
                 candles.index.name = None
+                columns = ['open', 'high', 'low', 'close', 'volume', 'quote_asset_volume',
+                           'n_trades', 'taker_buy_base_volume', 'taker_buy_quote_volume']
+                for column in columns:
+                    candles[column] = pd.to_numeric(candles[column])
+
                 self._candles_cache[(connector_name, trading_pair, interval)] = candles
             except Exception as e:
                 logger.error(f"Error loading {file}: {type(e).__name__} - {e}")

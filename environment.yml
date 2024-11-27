@@ -32,3 +32,5 @@ dependencies:
       - python-dotenv
       - asyncpg
       - psycopg2-binary
+      - pyarrow
+      - pandas
