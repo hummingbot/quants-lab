@@ -5,7 +5,6 @@ from typing import Dict, Optional
 import pandas as pd
 
 from core.data_structures.backtesting_result import BacktestingResult
-from hummingbot.strategy_v2.backtesting import DirectionalTradingBacktesting, MarketMakingBacktesting
 from hummingbot.strategy_v2.backtesting.backtesting_engine_base import BacktestingEngineBase
 from hummingbot.strategy_v2.controllers import ControllerConfigBase
 
@@ -66,23 +65,10 @@ class BacktestingEngine:
                     logger.error(f"Error loading {file}: {e}")
 
     def get_controller_config_instance_from_dict(self, config: Dict):
-        if config["controller_type"] == "directional_trading":
-            return DirectionalTradingBacktesting.get_controller_config_instance_from_dict(
-                config_data=config,
-                controllers_module="controllers",
-            )
-        elif config["controller_type"] == "market_making":
-            return MarketMakingBacktesting.get_controller_config_instance_from_dict(
-                config_data=config,
-                controllers_module="controllers",
-            )
-        elif config["controller_type"] == "generic":
-            return BacktestingEngineBase.get_controller_config_instance_from_dict(
-                config_data=config,
-                controllers_module="controllers",
-            )
-        else:
-            raise Exception("Controller type not supported")
+        return BacktestingEngineBase.get_controller_config_instance_from_dict(
+            config_data=config,
+            controllers_module="controllers",
+        )
 
     async def run_backtesting(self, config: ControllerConfigBase, start: int,
                               end: int, backtesting_resolution: str, trade_cost: float = 0.0006) -> BacktestingResult:
