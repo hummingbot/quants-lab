@@ -85,7 +85,7 @@ async def main(config):
 
 if __name__ == "__main__":
     timescale_config = {
-        "host": "63.250.52.93",
+        "host": "localhost",
         "port": 5432,
         "user": "admin",
         "password": "admin",
