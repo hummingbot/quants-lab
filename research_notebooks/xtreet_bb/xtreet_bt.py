@@ -1,9 +1,9 @@
 import pandas as pd
+from hummingbot.strategy_v2.backtesting.backtesting_engine_base import BacktestingEngineBase
 
-from hummingbot.strategy_v2.backtesting import DirectionalTradingBacktesting
 
 
-class XtreetBacktesting(DirectionalTradingBacktesting):
+class XtreetBacktesting(BacktestingEngineBase):
     def prepare_market_data(self) -> pd.DataFrame:
         df = super().prepare_market_data()
         df["signal"] = 0

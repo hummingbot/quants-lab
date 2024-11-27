@@ -13,10 +13,10 @@ class XtreetConfigGenerator(BaseStrategyConfigGenerator):
     async def generate_config(self, trial: trial) -> BacktestingConfig:
         connector_name = "binance_perpetual"
         trading_pair = self.trading_pair
-        interval = trial.suggest_categorical("interval", ["1m"])
+        interval = trial.suggest_categorical("interval", ["1m", "3m"])
         # Generate specific Xtreet metrics
         bb_length = trial.suggest_int("bb_length", 50, 200, step=50)
-        bb_std = trial.suggest_float("bb_std", 0.5, 2.5, step=1.0)
+        bb_std = trial.suggest_float("bb_std", 0.5, 2.0, step=0.5)
 
         # Metrics management
         dca_spread_1 = trial.suggest_float("last_spread", 0.2, 0.8, step=0.2)
@@ -54,12 +54,12 @@ class XtreetConfigGenerator(BaseStrategyConfigGenerator):
             trailing_stop=trailing_stop,
             dynamic_order_spread=True,
             dynamic_target=True,
-            min_stop_loss=Decimal("0.007"),
+            min_stop_loss=Decimal("0.003"),
             max_stop_loss=Decimal("0.1"),
-            min_trailing_stop=Decimal("0.004"),
+            min_trailing_stop=Decimal("0.003"),
             max_trailing_stop=Decimal("0.03"),
             min_distance_between_orders=Decimal("0.004"),
-            time_limit=60 * 60 * 2,
+            time_limit=None,
             max_executors_per_side=max_executors_per_side,
             cooldown_time=0
         )
