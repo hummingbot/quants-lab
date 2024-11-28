@@ -3,8 +3,7 @@ import random
 
 import numpy as np
 import pandas as pd
-import shap
-from features import Features
+# from features import Features
 from scipy import stats
 from scipy.stats import chi2_contingency
 from sklearn.compose import ColumnTransformer
@@ -28,6 +27,7 @@ from sklearn.multiclass import OneVsRestClassifier
 from sklearn.pipeline import Pipeline, make_pipeline
 from sklearn.preprocessing import OneHotEncoder, PowerTransformer, StandardScaler
 
+from core.backtesting.triple_barrier_method import triple_barrier_method
 
 def get_random_matrix(rows = None, ):
     # Specify the dimensions of the matrix and the range of values
@@ -89,7 +89,7 @@ class TripleBarrierAnalizer:
         self.multi_classifier = multi_classifier
 
         if len(df) != 0:
-            self.df = self.apply_triple_barrier_method(df, tp = self.tp, sl = self.sl, tl = self.tl, trade_cost = trade_cost)
+            self.df = triple_barrier_method(df, tp=self.tp, sl=self.sl, tl=self.tl, trade_cost=trade_cost)
             self.df = self.add_features(self.external_feat)
         self.make_pickle=make_pickle
 
@@ -128,7 +128,7 @@ class TripleBarrierAnalizer:
     def evaluate(self, df, model_path):
         # Transformación
         self.df = df
-        self.apply_triple_barrier_method()
+        self.df = triple_barrier_method(df)
         self.df = self.add_features()
         model = pickle.load(open(model_path, 'rb'))
         self.y_pred = model.predict(self.df)
@@ -137,65 +137,6 @@ class TripleBarrierAnalizer:
         print('y_pred:\n', self.y_pred)
         print('\n\ny_test:\n',self.df.real_class)
         print(classification_report(self.df.real_class, self.y_pred-1))
-
-    def apply_triple_barrier_method(self, df, tp=0.01, sl=0.01, tl=3600, trade_cost=0.0006):
-        df.index = pd.to_datetime(df.timestamp, unit="ms")
-        if "target" not in df.columns:
-            # df["target"] = 0.0003
-            df["target"] = df["close"].rolling(1000).std() / df["close"]
-        df["tl"] = df.index + pd.Timedelta(seconds=tl)
-        df.dropna(subset="target", inplace=True)
-
-        try:
-            df = self.apply_tp_sl_on_tl(df, tp=tp, sl=sl)
-        except:
-            df['signal'] = 1
-            df = self.apply_tp_sl_on_tl(df, tp=tp, sl=sl)
-
-        df = self.get_bins(df, trade_cost)
-
-        df["tp"] = df["target"] * tp
-        df["sl"] = df["target"] * sl
-        df['profitable'] = np.where(df['net_pnl'].between(-self.multi_classifier[0],-self.multi_classifier[1]), 0, df['profitable'])
-
-        df["take_profit_price"] = df["close"] * (1 + df["tp"] * df["signal"])
-        df["stop_loss_price"] = df["close"] * (1 - df["sl"] * df["signal"])
-        df.to_csv('data/check_triple_barrier.csv')
-        return df
-
-    @staticmethod
-    def get_bins(df, trade_cost):
-        # 1) prices aligned with events
-        px = df.index.union(df["tl"].values).drop_duplicates()
-        px = df.close.reindex(px, method="ffill")
-        # 2) create out object
-        df["trade_pnl"] = (px.loc[df["close_time"].values].values / px.loc[df.index] - 1) * df["signal"]
-        df["net_pnl"] = df["trade_pnl"] - trade_cost
-        df["profitable"] = np.sign(df["trade_pnl"] - trade_cost)
-        df["close_price"] = px.loc[df["close_time"].values].values
-        return df
-
-    @staticmethod
-    def apply_tp_sl_on_tl(df: pd.DataFrame, tp: float, sl: float):
-        events = df[df["signal"] != 0].copy()
-        if tp > 0:
-            take_profit = tp * events["target"]
-        else:
-            take_profit = pd.Series(index=df.index)  # NaNs
-        if sl > 0:
-            stop_loss = - sl * events["target"]
-        else:
-            stop_loss = pd.Series(index=df.index)  # NaNs
-
-        for loc, tl in events["tl"].fillna(df.index[-1]).items():
-            df0 = df.close[loc:tl]  # path prices
-            df0 = (df0 / df.close[loc] - 1) * events.at[loc, "signal"]  # path returns
-            df.loc[loc, "stop_loss_time"] = df0[df0 < stop_loss[loc]].index.min()  # earliest stop loss.
-            df.loc[loc, "take_profit_time"] = df0[df0 > take_profit[loc]].index.min()  # earliest profit taking.
-        df["close_time"] = df[["tl", "take_profit_time", "stop_loss_time"]].dropna(how="all").min(axis=1)
-        df["close_type"] = df[["take_profit_time", "stop_loss_time", "tl"]].dropna(how="all").idxmin(axis=1)
-        df["close_type"].replace({"take_profit_time": "tp", "stop_loss_time": "sl"}, inplace=True)
-        return df
 
     def add_features(self, external_feat={}):
         ft = Features(external_feat, self.df)
@@ -483,3 +424,7 @@ class TripleBarrierAnalizer:
         # shap_summary = pd.concat(shap_summary_list, axis=0)
         # shap_summary.to_csv('shap_feature_importance_with_class.csv', index=False)
 
+
+if __name__ == "__main__":
+    df = pd.read_csv("../../data/data/candles/test_candles.csv")
+    tbo = TripleBarrierAnalizer(df=df)
