@@ -24,6 +24,7 @@ dependencies:
       - pathlib
       - pydantic==1.10.4
       - scikit-learn
+      - xgboost
       - pre-commit
       - isort
       - flake8
