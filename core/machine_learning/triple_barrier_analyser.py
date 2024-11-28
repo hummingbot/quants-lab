@@ -278,18 +278,6 @@ class TripleBarrierAnalyser:
             })
             perm_summary_list.append(perm_df)
 
-        # Combine all class DataFrames into one
-        gini_summary = pd.concat(gini_summary_list, axis=0)
-        perm_summary = pd.concat(perm_summary_list, axis=0)
-
-        gini_summary.sort_values("Gini Importance", ascending=False).to_csv('gini_feature_importance_with_class.csv',
-                                                                            index=False)
-        perm_summary.sort_values("Permutation Importance", ascending=False).to_csv(
-            'perm_feature_importance_with_class.csv', index=False)
-
-        print("Gini feature importance summary with class saved to 'gini_feature_importance_with_class.csv'")
-        print("Permutation feature importance summary with class saved to 'perm_feature_importance_with_class.csv'")
-
         # shap_summary_list = []
         # for i, class_name in enumerate(pd.Series(self.y).unique()):
         #     classifier = self.best_random.estimators_[i-1]
@@ -346,36 +334,3 @@ class TripleBarrierAnalyser:
                 df_cont.loc[len(df_cont)] = [column, round(c, 3), p, "categoric"]
             # TODO Devolver pandas profiling o sweetviz
             print(df_cont.sort_values(by='pvalue', ascending=False))
-
-
-if __name__ == "__main__":
-    root_path = "../.."
-    data = pd.read_csv("../../data/data/candles/test_candles.csv")
-    external_features = {
-        "close": {
-            'macd': [[12, 24, 9]]
-        }
-    }
-    tba = TripleBarrierAnalyser(df=data, external_feat=external_features, root_path=root_path)
-    features_df = tba.prepare_data(data)
-    feat_df = pd.read_csv("../../data/data/candles/test_features_df.csv")
-    RF_CONFIG = ModelConfig(
-        name="Random Forest",
-        params={
-            'n_estimators': [1000],  # Or use [int(x) for x in np.linspace(start=100, stop=1000, num=3)]
-            'max_features': ['sqrt'],  # Or ['log2']
-            'max_depth': [20, 55, 100],  # Or use [int(x) for x in np.linspace(10, 100, num=3)]
-            'min_samples_split': [50, 100],
-            'min_samples_leaf': [30, 50],
-            'bootstrap': [True],
-            'class_weight': ['balanced']
-        },
-        model_instance=RandomForestClassifier(),
-        one_vs_rest=True,
-        n_iter=10,
-        cv=1,
-        verbose=10
-    )
-
-    tba.transform_train(features_df=feat_df, model_config=RF_CONFIG)
-    tba.analyse()

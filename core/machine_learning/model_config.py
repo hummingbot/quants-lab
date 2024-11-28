@@ -2,7 +2,7 @@ from dataclasses import dataclass
 from typing import Dict, Any
 from sklearn.ensemble import RandomForestClassifier, AdaBoostClassifier
 from sklearn.linear_model import LogisticRegression
-from xgboost import XGBClassifier
+# from xgboost import XGBClassifier
 
 
 @dataclass
@@ -67,21 +67,21 @@ ADABOOST_CONFIG = ModelConfig(
 )
 
 # XGBoost Classifier Configuration
-XGB_CONFIG = ModelConfig(
-    name="XGBoost",
-    params={
-        'booster': ['gbtree', 'gblinear', 'dart'],
-        'n_estimators': [1000],  # Or use [int(x) for x in np.linspace(100, 1000, num=3)]
-        'learning_rate': [0.001, 0.01, 0.1, 1, 10],
-        'max_depth': [20, 55, 100],  # Or use [int(x) for x in np.linspace(10, 100, num=3)]
-        'min_child_weight': [1, 2, 3, 4, 5, 6, 7, 8, 9, 10],
-        'subsample': [0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9, 1.0],
-        'colsample_bytree': [0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9, 1.0],
-        'colsample_bylevel': [0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9, 1.0],
-        'colsample_bynode': [0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9, 1.0],
-        'reg_alpha': [0, 0.001, 0.01, 0.1, 1, 10, 100],
-        'reg_lambda': [0, 0.001, 0.01, 0.1, 1, 10, 100]
-    },
-    model_instance=XGBClassifier(),
-    one_vs_rest=True
-)
+# XGB_CONFIG = ModelConfig(
+#     name="XGBoost",
+#     params={
+#         'booster': ['gbtree', 'gblinear', 'dart'],
+#         'n_estimators': [1000],  # Or use [int(x) for x in np.linspace(100, 1000, num=3)]
+#         'learning_rate': [0.001, 0.01, 0.1, 1, 10],
+#         'max_depth': [20, 55, 100],  # Or use [int(x) for x in np.linspace(10, 100, num=3)]
+#         'min_child_weight': [1, 2, 3, 4, 5, 6, 7, 8, 9, 10],
+#         'subsample': [0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9, 1.0],
+#         'colsample_bytree': [0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9, 1.0],
+#         'colsample_bylevel': [0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9, 1.0],
+#         'colsample_bynode': [0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.7, 0.8, 0.9, 1.0],
+#         'reg_alpha': [0, 0.001, 0.01, 0.1, 1, 10, 100],
+#         'reg_lambda': [0, 0.001, 0.01, 0.1, 1, 10, 100]
+#     },
+#     model_instance=XGBClassifier(),
+#     one_vs_rest=True
+# )
