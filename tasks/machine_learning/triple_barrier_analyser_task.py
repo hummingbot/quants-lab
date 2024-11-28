@@ -22,27 +22,28 @@ class TripleBarrierAnalyzerTask(BaseTask):
         super().__init__(name, frequency, config)
         self.root_path = self.config.get('root_path', "")
         self.connector_name = self.config.get("connector_name")
-        self.trading_pair = self.config.get("trading_pair")
+        self.selected_pairs = self.config.get("trading_pairs", [])
 
     async def execute(self):
         clob = CLOBDataSource()
-        logging.info(f"{self.now()} - Getting candles")
-        candles = await clob.get_candles_last_days(connector_name=self.connector_name,
-                                                   trading_pair=self.trading_pair,
-                                                   interval=self.config.get("interval"),
-                                                   days=self.config.get("days"))
-        logging.info(f"{self.now()} - Candles fetched for {self.trading_pair}")
-        tba = TripleBarrierAnalyser(df=candles.data,
-                                    connector_name=self.connector_name,
-                                    trading_pair=self.trading_pair,
-                                    external_feat=self.config.get("external_features"),
-                                    root_path=self.config.get("root_path", ""))
-        logging.info(f"{self.now()} - Preparing data ")
-        features_df = tba.prepare_data(candles.data)
+        for trading_pair in self.selected_pairs:
+            logging.info(f"{self.now()} - Getting candles for {trading_pair}")
+            candles = await clob.get_candles_last_days(connector_name=self.connector_name,
+                                                       trading_pair=trading_pair,
+                                                       interval=self.config.get("interval"),
+                                                       days=self.config.get("days"))
+            logging.info(f"{self.now()} - Candles fetched for {trading_pair}")
+            tba = TripleBarrierAnalyser(df=candles.data,
+                                        connector_name=self.connector_name,
+                                        trading_pair=trading_pair,
+                                        external_feat=self.config.get("external_features"),
+                                        root_path=self.config.get("root_path", ""))
+            logging.info(f"{self.now()} - Preparing data ")
+            features_df = tba.prepare_data(candles.data)
 
-        for model_config in self.config.get("model_configs"):
-            tba.transform_train(features_df=features_df, model_config=model_config)
-            tba.analyse()
+            for model_config in self.config.get("model_configs"):
+                tba.transform_train(features_df=features_df, model_config=model_config)
+                tba.analyse()
 
     @staticmethod
     def now():
@@ -52,7 +53,7 @@ class TripleBarrierAnalyzerTask(BaseTask):
 async def main():
     config = {
         "root_path": os.path.abspath(os.path.join(os.path.dirname(__file__), '../..')),
-        "trading_pair": "1000PEPE-USDT",
+        "selected_pairs": ["1000PEPE-USDT"],
         "connector_name": "binance_perpetual",
         "interval": "1m",
         "days": 7,
