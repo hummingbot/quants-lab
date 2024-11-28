@@ -1,32 +1,31 @@
+import os
 import pickle
 import random
-from typing import Any, Dict, List
-
-import numpy as np
+from datetime import datetime
+from typing import Any, Dict
+import logging
 import pandas as pd
+
+# Set asyncio logger to only show critical issues
+logging.getLogger("asyncio").setLevel(logging.CRITICAL)
 
 from scipy import stats
 from scipy.stats import chi2_contingency
 
 from sklearn.preprocessing import LabelEncoder
 from sklearn.compose import ColumnTransformer
-from sklearn.ensemble import AdaBoostClassifier, RandomForestClassifier
+from sklearn.ensemble import RandomForestClassifier
 from sklearn.inspection import permutation_importance
-from sklearn.linear_model import LogisticRegression
 from sklearn.metrics import (
     accuracy_score,
     classification_report,
     cohen_kappa_score,
-    make_scorer,
+    confusion_matrix,
     matthews_corrcoef,
-    precision_score,
 )
 
-from xgboost import XGBClassifier
 from sklearn.model_selection import RandomizedSearchCV, train_test_split
-from sklearn.multiclass import OneVsRestClassifier
-from sklearn.pipeline import Pipeline, make_pipeline
-from sklearn.preprocessing import OneHotEncoder, PowerTransformer, StandardScaler
+from sklearn.pipeline import Pipeline
 
 from core.backtesting.triple_barrier_method import triple_barrier_method
 from core.machine_learning.features import Features
@@ -56,6 +55,9 @@ class TripleBarrierAnalyser:
     """
     def __init__(self,
                  df: pd.DataFrame = pd.DataFrame(),
+                 connector_name: str = "binance_perpetual",
+                 trading_pair: str = "BTC-USDT",
+                 root_path: str = "",
                  features_dict: Dict[str, Any] = None,
                  external_feat: Dict[str, Any] = None,
                  tp: float = 0.001,
@@ -72,6 +74,9 @@ class TripleBarrierAnalyser:
         self.tl = tl
         self.trade_cost = trade_cost
         self.dump_pickle = dump_pickle
+        self.root_path = root_path
+        self.trading_pair = trading_pair
+        self.connector_name = connector_name
         self.trgt = None
         self.label_encoder = None
         self.transformer = None
@@ -93,6 +98,8 @@ class TripleBarrierAnalyser:
         self.results = pd.DataFrame()
 
         self.df_null_values = None
+        self.classification_report = None
+        self.gini_df = None
 
     def prepare_data(self, candles_df: pd.DataFrame):
         df = triple_barrier_method(candles_df, tp=self.tp, sl=self.sl, tl=self.tl, trade_cost=self.trade_cost)
@@ -115,14 +122,16 @@ class TripleBarrierAnalyser:
                     ('transformer', self.transformer),
                     ('prediction', self.best_random)
                 ]),
-                'extra_features': self.external_feat
+                'extra_features': self.external_feat,
+                'feat_importance': self.gini_df,
+                'classification_report': self.classification_report
+
             }
-            with open('pipeline.pkl', 'wb') as f:
+            with open(os.path.join(self.root_path, 'data', 'models', f'pipeline_{self.connector_name}_{self.trading_pair}_{datetime.now().strftime("%Y-%m-%d_%H-%M-%S")}.pkl'), 'wb') as f:
                 pickle.dump(data_to_pickle, f)
 
     def model_pre_processing(self,
                              features_df: pd.DataFrame,
-                             admitted_cols: List[str] = None,
                              test_size: float = 0.2):
         df = features_df.copy()
         X, y = self.column_transform(features_df=df)
@@ -148,11 +157,13 @@ class TripleBarrierAnalyser:
         cols = features_df.select_dtypes(include=['int', 'float', 'bool'])
         cols = [
             column for column in cols if column not in [
-                'ret_2','tp','sl', 't1', 'Pt1', 'ret', 'stop_loss_time', 'take_profit_time', 'close_price','index','tl',
-                'ret/trgt', 'time','close_time','real_class','marker','index','Unnamed: 0', 'ignore',"datetime",
-                'trgt','open','volume','close','taker_buy_base_volume','qav','low','high','taker_buy_quote_volume','num_trades',
-                'trade_pnl', 'net_pnl','real_class','profitable','signal', 'side','take_profit_price',
-                'stop_loss_price','timestamp'
+                'ret_2', 'tp', 'sl', 't1', 'Pt1', 'ret', 'stop_loss_time', 'take_profit_time', 'close_price', 'index',
+                'tl',
+                'ret/trgt', 'time', 'close_time', 'real_class', 'marker', 'index', 'Unnamed: 0', 'ignore', "datetime",
+                'trgt', 'open', 'volume', 'close', 'taker_buy_base_volume', 'qav', 'low', 'high',
+                'taker_buy_quote_volume', 'num_trades',
+                'trade_pnl', 'net_pnl', 'real_class', 'profitable', 'signal', 'side', 'take_profit_price',
+                'stop_loss_price', 'timestamp'
             ]
         ]
         transformer = ColumnTransformer(
@@ -164,7 +175,8 @@ class TripleBarrierAnalyser:
             ],
             remainder='passthrough'
         )
-        subset = [c for c in df.columns if c not in ['taker_buy_base_volume', 'taker_buy_quote_volume', 'stop_loss_time','take_profit_time']]
+        subset = [c for c in df.columns if
+                  c not in ['taker_buy_base_volume', 'taker_buy_quote_volume', 'stop_loss_time', 'take_profit_time']]
         df.dropna(subset=subset,
                   inplace=True)
         self.df_null_values = df.isnull().sum()
@@ -199,10 +211,12 @@ class TripleBarrierAnalyser:
             resumen_rs = pd.DataFrame(rf_random.cv_results_)
             print(resumen_rs)
             print("Classification Process is over")
-            print(classification_report(self.label_encoder.inverse_transform(self.y_test),
-                                        self.label_encoder.inverse_transform(self.y_pred)))
 
         accuracy = accuracy_score(self.y_test, self.y_pred)
+        self.classification_report = classification_report(self.label_encoder.inverse_transform(self.y_test),
+                                                           self.label_encoder.inverse_transform(self.y_pred),
+                                                           output_dict=True)
+        print(classification_report)
         self.accuracy = accuracy
         print('accuracy: ', accuracy)
 
@@ -218,21 +232,13 @@ class TripleBarrierAnalyser:
         ### Analyze best Model !!! ###
         ##############################
 
-        import pandas as pd
-        resumen_proba = pd.DataFrame()
         y_pred_transform = self.label_encoder.inverse_transform(self.y_pred)
         y_test_transform = self.label_encoder.inverse_transform(self.y_test)
-        resumen_proba['y_test'] = y_test_transform
-        resumen_proba['y_pred'] = y_pred_transform
-        # resumen_proba[['0','1','2']]=pd.DataFrame(pred_prob)
         y_pred_train_transform = self.label_encoder.inverse_transform(self.y_pred_train)
         y_train_transform = self.label_encoder.inverse_transform(self.y_train)
-        resumen_proba.to_csv('data/actual_predictions_' + self.model_kind + '.csv')
 
-        from sklearn.metrics import accuracy_score, classification_report, confusion_matrix
-
-        matrix = confusion_matrix(y_train_transform, y_pred_train_transform)
-        matrix = matrix.astype('float') / matrix.sum(axis=1)[:, np.newaxis]
+        # matrix = confusion_matrix(y_train_transform, y_pred_train_transform)
+        # matrix = matrix.astype('float') / matrix.sum(axis=1)[:, np.newaxis]
 
         print(classification_report(y_train_transform, y_pred_train_transform))
         print(classification_report(y_test_transform, y_pred_transform))
@@ -249,17 +255,17 @@ class TripleBarrierAnalyser:
         print("Starting Gini Importance...")
         for i, class_name in enumerate(pd.Series(self.y).unique()):
             # Extract the classifier for the current class
-            classifier = self.best_random.estimators_[i-1]
-            
+            classifier = self.best_random.estimators_[i - 1]
+
             # Gini Importance
             gini_importance = classifier.feature_importances_
-            gini_df = pd.DataFrame({
+            self.gini_df = pd.DataFrame({
                 'Feature': self.X_columns,
                 'Class': class_name,
                 'Gini Importance': gini_importance
             })
-            gini_summary_list.append(gini_df)
-            
+            gini_summary_list.append(pd.DataFrame(self.gini_df))
+
             # Permutation Importance
             result = permutation_importance(classifier, self.X, self.y == i, n_repeats=10, random_state=42, n_jobs=-1)
             perm_importances = result.importances_mean
@@ -274,22 +280,24 @@ class TripleBarrierAnalyser:
         gini_summary = pd.concat(gini_summary_list, axis=0)
         perm_summary = pd.concat(perm_summary_list, axis=0)
 
-        gini_summary.sort_values("Gini Importance", ascending = False).to_csv('gini_feature_importance_with_class.csv', index=False)
-        perm_summary.sort_values("Permutation Importance", ascending = False).to_csv('perm_feature_importance_with_class.csv', index=False)
+        gini_summary.sort_values("Gini Importance", ascending=False).to_csv('gini_feature_importance_with_class.csv',
+                                                                            index=False)
+        perm_summary.sort_values("Permutation Importance", ascending=False).to_csv(
+            'perm_feature_importance_with_class.csv', index=False)
 
         print("Gini feature importance summary with class saved to 'gini_feature_importance_with_class.csv'")
         print("Permutation feature importance summary with class saved to 'perm_feature_importance_with_class.csv'")
-    
+
         # shap_summary_list = []
         # for i, class_name in enumerate(pd.Series(self.y).unique()):
         #     classifier = self.best_random.estimators_[i-1]
-            
+
         #     explainer = shap.TreeExplainer(classifier)
         #     shap_values = explainer.shap_values(self.X)
-        
+
         #     shap_importance = np.mean(np.abs(shap_values), axis=0)
         #     class_df = pd.DataFrame({
-        #         'Feature': self.X_columns, 
+        #         'Feature': self.X_columns,
         #         'Class': class_name,
         #         'SHAP Importance': shap_importance
         #     })
@@ -304,11 +312,11 @@ class TripleBarrierAnalyser:
         self.df = self.add_features()
         model = pickle.load(open(model_path, 'rb'))
         self.y_pred = model.predict(self.df)
-        print('y_pred-1:\n',self.y_pred-1)
+        print('y_pred-1:\n', self.y_pred - 1)
         print('y_pred+1:\n', self.y_pred + 1)
         print('y_pred:\n', self.y_pred)
-        print('\n\ny_test:\n',self.df.real_class)
-        print(classification_report(self.df.real_class, self.y_pred-1))
+        print('\n\ny_test:\n', self.df.real_class)
+        print(classification_report(self.df.real_class, self.y_pred - 1))
 
     def eda(self, hypotesis=True):
         if self.visualize:
@@ -339,30 +347,31 @@ class TripleBarrierAnalyser:
 
 
 if __name__ == "__main__":
+    root_path = "../.."
     data = pd.read_csv("../../data/data/candles/test_candles.csv")
     external_features = {
         "close": {
             'macd': [[12, 24, 9]]
         }
     }
-    tba = TripleBarrierAnalyser(df=data, external_feat=external_features)
+    tba = TripleBarrierAnalyser(df=data, external_feat=external_features, root_path=root_path)
     features_df = tba.prepare_data(data)
     feat_df = pd.read_csv("../../data/data/candles/test_features_df.csv")
     RF_CONFIG = ModelConfig(
         name="Random Forest",
         params={
-            'estimator__n_estimators': [1000],  # Or use [int(x) for x in np.linspace(start=100, stop=1000, num=3)]
-            'estimator__max_features': ['sqrt'],  # Or ['log2']
-            'estimator__max_depth': [20, 55, 100],  # Or use [int(x) for x in np.linspace(10, 100, num=3)]
-            'estimator__min_samples_split': [50, 100],
-            'estimator__min_samples_leaf': [30, 50],
-            'estimator__bootstrap': [True],
-            'estimator__class_weight': ['balanced']
+            'n_estimators': [1000],  # Or use [int(x) for x in np.linspace(start=100, stop=1000, num=3)]
+            'max_features': ['sqrt'],  # Or ['log2']
+            'max_depth': [20, 55, 100],  # Or use [int(x) for x in np.linspace(10, 100, num=3)]
+            'min_samples_split': [50, 100],
+            'min_samples_leaf': [30, 50],
+            'bootstrap': [True],
+            'class_weight': ['balanced']
         },
         model_instance=RandomForestClassifier(),
         one_vs_rest=True,
         n_iter=10,
-        cv=2,
+        cv=1,
         verbose=10
     )
 
