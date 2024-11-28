@@ -9,7 +9,7 @@ from xgboost import XGBClassifier
 class ModelConfig:
     name: str
     params: Dict[str, Any]
-    model_class: Any
+    model_instance: Any
     one_vs_rest: bool = False
     scoring: str = "recall_macro"
     n_iter: int = 100
@@ -31,7 +31,7 @@ RF_CONFIG = ModelConfig(
         'estimator__bootstrap': [True],
         'estimator__class_weight': ['balanced']
     },
-    model_class=RandomForestClassifier(),
+    model_instance=RandomForestClassifier(),
     one_vs_rest=True,
 )
 
@@ -51,7 +51,7 @@ LR_CONFIG = ModelConfig(
         'estimator__warm_start': [False, True],
         'estimator__n_jobs': [-1]
     },
-    model_class=LogisticRegression(),
+    model_instance=LogisticRegression(),
     one_vs_rest=False
 )
 
@@ -62,7 +62,7 @@ ADABOOST_CONFIG = ModelConfig(
         'estimator__learning_rate': [0.001, 0.01, 0.1, 1, 10],
         'estimator__algorithm': ['SAMME', 'SAMME.R']
     },
-    model_class=AdaBoostClassifier(),
+    model_instance=AdaBoostClassifier(),
     one_vs_rest=True
 )
 
@@ -82,6 +82,6 @@ XGB_CONFIG = ModelConfig(
         'estimator__reg_alpha': [0, 0.001, 0.01, 0.1, 1, 10, 100],
         'estimator__reg_lambda': [0, 0.001, 0.01, 0.1, 1, 10, 100]
     },
-    model_class=XGBClassifier(),
+    model_instance=XGBClassifier(),
     one_vs_rest=True
 )

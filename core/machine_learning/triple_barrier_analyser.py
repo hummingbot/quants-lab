@@ -52,7 +52,7 @@ def get_random_matrix(rows=None):
 
 class TripleBarrierAnalyser:
     """
-    Triple Barrier Classifier by Mr. Ghetman @blaspalmisciano
+    Triple Barrier Analyser by Mr. Ghetman @blaspalmisciano
     """
     def __init__(self,
                  df: pd.DataFrame = pd.DataFrame(),
@@ -180,8 +180,8 @@ class TripleBarrierAnalyser:
             y = df.loc[:, 'real_class']
         return self.transformer.transform(self.X), y
 
-    def classify_model(self, config: ModelConfig, evaluate: bool = False):
-        rf_random = RandomizedSearchCV(estimator=config.model_class,
+    def classify_model(self, config: ModelConfig, evaluate: bool = True):
+        rf_random = RandomizedSearchCV(estimator=config.model_instance,
                                        param_distributions=config.params,
                                        n_iter=config.n_iter,
                                        cv=config.cv,
@@ -340,35 +340,31 @@ class TripleBarrierAnalyser:
 
 if __name__ == "__main__":
     data = pd.read_csv("../../data/data/candles/test_candles.csv")
-    external_feat = {
+    external_features = {
         "close": {
             'macd': [[12, 24, 9]]
         }
     }
-    tbc = TripleBarrierAnalyser(df=data, external_feat=external_feat)
-    # features_df = tbc.prepare_data(data)
+    tba = TripleBarrierAnalyser(df=data, external_feat=external_features)
+    features_df = tba.prepare_data(data)
     feat_df = pd.read_csv("../../data/data/candles/test_features_df.csv")
-    LR_CONFIG = ModelConfig(
-        name="Logistic Regression",
+    RF_CONFIG = ModelConfig(
+        name="Random Forest",
         params={
-            'estimator__penalty': ['l1', 'l2', 'elasticnet'],
-            'estimator__dual': [False, True],
-            'estimator__tol': [1e-4, 1e-3, 1e-2, 1e-1],
-            'estimator__C': [0.0001, 0.001, 0.01, 0.1, 1, 10, 100, 1000, 10000],
-            'estimator__fit_intercept': [True, False],
-            'estimator__intercept_scaling': [0.001, 0.01, 0.1, 1, 10, 100],
-            'estimator__class_weight': ['balanced'],
-            'estimator__solver': ['newton-cg', 'lbfgs', 'liblinear', 'sag', 'saga'],
-            'estimator__max_iter': [100, 200, 300, 400, 500],
-            'estimator__warm_start': [False, True],
-            'estimator__n_jobs': [-1]
+            'estimator__n_estimators': [1000],  # Or use [int(x) for x in np.linspace(start=100, stop=1000, num=3)]
+            'estimator__max_features': ['sqrt'],  # Or ['log2']
+            'estimator__max_depth': [20, 55, 100],  # Or use [int(x) for x in np.linspace(10, 100, num=3)]
+            'estimator__min_samples_split': [50, 100],
+            'estimator__min_samples_leaf': [30, 50],
+            'estimator__bootstrap': [True],
+            'estimator__class_weight': ['balanced']
         },
-        model_class=LogisticRegression(),
-        one_vs_rest=False,
+        model_instance=RandomForestClassifier(),
+        one_vs_rest=True,
         n_iter=10,
         cv=2,
-        verbose=1
+        verbose=10
     )
 
-    tbc.transform_train(features_df=feat_df, model_config=LR_CONFIG)
-    tbc.analyse()
+    tba.transform_train(features_df=feat_df, model_config=RF_CONFIG)
+    tba.analyse()
