@@ -11,7 +11,7 @@ class ModelConfig:
     params: Dict[str, Any]
     model_instance: Any
     one_vs_rest: bool = False
-    scoring: str = "recall_macro"
+    scoring: str = "precision_macro"
     n_iter: int = 100
     cv: int = 4
     verbose: int = 10

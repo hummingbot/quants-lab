@@ -124,8 +124,10 @@ class TripleBarrierAnalyser:
                 ]),
                 'extra_features': self.external_feat,
                 'feat_importance': self.gini_df,
-                'classification_report': self.classification_report
-
+                'classification_report': self.classification_report,
+                'tp': self.tp,
+                'trading_pair': self.trading_pair,
+                'connector_name': self.connector_name
             }
             with open(os.path.join(self.root_path, 'data', 'models', f'pipeline_{self.connector_name}_{self.trading_pair}_{datetime.now().strftime("%Y-%m-%d_%H-%M-%S")}.pkl'), 'wb') as f:
                 pickle.dump(data_to_pickle, f)

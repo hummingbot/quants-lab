@@ -4,8 +4,6 @@ import os
 import sys
 from datetime import timedelta
 
-from sklearn.ensemble import RandomForestClassifier
-
 
 project_root = os.path.abspath(os.path.join(os.path.dirname(__file__), '..'))
 sys.path.insert(0, project_root)
@@ -17,7 +15,7 @@ logger = logging.getLogger(__name__)
 async def main():
     from core.task_base import TaskOrchestrator
     from tasks.machine_learning.triple_barrier_analyser_task import TripleBarrierAnalyzerTask
-    from core.machine_learning.model_config import ModelConfig
+    import core.machine_learning.model_config as model_configs
 
     orchestrator = TaskOrchestrator()
 
@@ -30,34 +28,12 @@ async def main():
         ],
         "connector_name": "binance_perpetual",
         "interval": "1m",
-        "days": 7,
-        "external_features": {
-            "close": {
-                'macd': [[12, 24, 9]]
-            }
-        },
-        "model_configs": [
-            ModelConfig(
-                name="Random Forest",
-                params={
-                    'n_estimators': [1000],  # Or use [int(x) for x in np.linspace(start=100, stop=1000, num=3)]
-                    'max_features': ['sqrt'],  # Or ['log2']
-                    'max_depth': [20, 55, 100],  # Or use [int(x) for x in np.linspace(10, 100, num=3)]
-                    'min_samples_split': [50, 100],
-                    'min_samples_leaf': [30, 50],
-                    'bootstrap': [True],
-                    'class_weight': ['balanced']
-                },
-                model_instance=RandomForestClassifier(),
-                one_vs_rest=True,
-                n_iter=10,
-                cv=2,
-                verbose=10
-            )
-        ]
+        "days": 1,
+        "feature_iteration_trials": 5,
+        "model_configs": [model_configs.RF_CONFIG]
     }
 
-    task = TripleBarrierAnalyzerTask("Triple Barrier Analyzer", timedelta(hours=24), config)
+    task = TripleBarrierAnalyzerTask("Triple Barrier Analyzer", timedelta(hours=6), config)
 
     orchestrator.add_task(task)
     await orchestrator.run()
