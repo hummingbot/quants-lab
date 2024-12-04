@@ -49,9 +49,11 @@ class TaskBase(BaseTask):
         message.attach(MIMEText(body, "plain"))
         return message
 
-    def add_attachment(self, message: MIMEMultipart, path: str):
+    def add_attachment(self, message: MIMEMultipart, path: str, table: pd.DataFrame()):
         """Attaches a file to the email."""
-        with open(path, "rb") as attachment:
+        real_path = path + '.csv'
+        table.to_csv(real_path)
+        with open(real_path, "rb") as attachment:
             part = MIMEBase("application", "octet-stream")
             part.set_payload(attachment.read())
         encoders.encode_base64(part)
@@ -74,6 +76,7 @@ class TaskBase(BaseTask):
 class ReportGeneratorTask(TaskBase):
     def __init__(self, name: str, frequency: timedelta, config: Dict[str, Any]):
         super().__init__(name, frequency, config)
+        self.csv_dict = None
         self.base_metrics = None
 
     async def get_base_tables(self):
@@ -158,7 +161,7 @@ class ReportGeneratorTask(TaskBase):
         # heatmap_pdf = await self.generate_heatmap()
 
         # Generate the report and prepare the email
-        report, csv_dict = self.generate_report(table_names, performance_string)
+        report = self.generate_report(table_names, performance_string)
 
         message = self.create_email(
             subject="Database Refresh Report - Thinking Science Journal",
@@ -170,9 +173,9 @@ class ReportGeneratorTask(TaskBase):
         # Attach CSV files, heatmap PDF, and other files
         # for filename in ["all_daily_metrics.csv", heatmap_pdf] + [f"{k}.csv" for k in csv_dict]:
         # TODO: try to replace all_daily_metrics by a class attribute like self.daily_metrics
-        for filename in ["all_daily_metrics.csv"] + [f"{k}.csv" for k in csv_dict]:
+        for filename, table in self.csv_dict.items():
             try:
-                self.add_attachment(message, filename)
+                self.add_attachment(message, filename, table)
             except Exception as e:
                 print(f"Unable to attach file {filename}: {e}")
 
@@ -190,9 +193,9 @@ class ReportGeneratorTask(TaskBase):
                           pair in final_df[final_df['is_new']]['table_names'].unique()]
 
         report = f"\n\nHello Mr Pickantell!:\n"
-        report += f"Here are your fucking bots running:\n"
+        report += f"Here are your bots running:\n"
         if len(bots_report) < 10:
-            report += f"You have no fucking bots\n"
+            report += f"You have no fucking bots.... please do FALLISMO\n"
         else:
             report += str(bots_report) + "\n\n"
         report += f"\nHere's a quick review on your database:\n"
@@ -233,18 +236,20 @@ class ReportGeneratorTask(TaskBase):
         report += "See you soon and don't forget to be awesome!!"
 
         csv_dict = {
-            "missing_pairs": final_df[final_df['trading_pair'].isin(missing_pairs_list)],
-            "outdated_pairs": final_df[final_df['trading_pair'].isin(outdated_pairs_list)],
-            "correct_pairs": final_df[final_df['trading_pair'].isin(correct_pairs_list)],
-            "new_pairs": final_df[final_df['trading_pair'].isin(new_pairs_list)]
+            "missing_pairs": pd.Series(missing_pairs_list),
+            "outdated_pairs": pd.Series(outdated_pairs_list),
+            "correct_pairs": pd.Series(correct_pairs_list),
+            "new_pairs": pd.Series(new_pairs_list),
         }
-        return report, {key: df for key, df in csv_dict.items() if len(df) > 20}
+        self.csv_dict = {key: df for key, df in csv_dict.items() if len(df) > 20}
+        self.csv_dict['all_daily_metrics'] = self.base_metrics
+        return report
 
 
 async def main():
     config = {
-        "host": os.getenv("TIMESCALE_HOST", "localhost"),
-        "backend_api_host": os.getenv("TRADING_HOST", "localhost"),
+        "host": os.getenv("TIMESCALE_HOST", "63.250.52.93"),
+        "backend_api_host": os.getenv("TRADING_HOST", "63.250.52.93"),
         "email": "thinkingscience.ts@gmail.com",
         "email_password": os.getenv("EMAIL_PASSWORD", "password"),
         "recipients": os.getenv("RECIPIENTS", "").split(","),

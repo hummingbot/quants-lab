@@ -28,7 +28,6 @@ services:
     command: conda run --no-capture-output -n quants-lab python3 tasks/candles_downloader_runner.py
     network_mode: host
 
-
   screeners-report-runner:
     image: hummingbot/quants-lab:latest
     volumes:
@@ -36,4 +35,13 @@ services:
     env_file:
       - .env
     command: conda run --no-capture-output -n quants-lab python3 tasks/report_runner.py
+    network_mode: host
+
+  triple-barrier-analyser-runner:
+    image: hummingbot/quants-lab:latest
+    volumes:
+      - .:/quants-lab
+    env_file:
+      - .env
+    command: conda run --no-capture-output -n quants-lab python3 tasks/triple_barrier_analyser_runner.py
     network_mode: host

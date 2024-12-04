@@ -19,11 +19,11 @@ async def main():
     from tasks.data_collection.candles_downloader_task import CandlesDownloaderTask
     orchestrator = TaskOrchestrator()
     timescale_config = {
-        "host": os.getenv("TIMESCALE_HOST", "localhost"),
-        "port": os.getenv("TIMESCALE_PORT", 5432),
-        "user": os.getenv("TIMESCALE_USER", "admin"),
-        "password": os.getenv("TIMESCALE_PASSWORD", "admin"),
-        "database": os.getenv("TIMESCALE_DB", "timescaledb")
+        "db_host": os.getenv("TIMESCALE_HOST", "localhost"),
+        "db_port": os.getenv("TIMESCALE_PORT", 5432),
+        "db_user": os.getenv("TIMESCALE_USER", "admin"),
+        "db_password": os.getenv("TIMESCALE_PASSWORD", "admin"),
+        "db_name": os.getenv("TIMESCALE_DB", "timescaledb")
     }
 
     config = {
@@ -32,6 +32,7 @@ async def main():
         "intervals": ["1m", "3m", "5m", "15m", "1h"],
         "days_data_retention": 120,
         "min_notional_size": 10,
+        "selected_pairs": None,
         "timescale_config": timescale_config
     }
 

@@ -12,8 +12,13 @@ def triple_barrier_method(df, tp=1.0, sl=1.0, tl=5, std_span: Optional[int] = 10
         df["target"] = 1 / 100
     df["tl"] = df.index + pd.Timedelta(seconds=tl)
     df.dropna(subset="target", inplace=True)
-
-    df = apply_tp_sl_on_tl(df, tp=tp, sl=sl)
+    try:
+        df = apply_tp_sl_on_tl(df, tp=tp, sl=sl)
+    except KeyError:
+        df["side"] = 1
+        df = apply_tp_sl_on_tl(df, tp=tp, sl=sl)
+    except Exception as e:
+        print(f"Unexpected error: {e}")
 
     df = get_bins(df, trade_cost)
 
@@ -29,7 +34,7 @@ def add_active_signals(df, max_executors):
     df["active_signal"] = 0
     for index, row in df[(df["side"] != 0)].iterrows():
         for close_time in close_times:
-            if row["timestamp"] > close_time:
+            if row["timestamp"] > close_time.timestamp():
                 df.loc[df.index == index, "active_signal"] = 1
                 close_times.remove(close_time)
                 close_times.append(row["close_time"])

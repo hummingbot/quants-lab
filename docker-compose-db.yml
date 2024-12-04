@@ -10,6 +10,10 @@ services:
       - timescale-data:/var/lib/postgresql/data
     ports:
       - "5432:5432"
+    deploy:
+      resources:
+        limits:
+          cpus: "1.0"
   optunadb:
     container_name: optunadb
     image: postgres:latest
@@ -21,6 +25,12 @@ services:
       - optuna-data:/var/lib/postgresql/data
     ports:
       - "5433:5432"
+    deploy:
+      resources:
+        limits:
+          cpus: "2.0"
+        reservations:
+          cpus: "1.0"
 volumes:
   timescale-data:
     driver: local

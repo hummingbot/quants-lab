@@ -5,6 +5,7 @@ import time
 from typing import Dict, List, Optional, Tuple
 
 import pandas as pd
+from bidict import bidict
 from hummingbot.client.config.client_config_map import ClientConfigMap
 from hummingbot.client.config.config_helpers import ClientConfigAdapter, get_connector_class
 from hummingbot.client.settings import AllConnectorSettings, ConnectorType
@@ -247,9 +248,11 @@ class CLOBDataSource:
                 logger.error(f"Error loading {file}: {type(e).__name__} - {e}")
 
     async def get_trades(self, connector_name: str, trading_pair: str, start_time: int, end_time: int,
-                         from_id: Optional[int] = None):
-        return await self.trades_feeds[connector_name].get_historical_trades(trading_pair, start_time, end_time,
-                                                                             from_id)
+                         from_id: Optional[int] = None, max_trades_per_call: int = 1_000_000):
+        async for chunk in self.trades_feeds[connector_name].get_historical_trades(
+                trading_pair, start_time, end_time, from_id, max_trades_per_call
+        ):
+            yield chunk
 
     @staticmethod
     def convert_interval_to_pandas_freq(interval: str) -> str:
@@ -257,3 +260,24 @@ class CLOBDataSource:
         Converts a candle interval string to a pandas frequency string.
         """
         return INTERVAL_MAPPING.get(interval, 'T')
+
+    @property
+    def interval_to_seconds(self):
+        return bidict({
+            "1s": 1,
+            "1m": 60,
+            "3m": 180,
+            "5m": 300,
+            "15m": 900,
+            "30m": 1800,
+            "1h": 3600,
+            "2h": 7200,
+            "4h": 14400,
+            "6h": 21600,
+            "8h": 28800,
+            "12h": 43200,
+            "1d": 86400,
+            "3d": 259200,
+            "1w": 604800,
+            "1M": 2592000
+        })
