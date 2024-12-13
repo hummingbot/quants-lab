@@ -1,3 +1,4 @@
+import glob
 import os.path
 
 import yaml
@@ -25,3 +26,6 @@ def load_all_yaml_files(folder: str = ""):
     for file in list_all_yaml_files(folder):
         data.append(load_dict_from_yaml(os.path.join(folder, file)))
     return data
+
+def list_all_files(folder: str = "", pattern: str = ""):
+    return glob.glob(os.path.join(folder, pattern))
