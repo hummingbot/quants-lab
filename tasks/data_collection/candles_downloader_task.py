@@ -25,6 +25,7 @@ class CandlesDownloaderTask(BaseTask):
         self.intervals = config.get("intervals", ["1m"])
         self.quote_asset = config.get("quote_asset", "USDT")
         self.min_notional_size = Decimal(str(config.get("min_notional_size", 10.0)))
+        self.selected_pairs = config.get("selected_pairs")
         self.clob = CLOBDataSource()
 
     async def execute(self):
@@ -47,7 +48,11 @@ class CandlesDownloaderTask(BaseTask):
         await timescale_client.connect()
 
         trading_rules = await self.clob.get_trading_rules(self.connector_name)
-        trading_pairs = trading_rules.get_all_trading_pairs()
+        trading_pairs = trading_rules.filter_by_quote_asset(self.quote_asset) \
+            .filter_by_min_notional_size(self.min_notional_size) \
+            .get_all_trading_pairs()
+        if self.selected_pairs is not None:
+            trading_pairs = [trading_pair for trading_pair in trading_pairs if trading_pair in self.selected_pairs]
         for i, trading_pair in enumerate(trading_pairs):
             for interval in self.intervals:
                 logging.info(f"{now} - Fetching candles for {trading_pair} [{i} from {len(trading_pairs)}]")
@@ -63,7 +68,7 @@ class CandlesDownloaderTask(BaseTask):
                         self.connector_name,
                         trading_pair,
                         interval,
-                        int(start_time),
+                        int(start_time) - self.clob.interval_to_seconds[interval] * 10,
                         int(end_time.timestamp()),
                     )
 
@@ -97,18 +102,19 @@ async def main(config):
 
 if __name__ == "__main__":
     timescale_config = {
-        "host": os.getenv("TIMESCALE_HOST", "localhost"),
-        "port": os.getenv("TIMESCALE_PORT", 5432),
-        "user": os.getenv("TIMESCALE_USER", "admin"),
-        "password": os.getenv("TIMESCALE_PASSWORD", "admin"),
-        "database": os.getenv("TIMESCALE_DB", "timescaledb")
+        "db_host": os.getenv("TIMESCALE_HOST", "localhost"),
+        "db_port": os.getenv("TIMESCALE_PORT", 5432),
+        "db_user": os.getenv("TIMESCALE_USER", "admin"),
+        "db_password": os.getenv("TIMESCALE_PASSWORD", "admin"),
+        "db_name": os.getenv("TIMESCALE_DB", "timescaledb")
     }
     config = {
         "connector_name": "binance_perpetual",
         "quote_asset": "USDT",
-        "intervals": ["15m", "1h"],
+        "intervals": ["1m", "3m", "5m", "15m", "1h"],
         "days_data_retention": 30,
         "min_notional_size": 10,
+        "selected_pairs": None,
         "timescale_config": timescale_config
     }
     asyncio.run(main(config))
