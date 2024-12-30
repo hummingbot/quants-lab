@@ -41,7 +41,7 @@ class CLOBDataSource:
     CONNECTOR_TYPES = [ConnectorType.CLOB_SPOT, ConnectorType.CLOB_PERP, ConnectorType.Exchange, ConnectorType.Derivative]
     EXCLUDED_CONNECTORS = ["vega_perpetual", "hyperliquid_perpetual", "dydx_perpetual", "cube", "ndax",
                            "polkadex", "coinbase_advanced_trade", "kraken", "dydx_v4_perpetual", "hitbtc",
-                           "hyperliquid"]
+                           "hyperliquid", "dexalot"]
 
     def __init__(self):
         logger.info("Initializing ClobDataSource")
