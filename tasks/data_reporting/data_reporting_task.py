@@ -243,7 +243,7 @@ class ReportGeneratorTask(TaskBase):
 
 async def main():
     config = {
-        "host": os.getenv("TIMESCALE_HOST", "localhost"),
+        "host": os.getenv("db_host", "localhost"),
         "backend_api_host": os.getenv("TRADING_HOST", "localhost"),
         "email": "thinkingscience.ts@gmail.com",
         "email_password": os.getenv("EMAIL_PASSWORD", "password"),

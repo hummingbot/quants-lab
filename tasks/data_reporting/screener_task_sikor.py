@@ -68,7 +68,7 @@ class ScreenerSikorTask(BaseTask):
 
 async def main():
     config = {
-        "host": os.getenv("TIMESCALE_HOST", "localhost"),
+        "host": os.getenv("db_host", "localhost"),
         "connector_name": "binance_perpetual",
         "interval": "15m",
         "days": 30,

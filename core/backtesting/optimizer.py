@@ -115,15 +115,15 @@ class StrategyOptimizer:
     def get_storage_name(cls, engine, **kwargs):
         if engine == "sqlite":
             root_path = kwargs.get("root_path", "")
-            database_name = kwargs.get("database_name", "optimization_database")
+            database_name = kwargs.get("database_name", "optimization_db")
             path = os.path.join(root_path, "data", "backtesting", f"{database_name}.db")
             return f"sqlite:///{path}"
         elif engine == "postgres":
-            db_host = kwargs.get("db_host", "localhost")
-            db_port = kwargs.get("db_port", 5432)
-            db_user = kwargs.get("db_user", "admin")
-            db_pass = kwargs.get("db_pass", "admin")
-            database_name = kwargs.get("database_name", "optimization_database")
+            db_host = kwargs.get("OPTUNA_HOST", "localhost")
+            db_port = kwargs.get("OPTUNA_DOCKER_PORT", 5432)
+            db_user = kwargs.get("OPTUNA_USER", "admin")
+            db_pass = kwargs.get("OPTUNA_PASSWORD", "admin")
+            database_name = kwargs.get("OPTUNA_DB", "optimization_db")
             return f"postgresql+psycopg2://{db_user}:{db_pass}@{db_host}:{db_port}/{database_name}"
 
     def load_candles_cache_by_connector_pair(self, connector_name: str, trading_pair: str):

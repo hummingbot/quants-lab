@@ -1,3 +1,4 @@
+version: "3"
 services:
   bitmart_download_order_book_and_trades:
     image: hummingbot/hummingbot:latest

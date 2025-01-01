@@ -21,7 +21,7 @@ async def main():
 
     orchestrator = TaskOrchestrator()
     config = {
-        "host": os.getenv("TIMESCALE_HOST", "localhost"),
+        "host": os.getenv("db_host", "localhost"),
         "backend_api_host": os.getenv("TRADING_HOST", "localhost"),
         "email": os.getenv("EMAIL_SENDER"),
         "email_password": os.getenv("EMAIL_PASSWORD"),
@@ -33,7 +33,7 @@ async def main():
     config = {
         'connector_name': 'binance_perpetual',
         'intervals': ['1m', '3m', '5m', '15m', '1h'],
-        'db_host': os.getenv("TIMESCALE_HOST", 'localhost'),
+        'db_host': os.getenv("db_host", 'localhost'),
     }
     screener_task = MarketScreenerTask("Screener Report", timedelta(hours=4), config)
 

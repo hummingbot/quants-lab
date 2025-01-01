@@ -58,7 +58,7 @@ async def main():
         "port": os.getenv("OPTUNA_PORT", 5433),
         "user": os.getenv("OPTUNA_USER", "admin"),
         "password": os.getenv("OPTUNA_PASSWORD", "admin"),
-        "database": os.getenv("OPTUNA_DB", "optimization_database")
+        "database": os.getenv("OPTUNA_DB", "optimization_db")
     }
     config = {
         "root_path": os.path.abspath(os.path.join(os.path.dirname(__file__), '../..')),

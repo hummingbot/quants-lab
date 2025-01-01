@@ -19,7 +19,7 @@ load_dotenv()
 class MarketScreenerTask(BaseTask):
     def __init__(self, name: str, frequency: timedelta, config: Dict[str, Any], ts_client: TimescaleClient = None):
         super().__init__(name, frequency, config)
-        self.ts_client = ts_client or TimescaleClient(os.getenv("TIMESCALE_HOST", "localhost"))
+        self.ts_client = ts_client or TimescaleClient(os.getenv("db_host", "localhost"))
         self.intervals = self.config["intervals"]
         self.interval_mapping = {
             "1m": "one_min",

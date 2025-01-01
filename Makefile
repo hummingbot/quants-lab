@@ -1,6 +1,7 @@
 .ONESHELL:
 .PHONY: uninstall
 .PHONY: install
+.PHONY: run
 
 
 uninstall:

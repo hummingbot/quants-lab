@@ -18,11 +18,11 @@ async def main():
     orchestrator = TaskOrchestrator()
 
     timescale_config = {
-        "host": os.getenv("TIMESCALE_HOST", "localhost"),
-        "port": os.getenv("TIMESCALE_PORT", 5432),
-        "user": os.getenv("TIMESCALE_USER", "admin"),
-        "password": os.getenv("TIMESCALE_PASSWORD", "admin"),
-        "database": os.getenv("TIMESCALE_DB", "timescaledb")
+        "host": os.getenv("db_host", "localhost"),
+        "port": os.getenv("db_port", 5432),
+        "user": os.getenv("db_user", "admin"),
+        "password": os.getenv("db_pass", "admin"),
+        "database": os.getenv("database_name", "timescaledb")
     }
 
     trades_downloader_task = TradesDownloaderTask(
