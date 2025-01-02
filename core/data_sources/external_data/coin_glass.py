@@ -13,6 +13,7 @@ class CoinGlassDataFeed:
     _endpoints = {
         "liquidation_aggregated_history": "/api/futures/liquidation/v2/aggregated-history",
         "global_long_short_account_ratio": "/api/futures/globalLongShortAccountRatio/history",
+        "open_interest_aggregated_history": "/api/futures/openInterest/ohlc-aggregated-history",
     }
     _exchanges = [
         "Binance",
