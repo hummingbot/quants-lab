@@ -13,6 +13,7 @@ class CoinGlassDataFeed:
     _endpoints = {
         "liquidation_aggregated_history": "/api/futures/liquidation/v2/aggregated-history",
         "global_long_short_account_ratio": "/api/futures/globalLongShortAccountRatio/history",
+        "funding_rate": "/api/futures/fundingRate/ohlc-history",
     }
     _exchanges = [
         "Binance",
@@ -146,7 +147,7 @@ class CoinGlassDataFeed:
         start_ts = int(start_time)
         all_data = []
         exchange = self.get_exchange(connector_name)
-        if endpoint in ["global_long_short_account_ratio"]:
+        if endpoint in ["global_long_short_account_ratio", "funding_rate"]:
             symbol = self.get_pair(trading_pair)
         else:
             symbol = self.get_symbol(trading_pair)
@@ -181,11 +182,13 @@ class CoinGlassDataFeed:
                     last_timestamp + self.interval_to_seconds[interval] >= end_ts
                 )
                 start_ts = last_timestamp + self.interval_to_seconds[interval]
-            else:
+            elif start_ts < end_ts:
                 start_ts = start_ts + self.interval_to_seconds[interval] * limit
                 self.logger().info(
                     f"Updated startTime to {datetime.fromtimestamp(start_ts, tz=timezone.utc)}"
                 )
+            else:
+                raise ValueError("No avaliable data")
 
         return all_data
 

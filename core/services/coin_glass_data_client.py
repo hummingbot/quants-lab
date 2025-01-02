@@ -168,8 +168,9 @@ class CoinGlassClient(TimescaleClient):
             connector_name, trading_pair, interval, start_time, end_time
         )
 
+    @staticmethod
     def get_global_long_short_account_ratio_table_name(
-        self, trading_pair: str, interval: str, connector_name: str, **kwargs
+        trading_pair: str, interval: str, connector_name: str, **kwargs
     ) -> str:
         return f"coin_glass_global_long_short_account_ratio_{connector_name}_{trading_pair.lower().replace('-', '_')}_{interval}"
 
@@ -206,3 +207,61 @@ class CoinGlassClient(TimescaleClient):
                     """,
                     updated_data,
                 )
+
+    @staticmethod
+    def get_funding_rate_table_name(
+        trading_pair: str, interval: str, connector_name: str, **kwargs
+    ) -> str:
+        return f"coin_glass_funding_rate_{connector_name}_{trading_pair.lower().replace('-', '_')}_{interval}"
+
+    async def create_funding_rate_table(self, table_name: str):
+        async with self.pool.acquire() as conn:
+            await conn.execute(f"""
+                CREATE TABLE IF NOT EXISTS {table_name} (
+                    timestamp TIMESTAMPTZ NOT NULL,
+                    open DOUBLE PRECISION,
+                    high DOUBLE PRECISION,
+                    low DOUBLE PRECISION,
+                    close DOUBLE PRECISION,
+                    create_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                    UNIQUE (timestamp)
+                    );
+                """)
+
+    async def append_funding_rate(
+        self, table_name: str, data: List[Tuple[int, str, str, str, str]]
+    ):
+        updated_data = [
+            (t, float(o), float(h), float(l), float(c)) for t, o, h, l, c in data
+        ]
+        async with self.pool.acquire() as conn:
+            await self.create_funding_rate_table(table_name)
+            await conn.executemany(
+                f"""
+                INSERT INTO {table_name} 
+                (timestamp, open, high, low, close)
+                VALUES (to_timestamp($1), $2, $3, $4, $5)
+                ON CONFLICT (timestamp)
+                DO UPDATE SET 
+                    open = EXCLUDED.open,
+                    high = EXCLUDED.high,
+                    low = EXCLUDED.low,
+                    close = EXCLUDED.close;
+                """,
+                updated_data,
+            )
+
+    async def delete_funding_rate(
+        self, trading_pair: str, interval: str, connector_name: str, timestamp: float
+    ):
+        table_name = self.get_funding_rate_table_name(
+            trading_pair, interval, connector_name
+        )
+        async with self.pool.acquire() as conn:
+            await conn.execute(
+                f"""
+                DELETE FROM {table_name}
+                WHERE timestamp < $1
+            """,
+                datetime.fromtimestamp(timestamp),
+            )
