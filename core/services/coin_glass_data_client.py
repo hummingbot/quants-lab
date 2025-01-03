@@ -15,6 +15,12 @@ class CoinGlassClient(TimescaleClient):
     ) -> str:
         return f"coin_glass_liquidation_aggregated_history_{trading_pair.lower().replace('-', '_')}_{interval}"
 
+    @staticmethod
+    def get_aggregated_open_interest_history_table_name(
+        trading_pair: str, interval: str, **kwargs
+    ) -> str:
+        return f"coin_glass_aggregated_open_interest_history_{trading_pair.lower().replace("-", "_")}"
+
     async def create_liquidation_aggregated_history(self, table_name: str):
         if self.pool is not None:
             async with self.pool.acquire() as conn:
@@ -28,6 +34,22 @@ class CoinGlassClient(TimescaleClient):
                     );
                 """)
 
+    # TODO: Group create method
+    async def create_aggregated_open_interest_history(self, table_name: str):
+        if self.pool is not None:
+            async with self.pool.acquire() as conn:
+                await conn.execute(f"""
+                    CREATE TABLE IF NOT EXISTS {table_name} (
+                        "timestamp" timestamp NOT NULL,
+                        "open" real NOT NULL,
+                        "high" real NOT NULL,
+                        "low" real NOT NULL,
+                        "close" real NOT NULL,
+                        "created_at" timestamp DEFAULT now() NOT NULL
+                    );
+                    CREATE UNIQUE INDEX "IDX_TIMESTAMP" ON "oi" USING btree ("timestamp");
+                """)
+
     async def delete_liquidation_aggregated_history(
         self, trading_pair: str, interval: str, timestamp: Optional[float] = None
     ):
@@ -39,6 +61,22 @@ class CoinGlassClient(TimescaleClient):
                 query = f"DELETE FROM {table_name}"
                 params = []
 
+                if timestamp is not None:
+                    query += " WHERE timestamp < $1"
+                    params.append(datetime.fromtimestamp(timestamp))
+                await conn.execute(query, *params)
+
+    # TODO: Group delete method
+    async def delete_aggregated_open_interest_history(
+        self, trading_pair: str, interval: str, timestamp: Optional[float] = None
+    ):
+        table_name = self.get_aggregated_open_interest_history_table_name(
+            trading_pair, interval
+        )
+        if self.pool is not None:
+            async with self.pool.acquire() as conn:
+                query = f"DELETE FROM {table_name}"
+                params = []
                 if timestamp is not None:
                     query += " WHERE timestamp < $1"
                     params.append(datetime.fromtimestamp(timestamp))
@@ -64,6 +102,27 @@ class CoinGlassClient(TimescaleClient):
                     updated_data,
                 )
 
+    # TODO: Group append method
+    async def append_aggregated_open_interest_histry(
+        self, table_name: str, data: List[Tuple[int, str, str, str, str]]
+    ):
+        updated_data = [
+            (t, float(o), float(h), float(l), float(c)) for t, o, h, l, c in data
+        ]
+        print(updated_data)
+        if self.pool is not None:
+            async with self.pool.acquire() as conn:
+                await self.create_aggregated_open_interest_history(table_name)
+                await conn.exeutemany(
+                    f"""
+                        INSERT INTO {table_name} (timestamp, open, high, low, close) 
+                        VALUES (to_timestamp($1), $2, $3, $4, $5)
+                        ON CONFLICT (timestamp)
+                        DO UPDATE SET
+                            (open, high, low, close) = (EXCLUDED.open, EXCLUDED.high, EXCLUDED.low, EXCLUDED.close);
+                    """
+                )
+
     async def get_first_liquidation_aggregated_history_timestamp(
         self, trading_pair: str, interval: str
     ) -> Optional[float]:
@@ -77,10 +136,38 @@ class CoinGlassClient(TimescaleClient):
                 """)
                 return result.timestamp() if result else None
 
+    # TODO: Group get first method
+    async def get_first_aggregated_open_interest_history_timestamp(
+        self, trading_pair: str, interval: str
+    ) -> Optional[float]:
+        table_name = self.get_aggregated_open_interest_history_table_name(
+            trading_pair, interval
+        )
+        if self.pool is not None:
+            async with self.pool.acquire() as conn:
+                result = await conn.fetchval(f"""
+                    SELECT MIN(timestamp) FROM {table_name}
+                """)
+                return result.timestamp() if result else None
+
     async def get_last_liquidation_aggregated_history_timestamp(
         self, trading_pair: str, interval: str
     ) -> Optional[float]:
         table_name = self.get_liquidation_aggregated_history_table_name(
+            trading_pair, interval
+        )
+        if self.pool is not None:
+            async with self.pool.acquire() as conn:
+                result = await conn.fetchval(f"""
+                    SELECT MAX(timestamp) FROM {table_name}
+                """)
+                return result.timestamp() if result else None
+
+    # TODO: Group get last method
+    async def get_last_aggregated_open_interest_history_timestamp(
+        self, trading_pair: str, interval: str
+    ) -> Optional[float]:
+        table_name = self.get_aggregated_open_interest_history_table_name(
             trading_pair, interval
         )
         if self.pool is not None:
@@ -159,7 +246,72 @@ class CoinGlassClient(TimescaleClient):
 
         return df
 
+    # TODO: Group select method
+    async def get_aggregated_open_interest_history(
+        self,
+        connector_name: str,
+        trading_pair: str,
+        interval: str,
+        start_time: Optional[float] = None,
+        end_time: Optional[float] = None,
+    ) -> pd.DataFrame:
+        candle_table_name = self.get_ohlc_table_name(
+            connector_name, trading_pair, interval
+        )
+        aggregated_open_interest_history_table_name = (
+            self.get_aggregated_open_interest_history_table_name(trading_pair, interval)
+        )
+        if self.pool is not None:
+            async with self.pool.acquire() as conn:
+                query = f"""
+                    SELECT
+                        c.timestamp,
+                        c.open, 
+                        c.high, 
+                        c.low, 
+                        c.close, 
+                        c.created_at
+                    FROM
+                        {candle_table_name} c
+                    JOIN
+                        {aggregated_open_interest_history_table_name} l
+                    ON
+                        c.timestamp = l.timestamp
+                    WHERE
+                        c.timestamp BETWEEN $1 AND $2
+                    ORDER BY
+                        l.timestamp AESC;
+                """
+                start_dt = (
+                    datetime.fromtimestamp(start_time) if start_time else datetime.min
+                )
+                end_dt = datetime.fromtimestamp(end_time) if end_time else datetime.max
+                rows = await conn.fetch(query, start_dt, end_dt)
+            df = pd.DataFrame(
+                rows,
+                columns=["timestamp", "open", "high", "low", "close", "created_at"],
+            )
+            df.set_index("timestamp", inplace=True)
+            df = df.astype(
+                {
+                    "open": float,
+                    "high": float,
+                    "low": float,
+                    "close": float,
+                }
+            )
+            return df
+
     async def get_liquidation_aggregated_history_last_day(
+        self, connector_name: str, trading_pair: str, interval: str, days: int
+    ) -> Candles:
+        end_time = int(time.time())
+        start_time = end_time - days * 24 * 60 * 60
+        return await self.get_candles(
+            connector_name, trading_pair, interval, start_time, end_time
+        )
+
+    async def get_aggregated_open_interest_history_last_day(
         self, connector_name: str, trading_pair: str, interval: str, days: int
     ) -> Candles:
         end_time = int(time.time())
