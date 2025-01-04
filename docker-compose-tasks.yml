@@ -1,7 +1,7 @@
 version: "3.2"
 services:
   data-generation-runner:
-    image: mzfshark/quants-lab:latest
+    image: mzfshark/quants-lab:dev
     volumes:
       - .:/quants-lab
     env_file:
@@ -10,7 +10,7 @@ services:
     network_mode: host
 
   backtesting-runner:
-    image: mzfshark/quants-lab:latest
+    image: mzfshark/quants-lab:dev
     volumes:
       - .:/quants-lab
     deploy:
@@ -21,7 +21,7 @@ services:
     network_mode: host
 
   candles-downloader-runner:
-    image: mzfshark/quants-lab:latest
+    image: mzfshark/quants-lab:dev
     volumes:
       - .:/quants-lab
     env_file:
@@ -31,7 +31,7 @@ services:
 
 
   screeners-report-runner:
-    image: mzfshark/quants-lab:latest
+    image: mzfshark/quants-lab:dev
     volumes:
       - .:/quants-lab
     env_file:

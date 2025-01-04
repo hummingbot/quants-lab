@@ -74,10 +74,7 @@ class WhiteRabbitBacktestingTask(BaseTask):
 
     async def execute(self):
         optimizer = StrategyOptimizer(root_path=self.root_path, resolution=self.resolution, load_cached_data=True)
-        selected_pairs = ['1000SHIB-USDT', 'WLD-USDT', 'ACT-USDT', '1000BONK-USDT', 'DOGE-USDT', 'AGLD-USDT',
-                          'SUI-USDT', '1000SATS-USDT', 'MOODENG-USDT', 'NEIRO-USDT', 'HBAR-USDT', 'ENA-USDT',
-                          'HMSTR-USDT', 'TROY-USDT', '1000PEPE-USDT', '1000X-USDT', 'PNUT-USDT', 'SOL-USDT',
-                          'XRP-USDT', 'SWELL-USDT']
+        selected_pairs = ['BTC-USDT', 'DOGE-USDT', 'ETH-USDT', 'SUI-USDT', 'SOL-USDT', 'XRP-USDT']
         connector_name = "binance_perpetual"
         for trading_pair in selected_pairs:
             end_date = time.time() - self.config["end_time_buffer_hours"]

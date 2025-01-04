@@ -1,7 +1,7 @@
 version: "3"
 services:
   bitmart_download_order_book_and_trades:
-    image: hummingbot/hummingbot:latest
+    image: mzfshark/tradingbot:dev
     volumes:
       - ./scripts:/home/hummingbot/scripts
       - ./conf:/home/hummingbot/conf
@@ -21,7 +21,7 @@ services:
     network_mode: host
 
   ascendex_download_order_book_and_trades:
-    image: hummingbot/hummingbot:latest
+    image: mzfshark/tradingbot:dev
     volumes:
       - ./scripts:/home/hummingbot/scripts
       - ./conf:/home/hummingbot/conf
@@ -41,7 +41,7 @@ services:
     network_mode: host
 
   binance_download_order_book_and_trades:
-    image: hummingbot/hummingbot:latest
+    image: mzfshark/tradingbot:dev
     volumes:
       - ./scripts:/home/hummingbot/scripts
       - ./conf:/home/hummingbot/conf

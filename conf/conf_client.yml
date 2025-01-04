@@ -2,7 +2,7 @@
 ###   client_config_map config   ###
 ####################################
 
-instance_id: 4b2d1bb3ab8b0a4f32f115eeb50e99a6806563cf
+instance_id: 863da836c489ef4ef8622bc2addefe12e80caeaa
 
 # Fetch trading pairs from all exchanges if True, otherwise fetch only from connected exchanges.
 fetch_pairs_from_all_exchanges: false
@@ -68,38 +68,41 @@ db_mode:
 #     BTC: 0.1
 #     USDT: 1000
 balance_asset_limit:
-  kucoin_hft: {}
-  binance_us: {}
-  vertex: {}
-  bitrue: {}
-  ndax_testnet: {}
-  bybit: {}
-  injective_v2: {}
-  polkadex: {}
-  okx: {}
-  tegro_testnet: {}
-  btc_markets: {}
-  mexc: {}
-  htx: {}
-  tegro: {}
-  bybit_testnet: {}
-  bitmart: {}
-  kraken: {}
-  hashkey_global_testnet: {}
-  vertex_testnet: {}
-  ndax: {}
-  binance: {}
-  xrpl: {}
-  bitfinex: {}
-  gate_io: {}
-  cube: {}
-  kucoin: {}
-  ascend_ex: {}
-  hashkey: {}
   dexalot: {}
-  foxbit: {}
-  bitstamp: {}
+  bybit: {}
+  binance_us: {}
+  polkadex: {}
+  bybit_testnet: {}
+  hashkey_global_testnet: {}
+  kucoin: {}
+  vertex: {}
+  injective_v2: {}
+  gate_io: {}
+  ndax_testnet: {}
+  kraken: {}
+  hashkey: {}
+  ndax: {}
+  tegro_testnet: {}
+  okx: {}
+  vertex_testnet: {}
+  ascend_ex: {}
+  bitmart: {}
+  hyperliquid_testnet: {}
+  kucoin_hft: {}
+  mexc: {}
+  btc_markets: {}
+  bitfinex: {}
+  binance: {}
   coinbase_advanced_trade: {}
+  bitstamp: {}
+  tegro: {}
+  htx: {}
+  dexalot_testnet: {}
+  xrpl: {}
+  hyperliquid: {}
+  cube: {}
+  foxbit: {}
+  bitrue: {}
 
 # Fixed gas price (in Gwei) for Ethereum transactions
 manual_gas_price: 50.0
@@ -130,7 +133,7 @@ command_shortcuts:
   - config bid_spread $1
   - config ask_spread $2
 
-# A source for rate oracle, currently ascend_ex, binance, binance_us, coin_gecko, coin_cap, dexalot, kucoin, gate_io, coinbase_advanced_trade, cube
+# A source for rate oracle, currently ascend_ex, binance, binance_us, coin_gecko, coin_cap, dexalot, kucoin, gate_io, coinbase_advanced_trade, cube, hyperliquid
 rate_oracle_source:
   name: binance
 
