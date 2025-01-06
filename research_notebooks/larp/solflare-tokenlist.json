@@ -1,0 +1,395 @@
+{
+  "name": "Solana Token List",
+  "logoURI": "",
+  "keywords": [
+    "solana",
+    "spl"
+  ],
+  "tags": {
+    "lp-token": {
+      "name": "lp-token",
+      "description": ""
+    },
+    "jupiter": {
+      "name": "jupiter",
+      "description": ""
+    }
+  },
+  "timestamp": "2024-07-25T12:10:34.121Z",
+  "tokens": [
+    {
+      "chainId": 101,
+      "name": "SARA deployed by Hiero",
+      "symbol": "SARA",
+      "address": "E6ianST8ogCDv7iEXryPjxJKu9LRpp4TcVPLTNPnpump",
+      "decimals": 6,
+      "logoURI": "missing.png",
+      "tags": [],
+      "verified": true,
+      "holders": null
+    },
+    {
+      "chainId": 101,
+      "name": "Self Improving",
+      "symbol": "Grind",
+      "address": "B3W5jPGUiorGLGyJEWoJd7gCasTbDAFVQRFVmtrwpump",
+      "decimals": 6,
+      "logoURI": "missing.png",
+      "tags": [],
+      "verified": true,
+      "holders": null
+    },
+    {
+      "chainId": 101,
+      "name": "BLUE WAFFLE",
+      "symbol": "BLUEWAFFLE",
+      "address": "CGsh728EjbHY6yp9QrDS8F5joTArpSt1PQm8wj6kpump",
+      "decimals": 6,
+      "logoURI": "missing.png",
+      "tags": [],
+      "verified": true,
+      "holders": null
+    },
+    {
+      "chainId": 101,
+      "name": "PILL",
+      "symbol": "PILL",
+      "address": "E7vih47WnrJqzr1cYECkPMzqQUtW7H813Y3gaB6ppump",
+      "decimals": 6,
+      "logoURI": "missing.png",
+      "tags": [],
+      "verified": true,
+      "holders": null
+    },
+    {
+      "chainId": 101,
+      "name": "Solhouse",
+      "symbol": "SOLHse",
+      "address": "5r1bqzPX58nZ5JJDJw4JcJtobRscGW2vrg1gKFnwSDjK",
+      "decimals": 6,
+      "logoURI": "missing.png",
+      "tags": [],
+      "verified": true,
+      "holders": null
+    },
+    {
+      "chainId": 101,
+      "name": "GENESIS",
+      "symbol": "GENESIS",
+      "address": "7EjWHZwtstT21dUniWpvVPRrw64cmX3UYFE5crJ8pump",
+      "decimals": 6,
+      "logoURI": "https://coin-images.coingecko.com/coins/images/53268/large/IMG_2887.jpeg?1735913357",
+      "tags": [],
+      "verified": true,
+      "holders": null
+    },
+    {
+      "chainId": 101,
+      "name": "DUNA",
+      "symbol": "DUNA",
+      "address": "9umkdJdE555ZFMyYbi1AXK2VC2Ge6qUwuLH6bwXPpump",
+      "decimals": 6,
+      "logoURI": "missing.png",
+      "tags": [],
+      "verified": true,
+      "holders": null
+    },
+    {
+      "chainId": 101,
+      "name": "Retire My Mom",
+      "symbol": "Momfolio",
+      "address": "FL8sHHvjUwyhYE2cejMYSYdWqzdsatKfR5UJHT8pump",
+      "decimals": 6,
+      "logoURI": "missing.png",
+      "tags": [],
+      "verified": true,
+      "holders": null
+    },
+    {
+      "chainId": 101,
+      "name": "SKYLAR",
+      "symbol": "SKYLAR",
+      "address": "FaP5jTTWfN77U4HR8PkWcxChvQAqqkbrsKvd6WDQpump",
+      "decimals": 6,
+      "logoURI": "missing.png",
+      "tags": [],
+      "verified": true,
+      "holders": null
+    },
+    {
+      "chainId": 101,
+      "name": "JJYY",
+      "symbol": "\u53fd\u6b6a",
+      "address": "9TRnMKdhygFF8GkAENVHDd32nmZtoDExMYGoys2pump",
+      "decimals": 6,
+      "logoURI": "missing.png",
+      "tags": [],
+      "verified": true,
+      "holders": null
+    },
+    {
+      "chainId": 101,
+      "name": "zuro",
+      "symbol": "zuro",
+      "address": "CSwKoBoFpoxfZbob9WZgc5fc6TE47b3CD8DugFfspump",
+      "decimals": 6,
+      "logoURI": "missing.png",
+      "tags": [],
+      "verified": true,
+      "holders": null
+    },
+    {
+      "chainId": 101,
+      "name": "Thena Network",
+      "symbol": "Thena",
+      "address": "5ZxotRXB6edrdVXUCC8Ed7RF2FvZAqd1s6c1SW34pump",
+      "decimals": 6,
+      "logoURI": "missing.png",
+      "tags": [],
+      "verified": true,
+      "holders": null
+    },
+    {
+      "chainId": 101,
+      "name": "ArkSciDAO",
+      "symbol": "ASD",
+      "address": "BgoicVzEJAJt65CRFeVN6SthFxbZuvg7UnWAW8Kypump",
+      "decimals": 6,
+      "logoURI": "missing.png",
+      "tags": [],
+      "verified": true,
+      "holders": null
+    },
+    {
+      "chainId": 101,
+      "name": "OpenAgent",
+      "symbol": "OA",
+      "address": "E5Cu1on9Mq7Vb6kCKZgivuaWqt5VrTiK3SF5sTeZpump",
+      "decimals": 6,
+      "logoURI": "missing.png",
+      "tags": [],
+      "verified": true,
+      "holders": null
+    },
+    {
+      "chainId": 101,
+      "name": "Agent Whale Watch",
+      "symbol": "AWW",
+      "address": "3WVT2rgRk1ipRH6pe4UoNp4TyUM3XoQHJSZqhqFJnZAV",
+      "decimals": 6,
+      "logoURI": "missing.png",
+      "tags": [],
+      "verified": true,
+      "holders": null
+    },
+    {
+      "chainId": 101,
+      "name": "StorX Ai",
+      "symbol": "STORX",
+      "address": "3322vbnSuGCH8MMRJNdzU8SgXYZMRnV1yKZUUWXdpump",
+      "decimals": 6,
+      "logoURI": "missing.png",
+      "tags": [],
+      "verified": true,
+      "holders": null
+    },
+    {
+      "chainId": 101,
+      "name": "Chatter AI",
+      "symbol": "CHTTR",
+      "address": "7uB2k4nMA28egNmVpZRNm98Xt6QpqSMNXfrWGiHEpump",
+      "decimals": 6,
+      "logoURI": "missing.png",
+      "tags": [],
+      "verified": true,
+      "holders": null
+    },
+    {
+      "chainId": 101,
+      "name": "incu.sh",
+      "symbol": "INCU",
+      "address": "66neDuoXESwZtVNDN3176b6JtjUeh5cgk9fzM5sBpump",
+      "decimals": 6,
+      "logoURI": "missing.png",
+      "tags": [],
+      "verified": true,
+      "holders": null
+    },
+    {
+      "chainId": 101,
+      "name": "Truth Terminal Final Coin",
+      "symbol": "HolyShit",
+      "address": "J8njvmBmUYS4RfdQdoszQj3QcbaobbBwjD37Zr36pump",
+      "decimals": 6,
+      "logoURI": "missing.png",
+      "tags": [],
+      "verified": true,
+      "holders": null
+    },
+    {
+      "chainId": 101,
+      "name": "NORA",
+      "symbol": "NORA",
+      "address": "3Yie9s6iuEmk8aiXYC19xaq2iccTuFzyfKBWv6gFpump",
+      "decimals": 6,
+      "logoURI": "missing.png",
+      "tags": [],
+      "verified": true,
+      "holders": null
+    },
+    {
+      "chainId": 101,
+      "name": "SizeChat",
+      "symbol": "SIZE",
+      "address": "6cSY6ZXZ2im8DR2q7opgYnU3xZKStJe8z5mzG9twpump",
+      "decimals": 6,
+      "logoURI": "missing.png",
+      "tags": [],
+      "verified": true,
+      "holders": null
+    },
+    {
+      "chainId": 101,
+      "name": "Kekius Terminalius",
+      "symbol": "KEKT",
+      "address": "6mif4d2Y1AsHCniSw5Df6vt3SA3ZkDnmjWVpaPPTpump",
+      "decimals": 6,
+      "logoURI": "missing.png",
+      "tags": [],
+      "verified": true,
+      "holders": null
+    },
+    {
+      "chainId": 101,
+      "name": "Picture of Hot Dog",
+      "symbol": "PHD",
+      "address": "DWHuypFN5CNX54fWs5PJkG1JoSc842kjotLqo5Hupump",
+      "decimals": 6,
+      "logoURI": "missing.png",
+      "tags": [],
+      "verified": true,
+      "holders": null
+    },
+    {
+      "chainId": 101,
+      "name": "INSIDER",
+      "symbol": "INSIDER",
+      "address": "b3pfVMgcHKyeQ2HPNZucsgYcLvef98ZBqrYyjesiDER",
+      "decimals": 9,
+      "logoURI": "missing.png",
+      "tags": [],
+      "verified": true,
+      "holders": null
+    },
+    {
+      "chainId": 101,
+      "name": "ReworkdAI",
+      "symbol": "ReworkdAI",
+      "address": "ewaM2xcskjjYJsNJspz6D3SCudWSEJ8U435kLXvpump",
+      "decimals": 6,
+      "logoURI": "missing.png",
+      "tags": [],
+      "verified": true,
+      "holders": null
+    },
+    {
+      "chainId": 101,
+      "name": "RepoSeeker",
+      "symbol": "SEEKER",
+      "address": "HP4cZoMLxgp5gY2H6nQ2hnaS2kzU9nzugVRaw4k7pump",
+      "decimals": 6,
+      "logoURI": "missing.png",
+      "tags": [],
+      "verified": true,
+      "holders": null
+    },
+    {
+      "chainId": 101,
+      "name": "Autonomous Spores",
+      "symbol": "spores",
+      "address": "H1koD28XAHg2vuGp7XggehBCR4zP6r6k6EQ3MR6j3kU2",
+      "decimals": 6,
+      "logoURI": "missing.png",
+      "tags": [],
+      "verified": true,
+      "holders": null
+    },
+    {
+      "chainId": 101,
+      "name": "Predo",
+      "symbol": "PREDO",
+      "address": "84R6wZHapPTGobXfsgmBRpoL7C9dHJj16ahRBjxx2637",
+      "decimals": 6,
+      "logoURI": "missing.png",
+      "tags": [],
+      "verified": true,
+      "holders": null
+    },
+    {
+      "chainId": 101,
+      "name": "Sylicon Dreams",
+      "symbol": "$DREAMS",
+      "address": "2JnrcKw6wYiuHLJ3XTuevJmLCvqvwAwGqbT7E9H2pump",
+      "decimals": 6,
+      "logoURI": "missing.png",
+      "tags": [],
+      "verified": true,
+      "holders": null
+    },
+    {
+      "chainId": 101,
+      "name": "Sterling AI Bot",
+      "symbol": "STNG",
+      "address": "AdDmh7KwvRrG4yWRAjcGPCtjGbSXxE32et4ojzNcpump",
+      "decimals": 6,
+      "logoURI": "missing.png",
+      "tags": [],
+      "verified": true,
+      "holders": null
+    },
+    {
+      "chainId": 101,
+      "name": "Zarya",
+      "symbol": "Zarya",
+      "address": "2gnGkpQfM7mQjkY7VjQqD6bEa84tA5EqqYHr5ccNpump",
+      "decimals": 6,
+      "logoURI": "missing.png",
+      "tags": [],
+      "verified": true,
+      "holders": null
+    },
+    {
+      "chainId": 101,
+      "name": "AR16z",
+      "symbol": "AR16z",
+      "address": "ESFf7ugFF6vkurs8PPREJhBx62UuFHDnurB6gLjnpump",
+      "decimals": 6,
+      "logoURI": "missing.png",
+      "tags": [],
+      "verified": true,
+      "holders": null
+    },
+    {
+      "chainId": 101,
+      "name": "Passepartout",
+      "symbol": "PSPT",
+      "address": "NHYzz3XNA4QJHwo8e25jG3Zz9xvLqPh1VMCfTH5uhat",
+      "decimals": 6,
+      "logoURI": "missing.png",
+      "tags": [],
+      "verified": true,
+      "holders": null
+    },
+    {
+      "chainId": 101,
+      "name": "SOL",
+      "symbol": "SOL",
+      "address": "11111111111111111111111111111111",
+      "decimals": 9,
+      "logoURI": "https://coin-images.coingecko.com/coins/images/21629/large/solana.jpg?1696520989",
+      "tags": [],
+      "verified": true,
+      "holders": null
+    }
+  ]
+}
