@@ -566,7 +566,9 @@ class OKXDexAPI:
         amount: str,
         slippage: str,
         wallet_address: str,
-        private_key: Optional[str] = None
+        private_key: Optional[str] = None,
+        poll_for_confirmation: bool = False,
+        poll_sleep_seconds: Optional[float] = None
     ) -> str:
         """Execute a Solana swap transaction following Solders documentation"""
         # Verify private key
@@ -581,7 +583,7 @@ class OKXDexAPI:
             to_token_address=to_token_address,
             amount=amount,
             slippage=slippage,
-            user_wallet_address=wallet_address
+            user_wallet_address=wallet_address,
         )
 
         # 2. Get latest blockhash
@@ -618,16 +620,20 @@ class OKXDexAPI:
                 tx,
                 opts=opts
             )
-            await self.solana_client.confirm_transaction(
-                result.value,
-                commitment="confirmed",
-                sleep_seconds=0.5
-            )
+            if poll_for_confirmation:
+                await self.poll_for_confirmation(result.value, poll_sleep_seconds)
             
             return result.value
 
         except Exception as e:
             raise ValueError(f"Transaction failed: {e}")
+        
+    async def poll_for_confirmation(self, tx_sig: str, sleep_seconds: float = 0.5):
+        await self.solana_client.confirm_transaction(
+            tx_sig=tx_sig,
+            commitment="confirmed",
+            sleep_seconds=sleep_seconds
+        )
 
     async def broadcast_transaction(
         self,
@@ -712,14 +718,15 @@ class OKXDexAPI:
         amount: str,
         slippage: str,
         wallet_address: str,
+        private_key: Optional[str] = None
     ) -> str:
         """
         Execute a Solana swap transaction through OKX broadcast API
         Returns the order ID for tracking
         """
         # Get swap transaction data
-        swap_response = await self.swap(
-            chain_id="501",
+        raw_swap = await self.swap(
+            chain_id="501", 
             from_token_address=from_token_address,
             to_token_address=to_token_address,
             amount=amount,
@@ -728,9 +735,35 @@ class OKXDexAPI:
         )
 
         try:
-            # Broadcast the pre-signed transaction through OKX
+            # Get latest blockhash
+            recent_blockhash = await self.solana_client.get_latest_blockhash()
+
+            # Create keypair from private key bytes
+            private_key = private_key or self.solana_private_key
+            fee_payer = Keypair.from_bytes(b58decode(private_key))
+
+            # Decode transaction bytes
+            tx_bytes = b58decode(raw_swap.data[0].tx.data)
+            original_tx = VersionedTransaction.from_bytes(tx_bytes)
+
+            # Create new message with updated blockhash
+            new_message = MessageV0(
+                header=original_tx.message.header,
+                account_keys=original_tx.message.account_keys,
+                recent_blockhash=recent_blockhash.value.blockhash,
+                instructions=original_tx.message.instructions,
+                address_table_lookups=original_tx.message.address_table_lookups,
+            )
+
+            # Create and sign new transaction
+            tx = VersionedTransaction(new_message, [fee_payer])
+            
+            # Convert transaction to base58 string for OKX API
+            signed_tx_str = b58encode(bytes(tx)).decode('utf-8')
+
+            # Broadcast the signed transaction
             order_id = await self.broadcast_transaction(
-                signed_tx=swap_response.data[0].tx.data,  # Use transaction data directly from OKX
+                signed_tx=signed_tx_str,
                 chain_index="501",
                 address=wallet_address
             )
