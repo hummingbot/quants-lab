@@ -1,0 +1,117 @@
+
+// This Pine Script™ code is subject to the terms of the Mozilla Public License 2.0 at https://mozilla.org/MPL/2.0/
+// © priyanshuraj6207222
+
+//@version=6
+indicator('Raj_Revesion_Strategy')
+
+display_mean_reversion = input.bool(true, 'mean_rev', group = 'Mean_Revision_Input', inline = 'a')
+
+// Inputs
+almaHTFLength = input.int(80, 'Mean_Revision_Input')
+htfPeriod = input.timeframe('60', 'HTF Period') // Higher Timeframe
+//dynamic length calculation
+// Function: Convert timeframe string to minutes
+//this function based on the pine script it just convert string to no . in python if we can directly convert string to no then no need to use this function 
+timeframe_string_toNo(tf) =>
+    switch tf
+        '1' => 1
+        '3' => 3
+        '5' => 5
+        '15' => 15
+        '30' => 30
+        '60' => 60
+        '120' => 120
+        '240' => 240
+        'D' => 1440
+        'W' => 10080
+        => na // Default case for unsupported timeframes
+
+
+ltfMinutes = timeframe_string_toNo(timeframe.period) // Current (lower) timeframe in minutes
+htfMinutes = timeframe_string_toNo(htfPeriod) // Higher timeframe in minutes
+dynamic_ratio = htfMinutes / ltfMinutes // Ratio of HTF to LTF
+dynamic_length = int(almaHTFLength * dynamic_ratio)
+// Explanation of dynamic length logic:
+// This method creates stability in the indicator by ensuring that the ALMA calculations remain consistent across different timeframes.
+//
+// Key Idea:
+// - When using a fixed length (e.g., 80) for ALMA, the values can vary significantly across different timeframes.
+// - To solve this, we calculate a dynamic length by finding the ratio of the higher timeframe to the lower timeframe
+//   and adjusting the ALMA length accordingly.
+//
+// Dynamic Ratio:
+//   Dynamic Ratio = Higher Timeframe in Minutes / Lower Timeframe in Minutes
+//
+// Dynamic Length:
+//   Dynamic Length = ALMA Length for Higher Timeframe * Dynamic Ratio
+//
+// Practical Example:
+// - Suppose you want to calculate the ALMA for a 60-minute timeframe using a length of 80.
+//   If you switch to a 5-minute timeframe, the dynamic length is calculated as:
+//   Dynamic Length = 80 * (60 / 5) = 960
+//
+// This ensures that the ALMA on the 5-minute chart reflects the same period as it would on the 60-minute chart,
+// preventing large fluctuations in the indicator values when switching timeframes.
+
+
+//
+
+offset = input.float(0.85, title = 'Offset', group = 'Mean Revision Input')
+sigma = input.int(16, title = 'Sigma', group = 'Mean Revision Input')
+
+alma_value = ta.alma(close, dynamic_length, offset, sigma)
+src = high - alma_value > math.abs(low - alma_value) and high - open > math.abs(low - open) ? high : high - alma_value < math.abs(low - alma_value) and high - open < math.abs(low - open) ? low : close
+diff = (src - alma_value) * 100 / alma_value //  formate in percentage 
+plot(display_mean_reversion ? diff : na, 'diff', color.white, 1, format = format.percent)
+plot(0, 'alma_value', color.white, display = display.pane)
+plot(alma_value,"",color.white,1,plot.style_line,force_overlay = true)
+// pivot with percentage rnk calculation 
+ 
+// pivots 
+lef_ = int(dynamic_ratio *input.int(7, group = 'Pivot_point', inline = 'a'))//round to integer value 
+right_ = int(dynamic_ratio* input.int(7, group = 'Pivot_point', inline = 'a'))
+pvt_Low = ta.pivotlow(diff, lef_, right_)
+pvt_High = ta.pivothigh(diff, lef_, right_)
+plot(display_mean_reversion ? pvt_High : na, color = color.white, linewidth = 3, style = plot.style_circles, offset = -right_, display = display.pane)
+plot(display_mean_reversion ? pvt_Low : na, color = color.white, linewidth = 3, style = plot.style_circles, offset = -right_, display = display.pane)
+plot(bool(pvt_High)? high[right_]:na,"",color.white,2,plot.style_circles,offset = -right_,force_overlay = true)
+plot(bool(pvt_Low)?low[right_]:na,'',color.white,2,plot.style_circles,offset = -right_,force_overlay = true)
+var container = array.new_float()
+if bool(pvt_High)
+    container.push(pvt_High) 
+
+if bool(pvt_Low)
+    container.push(pvt_Low)
+
+array_percent = input.float(86)
+percentile_rnk = container.percentile_nearest_rank(array_percent)
+plot(display_mean_reversion ? percentile_rnk : na, '', color.lime)
+plot(display_mean_reversion ? -percentile_rnk : na, '', color.lime)
+
+// control the alma over the diff 
+// apply alma on the diff 
+dis = input.bool(true, group = 'alma over mean ', inline = 'a') ? display.all : display.none
+windowsize2 = int(dynamic_ratio *input(title = 'length', defval = 9, group = 'alma over mean ', inline = 'a'))
+offset2 = input.float(title = 'off', defval = 0.85, group = 'alma over mean ', inline = 'a')
+sigma2 = input.float(title = 'sig', defval = 16, group = 'alma over mean ', inline = 'a')
+alma_over_diff = ta.alma(diff, windowsize2, offset2, sigma2)
+plot(alma_over_diff, 'alma_over_mean', color.orange, display = dis)
+//  
+crossunder_ = ta.crossunder(diff, alma_over_diff)
+cross_over_ = ta.crossover(diff, alma_over_diff)
+// long and long conditional statement 
+short = diff >= percentile_rnk and crossunder_ // short starting 
+long = diff <= -percentile_rnk and cross_over_
+// alert has been add to see continously 
+if short and barstate.isconfirmed
+    alert('short started')
+    log.info("short started P:" +str.tostring(close))
+if long and barstate.isconfirmed 
+    alert('long started ')
+    log.info("long started P:" + str.tostring(close))
+plotshape(short ? diff : na, 'short', shape.triangledown, location.absolute, color.lime, 0, 'S', color.red)
+plotshape(long ? diff : na, 'long', shape.triangleup, location.absolute, color.lime, 0, 'L', color.lime)
+// new condion has been add  some of the condition we missed from the long and short need inprovement in the logic 
+Tight_long = diff >= percentile_rnk and percentile_rnk >= alma_value and ta.crossunder(diff,percentile_rnk)
+Tight_short =  diff <= -percentile_rnk and -percentile_rnk <= alma_value and ta.crossover(diff,-percentile_rnk)
