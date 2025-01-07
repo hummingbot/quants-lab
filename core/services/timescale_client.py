@@ -54,8 +54,8 @@ class TimescaleClient:
         return f"{connector_name}_{trading_pair.lower().replace('-', '_')}_{interval}"
 
     @property
-    def metrics_table_name(self):
-        return "summary_metrics"
+    def trades_summary_table_name(self):
+        return "trades_summary"
 
     @property
     def screener_table_name(self):
@@ -102,7 +102,7 @@ class TimescaleClient:
     async def create_metrics_table(self):
         async with self.pool.acquire() as conn:
             await conn.execute(f'''
-                CREATE TABLE IF NOT EXISTS {self.metrics_table_name} (
+                CREATE TABLE IF NOT EXISTS {self.trades_summary_table_name} (
                     connector_name TEXT NOT NULL,
                     trading_pair TEXT NOT NULL,
                     trade_amount REAL,
@@ -316,13 +316,18 @@ class TimescaleClient:
                     low NUMERIC NOT NULL,
                     close NUMERIC NOT NULL,
                     volume NUMERIC NOT NULL,
+                    quote_asset_volume NUMERIC NOT NULL,
+                    n_trades INTEGER NOT NULL,
+                    taker_buy_base_volume NUMERIC NOT NULL,
+                    taker_buy_quote_volume NUMERIC NOT NULL,
                     PRIMARY KEY (timestamp)
                 )
             ''')
             # Insert the resampled candles into the new table
             await conn.executemany(f'''
-                INSERT INTO {ohlc_table_name} (timestamp, open, high, low, close, volume)
-                VALUES ($1, $2, $3, $4, $5, $6)
+                INSERT INTO {ohlc_table_name} (timestamp, open, high, low, close, volume, quote_asset_volume, n_trades,
+                taker_buy_base_volume, taker_buy_quote_volume)
+                VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
             ''', [
                 (
                     datetime.fromtimestamp(row["timestamp"]),
@@ -330,7 +335,11 @@ class TimescaleClient:
                     row['high'],
                     row['low'],
                     row['close'],
-                    row['volume']
+                    row['volume'],
+                    0.0,
+                    0,
+                    0.0,
+                    0.0
                 )
                 for i, row in candles.data.iterrows()
             ])
@@ -378,9 +387,9 @@ class TimescaleClient:
 
     async def get_db_status_df(self):
         async with self.pool.acquire() as conn:
-            rows = await conn.fetch("""
+            rows = await conn.fetch(f"""
             SELECT *
-            FROM summary_metrics""")
+            FROM {self.trades_summary_table_name}""")
         df_cols = [
             "connector_name",
             "trading_pair",
@@ -404,11 +413,11 @@ class TimescaleClient:
             metric_data["connector_name"] = connector_name
             metric_data["trading_pair"] = trading_pair
             delete_query = f"""
-                DELETE FROM {self.metrics_table_name}
+                DELETE FROM {self.trades_summary_table_name}
                 WHERE connector_name = '{metric_data["connector_name"]}' AND trading_pair = '{metric_data["trading_pair"]}';
                 """
             query = f"""
-                INSERT INTO {self.metrics_table_name} (
+                INSERT INTO {self.trades_summary_table_name} (
                     connector_name,
                     trading_pair,
                     trade_amount,
@@ -559,8 +568,8 @@ class TimescaleClient:
 
         query = f'''
         SELECT
-        MIN(timestamp) as start_time,
-        MAX(timestamp) as end_time
+            MIN(timestamp) as start_time,
+            MAX(timestamp) as end_time
         FROM {table_name}
         '''
 

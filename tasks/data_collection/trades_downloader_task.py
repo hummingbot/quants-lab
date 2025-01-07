@@ -1,5 +1,6 @@
 import asyncio
 import logging
+import os
 import time
 from datetime import datetime, timedelta, timezone
 from decimal import Decimal
@@ -23,11 +24,14 @@ class TradesDownloaderTask(BaseTask):
         self.days_data_retention = config.get("days_data_retention", 7)
         self.start_time = time.time() - self.days_data_retention * 24 * 60 * 60
         self.quote_asset = config.get('quote_asset', "USDT")
+        self.selected_pairs = config.get('selected_pairs')
+        self.max_trades_per_call = config.get('max_trades_per_call')
         self.min_notional_size = Decimal(str(config.get('min_notional_size', 10.0)))
         self.clob = CLOBDataSource()
 
     async def execute(self):
-        logging.info(f"{self.now()} - Starting trades downloader for {self.connector_name} at {time.strftime('%Y-%m-%d %H:%M:%S')}")
+        logging.info(
+            f"{self.now()} - Starting trades downloader for {self.connector_name} at {time.strftime('%Y-%m-%d %H:%M:%S')}")
         end_time = datetime.now(timezone.utc)
         start_time = pd.Timestamp(self.start_time, unit="s").tz_localize(timezone.utc)
         logging.info(f"{self.now()} - Start date: {start_time}, End date: {end_time}")
@@ -46,45 +50,48 @@ class TradesDownloaderTask(BaseTask):
         trading_pairs = trading_rules.filter_by_quote_asset(self.quote_asset) \
             .filter_by_min_notional_size(self.min_notional_size) \
             .get_all_trading_pairs()
+        if self.selected_pairs is not None:
+            trading_pairs = sorted([trading_pair for trading_pair in trading_pairs
+                                    if trading_pair in self.selected_pairs])
         for i, trading_pair in enumerate(trading_pairs):
             logging.info(f"{self.now()} - Fetching trades for {trading_pair} [{i} from {len(trading_pairs)}]")
             try:
                 table_name = timescale_client.get_trades_table_name(self.connector_name, trading_pair)
-                last_trade_id = await timescale_client.get_last_trade_id(connector_name=self.connector_name,
-                                                                         trading_pair=trading_pair,
-                                                                         table_name=table_name)
-                trades = await self.clob.get_trades(
-                    self.connector_name,
-                    trading_pair,
-                    int(start_time.timestamp()),
-                    int(end_time.timestamp()),
-                    last_trade_id
+                last_trade_id = await timescale_client.get_last_trade_id(
+                    connector_name=self.connector_name,
+                    trading_pair=trading_pair,
+                    table_name=table_name
                 )
 
-                if trades.empty:
-                    logging.info(f"{self.now()} - No new trades for {trading_pair}")
-                    continue
+                # Process trades in chunks
+                async for trades in self.clob.yield_trades_chunk(self.connector_name, trading_pair,
+                                                                 int(start_time.timestamp()), int(end_time.timestamp()),
+                                                                 last_trade_id, self.max_trades_per_call):
+                    if trades.empty:
+                        logging.info(f"{self.now()} - No new trades for {trading_pair}")
+                        continue
 
-                trades["connector_name"] = self.connector_name
-                trades["trading_pair"] = trading_pair
+                    trades["connector_name"] = self.connector_name
+                    trades["trading_pair"] = trading_pair
 
-                trades_data = trades[
-                    ["id", "connector_name", "trading_pair", "timestamp", "price", "volume",
-                     "sell_taker"]].values.tolist()
+                    trades_data = trades[
+                        ["id", "connector_name", "trading_pair", "timestamp", "price", "volume",
+                         "sell_taker"]].values.tolist()
+                    await timescale_client.append_trades(table_name=table_name, trades=trades_data)
+                    first_timestamp = pd.to_datetime(trades['timestamp'], unit="s").min().strftime('%Y-%m-%d %H:%m')
+                    last_timestamp = pd.to_datetime(trades['timestamp'], unit="s").max().strftime('%Y-%m-%d %H:%m')
+                    logging.info(f"Successfully appended {trading_pair} {len(trades_data)} trades from {first_timestamp} to {last_timestamp}")
 
-                await timescale_client.append_trades(table_name=table_name,
-                                                     trades=trades_data)
+                # Cleanup and metrics after all chunks are processed
                 today_start = datetime.utcnow().replace(hour=0, minute=0, second=0, microsecond=0)
                 cutoff_timestamp = (today_start - timedelta(days=self.days_data_retention)).timestamp()
                 await timescale_client.delete_trades(connector_name=self.connector_name, trading_pair=trading_pair,
                                                      timestamp=cutoff_timestamp)
-                # TODO: isolate resampling and metrics management in another module
-                # TODO: pass list of intervals to perform better
                 await timescale_client.compute_resampled_ohlc(connector_name=self.connector_name,
                                                               trading_pair=trading_pair, interval="1s")
-
-                logging.info(f"{self.now()} - Inserted {len(trades_data)} trades for {trading_pair}")
-
+                logging.info(f"{self.now()} - Updated metrics for {trading_pair}")
+                await timescale_client.append_db_status_metrics(connector_name=self.connector_name,
+                                                                trading_pair=trading_pair)
             except Exception as e:
                 logging.exception(f"{self.now()} - An error occurred during the data load for trading pair {trading_pair}:\n {e}")
                 continue
@@ -96,15 +103,30 @@ class TradesDownloaderTask(BaseTask):
         return datetime.now(timezone.utc).strftime('%Y-%m-%d %H:%M:%S.%f UTC')
 
 
-if __name__ == "__main__":
-    config = {
-        'connector_name': 'binance_perpetual',
-        'quote_asset': 'USDT',
-        'min_notional_size': 10.0,
-        'db_host': 'localhost',
-        'db_port': 5432,
-        'db_name': 'timescaledb'
+async def main():
+    timescale_config = {
+        "host": os.getenv("TIMESCALE_HOST", "localhost"),
+        "port": os.getenv("TIMESCALE_PORT", 5432),
+        "user": os.getenv("TIMESCALE_USER", "admin"),
+        "password": os.getenv("TIMESCALE_PASSWORD", "admin"),
+        "database": os.getenv("TIMESCALE_DB", "timescaledb")
     }
 
-    task = TradesDownloaderTask("Trades Downloader", timedelta(hours=1), config)
-    asyncio.run(task.execute())
+    trades_downloader_task = TradesDownloaderTask(
+        name="Trades Downloader Binance",
+        config={
+            "timescale_config": timescale_config,
+            "connector_name": "binance_perpetual",
+            "quote_asset": "USDT",
+            "min_notional_size": 10.0,
+            "days_data_retention": 10,
+            "selected_pairs": None,
+            "max_trades_per_call": 1_000_000
+        },
+        frequency=timedelta(hours=5))
+
+    await trades_downloader_task.execute()
+
+
+if __name__ == "__main__":
+    asyncio.run(main())
