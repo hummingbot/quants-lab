@@ -14,6 +14,7 @@ from core.services.timescale_client import TimescaleClient
 from core.task_base import BaseTask
 
 logging.basicConfig(level=logging.INFO)
+logging.getLogger("asyncio").setLevel(logging.CRITICAL)
 load_dotenv()
 
 
