@@ -591,3 +591,20 @@ class TimescaleClient:
         Converts a candle interval string to a pandas frequency string.
         """
         return INTERVAL_MAPPING.get(interval, 'T')
+
+    async def store_grid_parameters(self, grid_params: Dict):
+        """Store grid parameters in the database"""
+        query = """
+        INSERT INTO grid_parameters 
+        (pair1, pair2, start, end, limit, side, created_at)
+        VALUES ($1, $2, $3, $4, $5, $6, NOW())
+        """
+        await self.pool.execute(
+            query,
+            grid_params["pair1"],
+            grid_params["pair2"],
+            grid_params["start"],
+            grid_params["end"],
+            grid_params["limit"],
+            grid_params["side"]
+        )
