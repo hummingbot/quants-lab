@@ -1,0 +1,14 @@
+tasks:
+  market_screener:
+    enabled: true
+    task_class: tasks.data_collection.pools_screener.PoolsScreenerTask
+    frequency_hours: 0.02
+    config:
+      network: "solana"
+      quote_asset: "SOL"
+      min_pool_age_days: 2
+      min_fdv: 70000
+      max_fdv: 5000000
+      min_volume_24h: 150000
+      min_liquidity: 50000
+      min_transactions_24h: 300
