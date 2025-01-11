@@ -1,7 +1,7 @@
 .ONESHELL:
 .PHONY: uninstall
 .PHONY: install
-.PHONY: run
+.PHONY: docker
 
 
 uninstall:
@@ -9,3 +9,6 @@ uninstall:
 
 install:
 	conda env create -f environment.yml
+
+docker:
+	docker-compose up --build -d
