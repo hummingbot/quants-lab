@@ -9,6 +9,14 @@ uninstall:
 install:
 	conda env create -f environment.yml
 
+# Run db containers
+run-db:
+	docker-compose -f docker-compose-db.yml up -d
+
+# Stop db containers
+stop-db:
+	docker-compose -f docker-compose-db.yml down
+
 # Run task runner with specified config
 run-task:
 	TASK_CONFIG=config/$(config) docker-compose -f docker-compose-task-runner.yml up task-runner
