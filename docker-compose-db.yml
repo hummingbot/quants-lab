@@ -1,5 +1,3 @@
-version: '3.8'
-
 services:
   timescaledb:
     image: timescale/timescaledb:latest-pg14
@@ -20,13 +18,37 @@ services:
     environment:
       - MONGO_INITDB_ROOT_USERNAME=admin
       - MONGO_INITDB_ROOT_PASSWORD=admin
-      - MONGO_INITDB_DATABASE=quants-lab
+      - MONGO_INITDB_DATABASE=quants_lab
     ports:
-        - "27017:27017"
+      - "27017:27017"
     volumes:
       - mongodb_data:/data/db
     restart: unless-stopped
+    networks:
+      - mongodb_network
 
+  mongo-compass:
+    image: mongo-express
+    container_name: mongo-compass
+    restart: always
+    ports:
+      - "28081:8081"
+    environment:
+      ME_CONFIG_MONGODB_SERVER: mongodb
+      ME_CONFIG_MONGODB_PORT: 27017
+      ME_CONFIG_BASICAUTH_USERNAME: admin # Login username for Web UI
+      ME_CONFIG_BASICAUTH_PASSWORD: changeme # Login password for Web UI
+      ME_CONFIG_MONGODB_ADMINUSERNAME: admin # Database username
+      ME_CONFIG_MONGODB_ADMINPASSWORD: admin # Database password
+      ME_CONFIG_MONGODB_URL: mongodb://admin:admin@mongodb:27017/?authSource=admin
+    depends_on:
+      - mongodb
+    networks:
+      - mongodb_network
+
+networks:
+  mongodb_network:
+    driver: bridge
 
 volumes:
   timescale_data:
