@@ -25,3 +25,9 @@ RUN conda env create -f environment.yml
 
 # Make RUN commands use the new environment
 SHELL ["conda", "run", "-n", "quants-lab", "/bin/bash", "-c"]
+
+# Copy task configurations
+COPY config/tasks.yml /quants-lab/config/tasks.yml
+
+# Default command now uses the task runner
+CMD ["conda", "run", "--no-capture-output", "-n", "quants-lab", "python3", "run_tasks.py"]
