@@ -2,7 +2,8 @@ import asyncio
 import logging
 import os
 import time
-from typing import Dict, List, Optional, Tuple
+from typing import Dict, List, Optional, Tuple, Any
+from datetime import datetime, timedelta
 
 import pandas as pd
 from hummingbot.client.config.client_config_map import ClientConfigMap
@@ -258,3 +259,68 @@ class CLOBDataSource:
         Converts a candle interval string to a pandas frequency string.
         """
         return INTERVAL_MAPPING.get(interval, 'T')
+
+    async def get_funding_rate_history(self, 
+                                     symbol: str, 
+                                     start_time: Optional[int] = None,
+                                     end_time: Optional[int] = None,
+                                     limit: int = 1000) -> pd.DataFrame:
+        """Get historical funding rates for a symbol"""
+        connector = self.connectors.get("binance_perpetual")
+        params = {"symbol": symbol, "limit": limit}
+        
+        if start_time:
+            params["startTime"] = start_time
+        if end_time:
+            params["endTime"] = end_time
+
+        response = await connector._api_get(
+            path_url="/fapi/v1/fundingRate",
+            params=params,
+            is_auth_required=False,
+            limit_id="REQUEST_WEIGHT"
+        )
+        
+        df = pd.DataFrame(response)
+        if not df.empty:
+            df["fundingTime"] = pd.to_datetime(df["fundingTime"], unit="ms")
+            df["fundingRate"] = df["fundingRate"].astype(float)
+            df["markPrice"] = df["markPrice"].astype(float)
+            df.set_index("fundingTime", inplace=True)
+        return df
+
+    async def get_current_funding_info(self, symbol: Optional[str] = None) -> Dict[str, Any]:
+        """Get current funding rate info for a symbol or all symbols"""
+        connector = self.connectors.get("binance_perpetual")
+        response = await connector._orderbook_ds.get_funding_info(symbol)
+        return response
+
+    async def calculate_funding_metrics(self, symbol: str) -> Dict[str, Any]:
+        """Calculate funding rate metrics for a symbol"""
+        # Get historical data for last 72 hours
+        end_time = int(datetime.now().timestamp() * 1000)
+        start_time = int((datetime.now() - timedelta(hours=72)).timestamp() * 1000)
+        
+        historical_rates = await self.get_funding_rate_history(
+            symbol=symbol,
+            start_time=start_time,
+            end_time=end_time
+        )
+        
+        current_info = await self.get_current_funding_info(symbol)
+        
+        if historical_rates.empty:
+            return {}
+
+        metrics = {
+            "symbol": symbol,
+            "current_funding_rate": float(current_info[symbol]["lastFundingRate"]),
+            "next_funding_time": current_info[symbol]["nextFundingTime"],
+            "mark_price": float(current_info[symbol]["markPrice"]),
+            "avg_funding_24h": float(historical_rates.tail(8)["fundingRate"].mean()),  # 8 funding intervals = 24h
+            "avg_funding_72h": float(historical_rates["fundingRate"].mean()),
+            "funding_history": historical_rates.reset_index().to_dict(orient="records"),
+            "updated_at": datetime.now()
+        }
+        
+        return metrics

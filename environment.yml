@@ -34,3 +34,6 @@ dependencies:
       - psycopg2-binary
       - pyarrow
       - pandas
+      - motor>=3.3.2
+      - pandas-ta>=0.3.14b
+      - statsmodels>=0.14.1

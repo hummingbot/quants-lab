@@ -1,28 +1,55 @@
 services:
   timescaledb:
-    container_name: timescaledb
     image: timescale/timescaledb:latest-pg14
+    container_name: timescaledb
     environment:
       - POSTGRES_USER=admin
       - POSTGRES_PASSWORD=admin
       - POSTGRES_DB=timescaledb
-    volumes:
-      - timescale-data:/var/lib/postgresql/data
     ports:
       - "5432:5432"
-  optunadb:
-    container_name: optunadb
-    image: postgres:latest
-    environment:
-      - POSTGRES_USER=admin
-      - POSTGRES_PASSWORD=admin
-      - POSTGRES_DB=optimization_database
     volumes:
-      - optuna-data:/var/lib/postgresql/data
+      - timescale_data:/var/lib/postgresql/data
+    restart: unless-stopped
+
+  mongodb:
+    image: mongo:latest
+    container_name: mongodb
+    environment:
+      - MONGO_INITDB_ROOT_USERNAME=admin
+      - MONGO_INITDB_ROOT_PASSWORD=admin
+      - MONGO_INITDB_DATABASE=quants_lab
     ports:
-      - "5433:5432"
+      - "27017:27017"
+    volumes:
+      - mongodb_data:/data/db
+    restart: unless-stopped
+    networks:
+      - mongodb_network
+
+  mongo-compass:
+    image: mongo-express
+    container_name: mongo-compass
+    restart: always
+    ports:
+      - "28081:8081"
+    environment:
+      ME_CONFIG_MONGODB_SERVER: mongodb
+      ME_CONFIG_MONGODB_PORT: 27017
+      ME_CONFIG_BASICAUTH_USERNAME: admin # Login username for Web UI
+      ME_CONFIG_BASICAUTH_PASSWORD: changeme # Login password for Web UI
+      ME_CONFIG_MONGODB_ADMINUSERNAME: admin # Database username
+      ME_CONFIG_MONGODB_ADMINPASSWORD: admin # Database password
+      ME_CONFIG_MONGODB_URL: mongodb://admin:admin@mongodb:27017/?authSource=admin
+    depends_on:
+      - mongodb
+    networks:
+      - mongodb_network
+
+networks:
+  mongodb_network:
+    driver: bridge
+
 volumes:
-  timescale-data:
-    driver: local
-  optuna-data:
-    driver: local
+  timescale_data:
+  mongodb_data:
