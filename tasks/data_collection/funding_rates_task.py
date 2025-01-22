@@ -1,0 +1,108 @@
+from datetime import timedelta
+from itertools import combinations
+
+import pandas as pd
+from dotenv import load_dotenv
+import logging
+import time
+import os
+import asyncio
+from typing import Dict, Any
+
+from core.data_structures.trading_rules import TradingRules
+from core.data_sources import CLOBDataSource
+from core.services.mongodb_client import MongoDBClient
+from core.task_base import BaseTask
+
+logging.getLogger("asyncio").setLevel(logging.CRITICAL)
+load_dotenv()
+
+
+class FundingRatesTask(BaseTask):
+    def __init__(self, name: str, frequency: timedelta, config: Dict[str, Any]):
+        super().__init__(name=name, frequency=frequency, config=config)
+        self.mongo_client = MongoDBClient(**config.get("db_config", {}))
+        self.clob = CLOBDataSource()
+
+    async def initialize(self):
+        """Initialize connections and resources."""
+        await self.mongo_client.connect()
+
+    async def execute(self):
+        """Main task execution logic."""
+        try:
+            await self.initialize()
+            for connector_name in self.config.get("connector_names", ["binance_perpetual"]):
+                connector = self.clob.get_connector(connector_name)
+                trading_rules: TradingRules = await self.clob.get_trading_rules(connector_name)
+                trading_pairs = trading_rules.get_all_trading_pairs()
+
+                tasks = [connector._orderbook_ds.get_funding_info(trading_pair) for trading_pair in trading_pairs]
+                funding_rates_response = await asyncio.gather(*tasks)
+                funding_rates = []
+                timestamp = time.time()
+                for funding_rate in funding_rates_response:
+                    funding_rates.append({
+                        "index_price": float(funding_rate.index_price),
+                        "mark_price": float(funding_rate.mark_price),
+                        "next_funding_utc_timestamp": funding_rate.next_funding_utc_timestamp,
+                        "rate": float(funding_rate.rate),
+                        "trading_pair": funding_rate.trading_pair,
+                        "connector_name": connector_name,
+                        "timestamp": timestamp
+                    })
+
+                await self.mongo_client.add_funding_rates_data(funding_rates)
+
+                df = pd.DataFrame(funding_rates)
+                # Generate all possible combinations of trading pairs
+                combinations_list = list(combinations(df['trading_pair'], 2))
+
+                # Create a DataFrame to store the combinations and rate differences
+                results = []
+
+                for pair1, pair2 in combinations_list:
+                    rate1 = df.loc[df['trading_pair'] == pair1, 'rate'].values[0]
+                    rate2 = df.loc[df['trading_pair'] == pair2, 'rate'].values[0]
+                    rate_difference = rate1 - rate2
+                    results.append({
+                        'pair1': pair1,
+                        'pair2': pair2,
+                        'rate1': rate1,
+                        'rate2': rate2,
+                        'rate_difference': rate_difference
+                    })
+                await self.mongo_client.add_funding_rates_processed_data(results)
+                logging.info(f"Successfully added {len(funding_rates)} funding rate records")
+
+        except Exception as e:
+            logging.error(f"Error in FundingRatesTask: {str(e)}")
+            raise
+
+    async def cleanup(self):
+        """Cleanup resources."""
+        await self.mongo_client.disconnect()
+
+
+async def main():
+    mongodb_config = {
+        "username": os.getenv('MONGO_INITDB_ROOT_USERNAME', "admin"),
+        "password": os.getenv('MONGO_INITDB_ROOT_PASSWORD', "admin"),
+        "host": os.getenv('MONGO_HOST', 'localhost'),
+        "port": os.getenv('MONGO_PORT', 27017),
+        "database": "mongodb"
+    }
+    task_config = {
+        "connector_names": ["binance_perpetual"],
+        "quote_asset": "USDT",
+        "db_config": mongodb_config,
+        "n_top_funding_rates_per_group": 5
+    }
+    task = FundingRatesTask(name="funding_rate_task",
+                            frequency=timedelta(hours=1),
+                            config=task_config)
+    await task.execute()
+
+
+if __name__ == "__main__":
+    asyncio.run(main())
