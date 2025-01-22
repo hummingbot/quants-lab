@@ -4,13 +4,15 @@ import os
 import sys
 from datetime import timedelta
 
-from test import CoinGlassDataProvider
+from dotenv import load_dotenv
 
 project_root = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
 sys.path.insert(0, project_root)
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
+
+load_dotenv()
 
 
 async def main():
@@ -41,7 +43,7 @@ async def main():
                 "1000PEPE-USDT",
                 "SOL-USDT",
             ],
-            "interval": ["1h"],
+            "interval": ["30m"],
             "limit": 1000,
         },
         frequency=timedelta(minutes=30),
@@ -102,7 +104,6 @@ async def main():
             "limit": 1000,
         },
         frequency=timedelta(minutes=30),
-    
     )
 
     orchestrator.add_task(open_interest_downloader_task)
