@@ -1,4 +1,4 @@
-from datetime import timedelta
+from datetime import timedelta, datetime
 from itertools import combinations
 
 import pandas as pd
@@ -33,6 +33,7 @@ class FundingRatesTask(BaseTask):
         try:
             await self.initialize()
             for connector_name in self.config.get("connector_names", ["binance_perpetual"]):
+                current_timestamp = datetime.now().timestamp()
                 connector = self.clob.get_connector(connector_name)
                 trading_rules: TradingRules = await self.clob.get_trading_rules(connector_name)
                 trading_pairs = trading_rules.get_all_trading_pairs()
@@ -40,7 +41,6 @@ class FundingRatesTask(BaseTask):
                 tasks = [connector._orderbook_ds.get_funding_info(trading_pair) for trading_pair in trading_pairs]
                 funding_rates_response = await asyncio.gather(*tasks)
                 funding_rates = []
-                timestamp = time.time()
                 for funding_rate in funding_rates_response:
                     funding_rates.append({
                         "index_price": float(funding_rate.index_price),
@@ -49,7 +49,7 @@ class FundingRatesTask(BaseTask):
                         "rate": float(funding_rate.rate),
                         "trading_pair": funding_rate.trading_pair,
                         "connector_name": connector_name,
-                        "timestamp": timestamp
+                        "timestamp": current_timestamp
                     })
 
                 await self.mongo_client.add_funding_rates_data(funding_rates)
@@ -66,6 +66,7 @@ class FundingRatesTask(BaseTask):
                     rate2 = df.loc[df['trading_pair'] == pair2, 'rate'].values[0]
                     rate_difference = rate1 - rate2
                     results.append({
+                        'timestamp': current_timestamp,
                         'pair1': pair1,
                         'pair2': pair2,
                         'rate1': rate1,
