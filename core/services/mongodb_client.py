@@ -282,6 +282,36 @@ class MongoDBClient:
             logging.error(f"Error adding cointegration results data: {str(e)}")
             raise
 
+    async def get_cointegration_results(self, base: Optional[str] = None, quote: Optional[str] = None) -> List[Dict[str, Any]]:
+        """
+        Retrieve cointegration results from MongoDB with optional filtering by base and quote pairs.
+
+        Args:
+            base (str, optional): The base trading pair to filter by
+            quote (str, optional): The quote trading pair to filter by
+
+        Returns:
+            List[Dict]: List of cointegration result records matching the criteria
+        """
+        try:
+            collection = self.db.cointegration_results
+            query = {}
+
+            if base:
+                query["base"] = base
+            if quote:
+                query["quote"] = quote
+
+            cursor = collection.find(query)
+            cointegration_results = await cursor.to_list(length=None)
+
+            logging.info(f"Retrieved {len(cointegration_results)} cointegration result records")
+            return cointegration_results
+
+        except Exception as e:
+            logging.error(f"Error retrieving cointegration results: {str(e)}")
+            raise
+
     async def get_funding_rates(self, symbol: Optional[str] = None, start_time: Optional[datetime] = None,
                                 end_time: Optional[datetime] = None) -> List[Dict[str, Any]]:
         """
@@ -344,3 +374,85 @@ class MongoDBClient:
         except Exception as e:
             logging.error(f"Error adding processed funding rates data: {str(e)}")
             raise
+
+    async def get_funding_rates_processed(self,
+                                          pair1: Optional[str] = None,
+                                          pair2: Optional[str] = None,
+                                          start_time: Optional[datetime] = None,
+                                          end_time: Optional[datetime] = None) -> List[Dict[str, Any]]:
+        """
+        Retrieve processed funding rates from MongoDB with optional filtering by pairs and time range.
+
+        Args:
+            pair1 (str, optional): First trading pair to filter by
+            pair2 (str, optional): Second trading pair to filter by
+            start_time (datetime, optional): Start of time range to fetch rates from
+            end_time (datetime, optional): End of time range to fetch rates from
+
+        Returns:
+            List[Dict]: List of processed funding rate records matching the criteria
+        """
+        try:
+            collection = self.db.funding_rates_processed
+            query = {}
+
+            if pair1:
+                query["pair1"] = pair1
+            if pair2:
+                query["pair2"] = pair2
+
+            if start_time or end_time:
+                query["timestamp"] = {}
+                if start_time:
+                    query["timestamp"]["$gte"] = start_time
+                if end_time:
+                    query["timestamp"]["$lte"] = end_time
+
+            cursor = collection.find(query)
+            processed_rates = await cursor.to_list(length=None)
+
+            logging.info(f"Retrieved {len(processed_rates)} processed funding rate records")
+            return processed_rates
+
+        except Exception as e:
+            logging.error(f"Error retrieving processed funding rates: {str(e)}")
+            raise
+
+    async def add_controller_config_data(self, processed_data: List[Dict[str, Any]]):
+        try:
+            collection = self.db.controller_configs
+
+            # Create compound index on timestamp and pairs if it doesn't exist
+            await collection.create_index([
+                ("controller_name", 1),
+                ("controller_type", 1),
+                ("connector_name", 1)
+            ])
+
+            # Insert the processed funding rates data
+            result = await collection.insert_many(processed_data)
+            logging.info(f"Successfully inserted {len(result.inserted_ids)} processed funding rate records")
+
+        except Exception as e:
+            logging.error(f"Error adding controller config data: {str(e)}")
+            raise
+
+    async def get_controller_config_data(self,
+                                         controller_name: str = None,
+                                         controller_type: str = None,
+                                         connector_name: str = None):
+        collection = self.db.controller_configs
+        query = {}
+
+        if controller_name:
+            query["controller_name"] = controller_name
+        if controller_type:
+            query["controller_type"] = controller_type
+        if connector_name:
+            query["connector_name"] = connector_name
+
+        cursor = collection.find(query)
+        controller_configs = await cursor.to_list(length=None)
+
+        logging.info(f"Retrieved {len(controller_configs)} controller config records")
+        return controller_configs
