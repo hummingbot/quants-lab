@@ -4,6 +4,8 @@ import os
 import sys
 from datetime import timedelta
 
+from test import CoinGlassDataProvider
+
 project_root = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
 sys.path.insert(0, project_root)
 
@@ -13,7 +15,6 @@ logger = logging.getLogger(__name__)
 
 async def main():
     from core.task_base import TaskOrchestrator
-
     from tasks.data_collection.coin_glass_data_downloader_task import CoinGlassDataDownloaderTask
 
     orchestrator = TaskOrchestrator()
@@ -26,22 +27,88 @@ async def main():
         "database": os.getenv("TIMESCALE_DB", "timescaledb"),
     }
 
-    trades_downloader_task = CoinGlassDataDownloaderTask(
-        name="CoinGlass liquidation aggregated history",
+    open_interest_downloader_task = CoinGlassDataDownloaderTask(
+        name="CoinGlass open interest aggregated history",
         config={
             "timescale_config": timescale_config,
-            "end_point": "global_long_short_account_ratio",
-            # "end_point": "liquidation_aggregated_history",
+            "end_point": "aggregated_open_interest_history",
+            "connector_name": "binance_perpetual",
             "days_data_retention": 7,
             "api_key": os.getenv("CG_API_KEY"),
-            "trading_pairs": ["SUI-USDT","BTC-USDT", "ETH-USDT", "1000PEPE-USDT", "SOL-USDT"],
+            "trading_pairs": [
+                "BTC-USDT",
+                "ETH-USDT",
+                "1000PEPE-USDT",
+                "SOL-USDT",
+            ],
             "interval": ["1h"],
             "limit": 1000,
         },
         frequency=timedelta(minutes=30),
     )
+    liquidation_downloader_task = CoinGlassDataDownloaderTask(
+        name="CoinGlass liquidation aggregated history",
+        config={
+            "timescale_config": timescale_config,
+            "end_point": "liquidation_aggregated_history",
+            "connector_name": "binance_perpetual",
+            "days_data_retention": 7,
+            "api_key": os.getenv("CG_API_KEY"),
+            "trading_pairs": [
+                "BTC-USDT",
+                "ETH-USDT",
+                "1000PEPE-USDT",
+                "SOL-USDT",
+            ],
+            "interval": ["1h"],
+            "limit": 1000,
+        },
+        frequency=timedelta(minutes=30),
+    )
+    long_short_ratio_downloader_task = CoinGlassDataDownloaderTask(
+        name="CoinGlass long short global account ratio",
+        config={
+            "timescale_config": timescale_config,
+            "end_point": "global_long_short_account_ratio",
+            "connector_name": "binance_perpetual",
+            "days_data_retention": 7,
+            "api_key": os.getenv("CG_API_KEY"),
+            "trading_pairs": [
+                "BTC-USDT",
+                "ETH-USDT",
+                "1000PEPE-USDT",
+                "SOL-USDT",
+            ],
+            "interval": ["1h"],
+            "limit": 1000,
+        },
+        frequency=timedelta(minutes=30),
+    )
+    funding_rate_dowloader_task = CoinGlassDataDownloaderTask(
+        name="CoinGlass funding rate",
+        config={
+            "timescale_config": timescale_config,
+            "end_point": "funding_rate",
+            "connector_name": "binance_perpetual",
+            "days_data_retention": 7,
+            "api_key": os.getenv("CG_API_KEY"),
+            "trading_pairs": [
+                "BTC-USDT",
+                "ETH-USDT",
+                "1000PEPE-USDT",
+                "SOL-USDT",
+            ],
+            "interval": ["1h"],
+            "limit": 1000,
+        },
+        frequency=timedelta(minutes=30),
+    
+    )
 
-    orchestrator.add_task(trades_downloader_task)
+    orchestrator.add_task(open_interest_downloader_task)
+    orchestrator.add_task(liquidation_downloader_task)
+    orchestrator.add_task(long_short_ratio_downloader_task)
+    orchestrator.add_task(funding_rate_dowloader_task)
     await orchestrator.run()
 
 
