@@ -1,10 +1,8 @@
-import time
 from datetime import datetime
 from typing import List, Optional, Tuple
 
 import pandas as pd
 
-from core.data_structures.candles import Candles
 from core.services.timescale_client import TimescaleClient
 
 
@@ -19,7 +17,7 @@ class CoinGlassClient(TimescaleClient):
     def get_aggregated_open_interest_history_table_name(
         trading_pair: str, interval: str, **kwargs
     ) -> str:
-        return f"coin_glass_aggregated_open_interest_history_{trading_pair.lower().replace("-", "_")}"
+        return f"coin_glass_aggregated_open_interest_history_{trading_pair.lower().replace('-', '_')}_{interval}"
 
     async def create_liquidation_aggregated_history(self, table_name: str):
         if self.pool is not None:
@@ -45,9 +43,9 @@ class CoinGlassClient(TimescaleClient):
                         "high" real NOT NULL,
                         "low" real NOT NULL,
                         "close" real NOT NULL,
-                        "created_at" timestamp DEFAULT now() NOT NULL
+                        "created_at" timestamp DEFAULT now() NOT NULL,
+                        UNIQUE (timestamp)
                     );
-                    CREATE UNIQUE INDEX "IDX_TIMESTAMP" ON "oi" USING btree ("timestamp");
                 """)
 
     async def delete_liquidation_aggregated_history(
@@ -86,7 +84,6 @@ class CoinGlassClient(TimescaleClient):
         self, table_name: str, data: List[Tuple[str, str, int]]
     ):
         updated_data = [(t, float(l), float(s)) for l, s, t in data]
-        print(updated_data)
         if self.pool is not None:
             async with self.pool.acquire() as conn:
                 await self.create_liquidation_aggregated_history(table_name)
@@ -103,24 +100,24 @@ class CoinGlassClient(TimescaleClient):
                 )
 
     # TODO: Group append method
-    async def append_aggregated_open_interest_histry(
+    async def append_aggregated_open_interest_history(
         self, table_name: str, data: List[Tuple[int, str, str, str, str]]
     ):
         updated_data = [
             (t, float(o), float(h), float(l), float(c)) for t, o, h, l, c in data
         ]
-        print(updated_data)
         if self.pool is not None:
             async with self.pool.acquire() as conn:
                 await self.create_aggregated_open_interest_history(table_name)
-                await conn.exeutemany(
+                await conn.executemany(
                     f"""
                         INSERT INTO {table_name} (timestamp, open, high, low, close) 
                         VALUES (to_timestamp($1), $2, $3, $4, $5)
                         ON CONFLICT (timestamp)
                         DO UPDATE SET
                             (open, high, low, close) = (EXCLUDED.open, EXCLUDED.high, EXCLUDED.low, EXCLUDED.close);
-                    """
+                    """,
+                    updated_data,
                 )
 
     async def get_first_liquidation_aggregated_history_timestamp(
@@ -301,24 +298,6 @@ class CoinGlassClient(TimescaleClient):
                 }
             )
             return df
-
-    async def get_liquidation_aggregated_history_last_day(
-        self, connector_name: str, trading_pair: str, interval: str, days: int
-    ) -> Candles:
-        end_time = int(time.time())
-        start_time = end_time - days * 24 * 60 * 60
-        return await self.get_candles(
-            connector_name, trading_pair, interval, start_time, end_time
-        )
-
-    async def get_aggregated_open_interest_history_last_day(
-        self, connector_name: str, trading_pair: str, interval: str, days: int
-    ) -> Candles:
-        end_time = int(time.time())
-        start_time = end_time - days * 24 * 60 * 60
-        return await self.get_candles(
-            connector_name, trading_pair, interval, start_time, end_time
-        )
 
     @staticmethod
     def get_global_long_short_account_ratio_table_name(
