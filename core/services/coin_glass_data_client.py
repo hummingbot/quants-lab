@@ -27,7 +27,7 @@ class CoinGlassClient(TimescaleClient):
                         timestamp TIMESTAMPTZ NOT NULL,
                         long_liquidation_usd REAL NOT NULL,
                         short_liquidation_usd REAL NOT NULL,
-                        create_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                        created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
                         UNIQUE (timestamp)
                     );
                 """)
@@ -94,7 +94,11 @@ class CoinGlassClient(TimescaleClient):
                         ON CONFLICT (timestamp) 
                         DO UPDATE SET 
                             long_liquidation_usd = EXCLUDED.long_liquidation_usd,
-                            short_liquidation_usd = EXCLUDED.short_liquidation_usd;
+                            short_liquidation_usd = EXCLUDED.short_liquidation_usd,
+                            created_at = now()
+                        WHERE
+                            (EXCLUDED.long_liquidation_usd IS DISTINCT FROM {table_name}.long_liquidation_usd OR 
+                            EXCLUDED.short_liquidation_usd IS DISTINCT FROM {table_name}.short_liquidation_usd);
                     """,
                     updated_data,
                 )
@@ -111,11 +115,21 @@ class CoinGlassClient(TimescaleClient):
                 await self.create_aggregated_open_interest_history(table_name)
                 await conn.executemany(
                     f"""
-                        INSERT INTO {table_name} (timestamp, open, high, low, close) 
-                        VALUES (to_timestamp($1), $2, $3, $4, $5)
-                        ON CONFLICT (timestamp)
-                        DO UPDATE SET
-                            (open, high, low, close) = (EXCLUDED.open, EXCLUDED.high, EXCLUDED.low, EXCLUDED.close);
+                    INSERT INTO {table_name} 
+                    (timestamp, open, high, low, close)
+                    VALUES (to_timestamp($1), $2, $3, $4, $5)
+                    ON CONFLICT (timestamp)
+                    DO UPDATE SET 
+                        open = EXCLUDED.open,
+                        high = EXCLUDED.high,
+                        low = EXCLUDED.low,
+                        close = EXCLUDED.close,
+                        created_at = now()
+                    WHERE 
+                        (EXCLUDED.open IS DISTINCT FROM {table_name}.open OR
+                         EXCLUDED.high IS DISTINCT FROM {table_name}.high OR
+                         EXCLUDED.low IS DISTINCT FROM {table_name}.low OR
+                         EXCLUDED.close IS DISTINCT FROM {table_name}.close);
                     """,
                     updated_data,
                 )
@@ -314,7 +328,7 @@ class CoinGlassClient(TimescaleClient):
                         long_account REAL NOT NULL,
                         short_account REAL NOT NULL,
                         long_short_ratio REAL NOT NULL,
-                        create_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                        created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
                         UNIQUE (timestamp)
                     );
                 """)
@@ -334,7 +348,12 @@ class CoinGlassClient(TimescaleClient):
                         DO UPDATE SET 
                             long_account = EXCLUDED.long_account,
                             short_account = EXCLUDED.short_account,
-                            long_short_ratio = EXCLUDED.long_short_ratio;
+                            long_short_ratio = EXCLUDED.long_short_ratio,
+                            created_at = now()
+                        WHERE
+                            (EXCLUDED.long_account IS DISTINCT FROM {table_name}.long_account OR 
+                            EXCLUDED.short_account IS DISTINCT FROM {table_name}.short_account OR
+                            EXCLUDED.long_short_ratio IS DISTINCT FROM {table_name}.long_short_ratio);
                     """,
                     updated_data,
                 )
@@ -354,7 +373,7 @@ class CoinGlassClient(TimescaleClient):
                     high DOUBLE PRECISION,
                     low DOUBLE PRECISION,
                     close DOUBLE PRECISION,
-                    create_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                    created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
                     UNIQUE (timestamp)
                     );
                 """)
@@ -377,7 +396,13 @@ class CoinGlassClient(TimescaleClient):
                     open = EXCLUDED.open,
                     high = EXCLUDED.high,
                     low = EXCLUDED.low,
-                    close = EXCLUDED.close;
+                    close = EXCLUDED.close,
+                    created_at = now()
+                WHERE 
+                    (EXCLUDED.open IS DISTINCT FROM {table_name}.open OR
+                     EXCLUDED.high IS DISTINCT FROM {table_name}.high OR
+                     EXCLUDED.low IS DISTINCT FROM {table_name}.low OR
+                     EXCLUDED.close IS DISTINCT FROM {table_name}.close);
                 """,
                 updated_data,
             )
@@ -396,3 +421,102 @@ class CoinGlassClient(TimescaleClient):
             """,
                 datetime.fromtimestamp(timestamp),
             )
+
+    @staticmethod
+    def get_funding_rate_oi_table_name(
+        trading_pair: str, interval: str, connector_name: str, **kwargs
+    ) -> str:
+        return f"coin_glass_funding_rate_oi_{connector_name}_{trading_pair.lower().replace('-', '_')}_{interval}"
+
+    async def create_funding_rate_oi_table(self, table_name: str):
+        async with self.pool.acquire() as conn:
+            await conn.execute(f"""
+                CREATE TABLE IF NOT EXISTS {table_name} (
+                    timestamp TIMESTAMPTZ NOT NULL,
+                    open DOUBLE PRECISION,
+                    high DOUBLE PRECISION,
+                    low DOUBLE PRECISION,
+                    close DOUBLE PRECISION,
+                    created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                    UNIQUE (timestamp)
+                    );
+                """)
+
+    async def append_funding_rate_oi(
+        self, table_name: str, data: List[Tuple[int, str, str, str, str]]
+    ):
+        updated_data = [
+            (t, float(o), float(h), float(l), float(c)) for t, o, h, l, c in data
+        ]
+        async with self.pool.acquire() as conn:
+            await self.create_funding_rate_oi_table(table_name)
+            await conn.executemany(
+                f"""
+                INSERT INTO {table_name} 
+                (timestamp, open, high, low, close)
+                VALUES (to_timestamp($1), $2, $3, $4, $5)
+                ON CONFLICT (timestamp)
+                DO UPDATE SET 
+                    open = EXCLUDED.open,
+                    high = EXCLUDED.high,
+                    low = EXCLUDED.low,
+                    close = EXCLUDED.close,
+                    created_at = now()
+                WHERE 
+                    (EXCLUDED.open IS DISTINCT FROM {table_name}.open OR
+                     EXCLUDED.high IS DISTINCT FROM {table_name}.high OR
+                     EXCLUDED.low IS DISTINCT FROM {table_name}.low OR
+                     EXCLUDED.close IS DISTINCT FROM {table_name}.close);
+                """,
+                updated_data,
+            )
+
+    @staticmethod
+    def get_funding_rate_vol_table_name(
+        trading_pair: str, interval: str, connector_name: str, **kwargs
+    ) -> str:
+        return f"coin_glass_funding_rate_vol_{connector_name}_{trading_pair.lower().replace('-', '_')}_{interval}"
+
+    async def create_funding_rate_vol_table(self, table_name: str):
+        async with self.pool.acquire() as conn:
+            await conn.execute(f"""
+                CREATE TABLE IF NOT EXISTS {table_name} (
+                    timestamp TIMESTAMPTZ NOT NULL,
+                    open DOUBLE PRECISION,
+                    high DOUBLE PRECISION,
+                    low DOUBLE PRECISION,
+                    close DOUBLE PRECISION,
+                    created_at TIMESTAMPTZ NOT NULL DEFAULT CURRENT_TIMESTAMP,
+                    UNIQUE (timestamp)
+                    );
+                """)
+
+    async def append_funding_rate_vol(
+        self, table_name: str, data: List[Tuple[int, str, str, str, str]]
+    ):
+        updated_data = [
+            (t, float(o), float(h), float(l), float(c)) for t, o, h, l, c in data
+        ]
+        async with self.pool.acquire() as conn:
+            await self.create_funding_rate_vol_table(table_name)
+            await conn.executemany(
+                f"""
+                INSERT INTO {table_name} 
+                (timestamp, open, high, low, close)
+                VALUES (to_timestamp($1), $2, $3, $4, $5)
+                ON CONFLICT (timestamp)
+                DO UPDATE SET 
+                    open = EXCLUDED.open,
+                    high = EXCLUDED.high,
+                    low = EXCLUDED.low,
+                    close = EXCLUDED.close,
+                    created_at = now()
+                WHERE 
+                    (EXCLUDED.open IS DISTINCT FROM {table_name}.open OR
+                     EXCLUDED.high IS DISTINCT FROM {table_name}.high OR
+                     EXCLUDED.low IS DISTINCT FROM {table_name}.low OR
+                     EXCLUDED.close IS DISTINCT FROM {table_name}.close);
+                """,
+                updated_data,
+            )
+

@@ -15,6 +15,8 @@ class CoinGlassDataFeed:
         "global_long_short_account_ratio": "/api/futures/globalLongShortAccountRatio/history",
         "aggregated_open_interest_history": "/api/futures/openInterest/ohlc-aggregated-history",
         "funding_rate": "/api/futures/fundingRate/ohlc-history",
+        "funding_rate_oi": "/api/futures/fundingRate/oi-weight-ohlc-history",
+        "funding_rate_vol": "/api/futures/fundingRate/vol-weight-ohlc-history",
     }
     _exchanges = [
         "Binance",
