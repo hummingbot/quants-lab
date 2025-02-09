@@ -11,13 +11,13 @@ class CoinGlassClient(TimescaleClient):
     def get_liquidation_aggregated_history_table_name(
         trading_pair: str, interval: str, **kwargs
     ) -> str:
-        return f"coin_glass_liquidation_aggregated_history_{trading_pair.lower().replace('-', '_')}_{interval}"
+        return f"coinglass_liquidation_aggregated_{trading_pair.lower().split('-')[0]}_{interval}"
 
     @staticmethod
     def get_aggregated_open_interest_history_table_name(
         trading_pair: str, interval: str, **kwargs
     ) -> str:
-        return f"coin_glass_aggregated_open_interest_history_{trading_pair.lower().replace('-', '_')}_{interval}"
+        return f"coinglass_aggregated_open_interest_{trading_pair.lower().split('-')[0]}_{interval}"
 
     async def create_liquidation_aggregated_history(self, table_name: str):
         if self.pool is not None:
@@ -317,7 +317,7 @@ class CoinGlassClient(TimescaleClient):
     def get_global_long_short_account_ratio_table_name(
         trading_pair: str, interval: str, connector_name: str, **kwargs
     ) -> str:
-        return f"coin_glass_global_long_short_account_ratio_{connector_name}_{trading_pair.lower().replace('-', '_')}_{interval}"
+        return f"coinglass_global_ls_account_ratio_{connector_name}_{trading_pair.lower().split('-')[0]}_{interval}"
 
     async def create_global_long_short_account_ratio(self, table_name: str):
         if self.pool is not None:
@@ -362,7 +362,7 @@ class CoinGlassClient(TimescaleClient):
     def get_funding_rate_table_name(
         trading_pair: str, interval: str, connector_name: str, **kwargs
     ) -> str:
-        return f"coin_glass_funding_rate_{connector_name}_{trading_pair.lower().replace('-', '_')}_{interval}"
+        return f"coinglass_funding_rate_{connector_name.split('_')[0]}_{trading_pair.lower().split('-')[0]}_{interval}"
 
     async def create_funding_rate_table(self, table_name: str):
         async with self.pool.acquire() as conn:
@@ -426,7 +426,7 @@ class CoinGlassClient(TimescaleClient):
     def get_funding_rate_oi_table_name(
         trading_pair: str, interval: str, connector_name: str, **kwargs
     ) -> str:
-        return f"coin_glass_funding_rate_oi_{connector_name}_{trading_pair.lower().replace('-', '_')}_{interval}"
+        return f"coinglass_funding_rate_oi_{connector_name.split('_')[0]}_{trading_pair.lower().split('-')[0]}_{interval}"
 
     async def create_funding_rate_oi_table(self, table_name: str):
         async with self.pool.acquire() as conn:
@@ -475,7 +475,7 @@ class CoinGlassClient(TimescaleClient):
     def get_funding_rate_vol_table_name(
         trading_pair: str, interval: str, connector_name: str, **kwargs
     ) -> str:
-        return f"coin_glass_funding_rate_vol_{connector_name}_{trading_pair.lower().replace('-', '_')}_{interval}"
+        return f"coinglass_funding_rate_vol_{connector_name.split('_')[0]}_{trading_pair.lower().split('-')[0]}_{interval}"
 
     async def create_funding_rate_vol_table(self, table_name: str):
         async with self.pool.acquire() as conn:
