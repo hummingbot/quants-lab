@@ -43,7 +43,7 @@ async def main():
                 "1000PEPE-USDT",
                 "SOL-USDT",
             ],
-            "interval": ["30m"],
+            "interval": ["30m","1h"],
             "limit": 1000,
         },
         frequency=timedelta(minutes=30),
@@ -105,11 +105,51 @@ async def main():
         },
         frequency=timedelta(minutes=30),
     )
+    funding_rate_oi_dowloader_task = CoinGlassDataDownloaderTask(
+        name="CoinGlass funding rate oi",
+        config={
+            "timescale_config": timescale_config,
+            "end_point": "funding_rate_oi",
+            "connector_name": "binance_perpetual",
+            "days_data_retention": 7,
+            "api_key": os.getenv("CG_API_KEY"),
+            "trading_pairs": [
+                "BTC-USDT",
+                "ETH-USDT",
+                "1000PEPE-USDT",
+                "SOL-USDT",
+            ],
+            "interval": ["1h"],
+            "limit": 1000,
+        },
+        frequency=timedelta(minutes=30),
+    )
+    funding_rate_vol_dowloader_task = CoinGlassDataDownloaderTask(
+        name="CoinGlass funding rate vol",
+        config={
+            "timescale_config": timescale_config,
+            "end_point": "funding_rate_vol",
+            "connector_name": "binance_perpetual",
+            "days_data_retention": 7,
+            "api_key": os.getenv("CG_API_KEY"),
+            "trading_pairs": [
+                "BTC-USDT",
+                "ETH-USDT",
+                "1000PEPE-USDT",
+                "SOL-USDT",
+            ],
+            "interval": ["1h"],
+            "limit": 1000,
+        },
+        frequency=timedelta(minutes=30),
+    )
 
     orchestrator.add_task(open_interest_downloader_task)
     orchestrator.add_task(liquidation_downloader_task)
     orchestrator.add_task(long_short_ratio_downloader_task)
     orchestrator.add_task(funding_rate_dowloader_task)
+    orchestrator.add_task(funding_rate_oi_dowloader_task)
+    orchestrator.add_task(funding_rate_vol_dowloader_task)
     await orchestrator.run()
 
 
