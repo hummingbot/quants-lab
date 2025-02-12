@@ -33,13 +33,12 @@ class GatewayClient(ClientBase):
         ):
         """List all tokens available in the Solana token list."""
         endpoint = f"{chain}/tokens"
-        params = {
-            "network": network,
-            "tokenSymbols": tokenSymbols
-        }
+        params = {"network": network}
+        if tokenSymbols is not None:
+            params["tokenSymbols"] = tokenSymbols
         return await self.get(endpoint, params=params)
 
-    async def post_chain_balance(
+    async def post_chain_balances(
         self,
         chain: str = "solana",  
         network: str = "mainnet-beta",
@@ -47,14 +46,14 @@ class GatewayClient(ClientBase):
         tokenSymbols: Optional[List[str]] = None,
         ):
         """Get token balances for the specified wallet address or the user's wallet if not provided."""
-        endpoint = f"{chain}/balance"
+        endpoint = f"{chain}/balances"
         body = {
             "network": network,
             "tokenSymbols": tokenSymbols
         }
         if address:
             body["address"] = address
-        return await self.post(endpoint, json=body)
+        return await self.post(endpoint, payload=body)
     
     async def post_chain_poll(
         self,
@@ -68,5 +67,5 @@ class GatewayClient(ClientBase):
             "network": network,
             "txHash": txHash
         }
-        return await self.post(endpoint, json=body)
+        return await self.post(endpoint, payload=body)
 
