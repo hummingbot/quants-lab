@@ -24,7 +24,7 @@ class PoolsScreenerTask(BaseTask):
             username=self.config.get("username", "admin"),
             password=self.config.get("password", "admin"),
             host=self.config.get("host", "localhost"),
-            port=self.config.get("port", 27017),
+            port=self.config.get("port", "27017"),
             database=self.config.get("database", "strategies"),
             debug_mode=False
         )
