@@ -20,22 +20,7 @@ def triple_barrier_method(df, tp=1.0, sl=1.0, tl=5, std_span: Optional[int] = 10
     df['tp'] = df['close'] * (1 + df['target'] * tp * df["side"])
     df['sl'] = df['close'] * (1 - df['target'] * sl * df["side"])
 
-    df = add_active_signals(df, max_executors)
     return df
-
-
-def add_active_signals(df, max_executors):
-    close_times = [pd.Timestamp.min] * max_executors
-    df["active_signal"] = 0
-    for index, row in df[(df["side"] != 0)].iterrows():
-        for close_time in close_times:
-            if row["timestamp"] > close_time:
-                df.loc[df.index == index, "active_signal"] = 1
-                close_times.remove(close_time)
-                close_times.append(row["close_time"])
-                break
-    return df
-
 
 def get_bins(df, trade_cost):
     # 1) prices aligned with events
@@ -66,5 +51,5 @@ def apply_tp_sl_on_tl(df: pd.DataFrame, tp: float, sl: float):
         df.loc[loc, 'take_profit_time'] = df0[df0 > take_profit[loc]].index.min()  # earliest profit taking.
     df["close_time"] = df[["tl", "take_profit_time", "stop_loss_time"]].dropna(how='all').min(axis=1)
     df['close_type'] = df[['take_profit_time', 'stop_loss_time', 'tl']].dropna(how='all').idxmin(axis=1)
-    df['close_type'].replace({'take_profit_time': 'tp', 'stop_loss_time': 'sl'}, inplace=True)
+    df['close_type'].replace({'take_profit_time': 1, 'stop_loss_time': -1, 'tl': 0}, inplace=True)
     return df
