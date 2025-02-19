@@ -11,7 +11,7 @@ from typing import Dict, Any
 
 from core.data_structures.trading_rules import TradingRules
 from core.data_sources import CLOBDataSource
-from core.services.mongodb_client import MongoDBClient
+from core.services.mongodb_client import MongoClient
 from core.task_base import BaseTask
 
 logging.getLogger("asyncio").setLevel(logging.CRITICAL)
@@ -21,7 +21,7 @@ load_dotenv()
 class FundingRatesTask(BaseTask):
     def __init__(self, name: str, frequency: timedelta, config: Dict[str, Any]):
         super().__init__(name=name, frequency=frequency, config=config)
-        self.mongo_client = MongoDBClient(**config.get("db_config", {}))
+        self.mongo_client = MongoClient(**config.get("db_config", {}))
         self.clob = CLOBDataSource()
 
     async def initialize(self):

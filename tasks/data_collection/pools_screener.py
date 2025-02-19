@@ -5,7 +5,7 @@ import pandas as pd
 from typing import Dict, Any
 from dotenv import load_dotenv
 
-from core.services.mongodb_client import MongoDBClient
+from core.services.mongodb_client import MongoClient
 from geckoterminal_py import GeckoTerminalAsyncClient
 from core.task_base import BaseTask
 
@@ -20,7 +20,7 @@ class PoolsScreenerTask(BaseTask):
         self.gt = GeckoTerminalAsyncClient()
         
         # Initialize MongoDB client with Docker configuration
-        self.mongo_client = MongoDBClient(
+        self.mongo_client = MongoClient(
             username=self.config.get("username", "admin"),
             password=self.config.get("password", "admin"),
             host=self.config.get("host", "localhost"),
