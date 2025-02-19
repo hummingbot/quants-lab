@@ -1,3 +1,4 @@
+import math
 from typing import List, Optional, Dict, Any
 import pandas as pd
 import logging
@@ -430,7 +431,8 @@ class MongoClient:
     async def get_controller_config_data(self,
                                          controller_name: str = None,
                                          controller_type: str = None,
-                                         connector_name: str = None):
+                                         connector_name: str = None,
+                                         min_timestamp: datetime = None):
         collection = self.db.controller_configs
         query = {}
 
@@ -440,9 +442,21 @@ class MongoClient:
             query["controller_type"] = controller_type
         if connector_name:
             query["connector_name"] = connector_name
+        if min_timestamp:
+            query["extra_info.timestamp"] = {"$gt": min_timestamp}
 
         cursor = collection.find(query)
         controller_configs = await cursor.to_list(length=None)
 
-        logging.info(f"Retrieved {len(controller_configs)} controller config records")
-        return controller_configs
+        # Filter out configs with NaN in grid_config_base or grid_config_quote
+        filtered_configs = [
+            config for config in controller_configs
+            if not any(
+                math.isnan(config["config"]["grid_config_base"].get(field, float('inf'))) or
+                math.isnan(config["config"]["grid_config_quote"].get(field, float('inf')))
+                for field in ["end_price", "start_price", "limit_price"]
+            )
+        ]
+
+        logging.info(f"Retrieved {len(filtered_configs)} filtered controller config records")
+        return filtered_configs
