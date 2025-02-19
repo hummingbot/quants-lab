@@ -39,7 +39,7 @@ class TaskRunner:
         return {
             "timescale_config": {
                 "host": os.getenv("TIMESCALE_HOST", "localhost"),
-                "port": int(os.getenv("TIMESCALE_PORT", 5432)),
+                "port": int(os.getenv("TIMESCALE_PORT", "5432")),
                 "user": os.getenv("TIMESCALE_USER", "admin"),
                 "password": os.getenv("TIMESCALE_PASSWORD", "admin"),
                 "database": os.getenv("TIMESCALE_DB", "timescaledb")

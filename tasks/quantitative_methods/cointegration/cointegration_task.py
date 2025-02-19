@@ -16,7 +16,7 @@ from tqdm import tqdm
 
 from core.data_sources import CLOBDataSource
 from core.data_structures.candles import Candles
-from core.services.mongodb_client import MongoDBClient
+from core.services.mongodb_client import MongoClient
 from core.task_base import BaseTask
 
 logging.getLogger("asyncio").setLevel(logging.CRITICAL)
@@ -26,7 +26,7 @@ load_dotenv()
 class CointegrationTask(BaseTask):
     def __init__(self, name: str, frequency: timedelta, config: Dict[str, Any]):
         super().__init__(name=name, frequency=frequency, config=config)
-        self.mongo_client = MongoDBClient(**config.get("db_config", {}))
+        self.mongo_client = MongoClient(**config.get("db_config", {}))
         self.root_path = "../../.."
         self.clob = CLOBDataSource()
 
