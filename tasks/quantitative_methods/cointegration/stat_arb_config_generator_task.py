@@ -6,7 +6,7 @@ from typing import Dict, Any
 import pandas as pd
 import json
 
-from core.services.mongodb_client import MongoDBClient
+from core.services.mongodb_client import MongoClient
 from core.task_base import BaseTask
 import numpy as np
 
@@ -14,7 +14,7 @@ import numpy as np
 class StatArbConfigGeneratorTask(BaseTask):
     def __init__(self, name: str, frequency: str, config: dict):
         super().__init__(name, frequency, config)
-        self.mongo_client = MongoDBClient()
+        self.mongo_client = MongoClient()
 
     async def initialize(self):
         await self.mongo_client.connect()
