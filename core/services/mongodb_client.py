@@ -1,45 +1,35 @@
 from typing import List, Optional, Dict, Any
 import pandas as pd
-from dotenv import load_dotenv
 import logging
 from motor.motor_asyncio import AsyncIOMotorClient
-import os
 from datetime import datetime, timedelta
 
 
-class MongoDBClient:
+class MongoClient:
     def __init__(
             self,
+            uri: str = None,
+            database: str = "mongodb",
             debug_mode: bool = False,
-            username: Optional[str] = None,
-            password: Optional[str] = None,
-            host: Optional[str] = None,
-            port: Optional[str] = None,
-            database: str = "mongodb"
     ):
         self.client = None
         self.db = None
         self.debug_mode = debug_mode
-        load_dotenv()
 
         # Connection parameters with env fallbacks
-        self.username = username or os.getenv('MONGO_INITDB_ROOT_USERNAME', "admin")
-        self.password = password or os.getenv('MONGO_INITDB_ROOT_PASSWORD', "admin")
-        self.host = host or os.getenv('MONGO_HOST', 'localhost')
-        self.port = port or os.getenv('MONGO_PORT', '27017')
+        self.uri = uri
         self.database = database
 
     async def connect(self):
         """Connect to MongoDB using provided or environment variables."""
-        connection_string = f"mongodb://{self.username}:{self.password}@{self.host}:{self.port}/?authSource=admin"
         try:
             self.client = AsyncIOMotorClient(
-                connection_string,
+                self.uri,
                 serverSelectionTimeoutMS=5000
             )
             self.db = self.client[self.database]
             await self.db.command('ping')
-            logging.info(f"Successfully connected to MongoDB at {self.host}:{self.port}")
+            logging.info(f"Successfully connected to MongoDB")
 
             # Create index on timestamp if it doesn't exist
             await self.db.pools.create_index('timestamp', unique=True)
