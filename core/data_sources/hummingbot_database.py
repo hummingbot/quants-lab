@@ -88,11 +88,14 @@ class HummingbotDatabase:
     def get_executors_data(self, start_date=None, end_date=None) -> pd.DataFrame:
         query = "SELECT * FROM Executors"
         executors = pd.read_sql_query(query, self.connection)
+        executors["custom_info"] = executors["custom_info"].apply(lambda x: json.loads(x) if isinstance(x, str) else x)
+        executors["config"] = executors["config"].apply(lambda x: json.loads(x) if isinstance(x, str) else x)
         return executors
 
     def get_controller_data(self, start_date=None, end_date=None) -> pd.DataFrame:
         query = "SELECT * FROM Controllers"
         controllers = pd.read_sql_query(query, self.connection)
+        controllers["config"] = controllers["config"].apply(lambda x: json.loads(x) if isinstance(x, str) else x)
         return controllers
 
     def get_executors_from_controller_id(self, controller_id: str, start_date=None, end_date=None) -> pd.DataFrame:
