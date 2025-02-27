@@ -31,6 +31,7 @@ class StatArbConfig(ControllerConfigBase):
     """
     controller_type = "generic"
     controller_name: str = "stat_arb"
+    coerce_tp_to_step: bool = True
     candles_config: List[CandlesConfig] = []
 
     # Market Configuration
@@ -128,6 +129,7 @@ class StatArb(ControllerBase):
                     safe_extra_spread=self.config.safe_extra_spread,
                     triple_barrier_config=self.config.triple_barrier_config,
                     deduct_base_fees=self.config.deduct_base_fees,
+                    coerce_tp_to_step=self.config.coerce_tp_to_step,
                 )
             ),
             # Quote market executor (opposite side)
@@ -153,6 +155,7 @@ class StatArb(ControllerBase):
                     safe_extra_spread=self.config.safe_extra_spread,
                     triple_barrier_config=self.config.triple_barrier_config,
                     deduct_base_fees=self.config.deduct_base_fees,
+                    coerce_tp_to_step=self.config.coerce_tp_to_step
                 )
             )
         ]

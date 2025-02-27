@@ -300,3 +300,13 @@ class BackendAPIClient(ClientBase):
             "credentials_profile": credentials,
         }
         await self.create_hummingbot_instance(deploy_config)
+
+    def list_databases(self):
+        """Get databases list."""
+        endpoint = "list-databases"
+        return self.post(endpoint, auth=self.auth)
+
+    def read_databases(self, db_paths: List[str]):
+        """Read databases."""
+        endpoint = "read-databases"
+        return self.post(endpoint, payload=db_paths, auth=self.auth)
