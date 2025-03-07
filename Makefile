@@ -23,6 +23,10 @@ stop-db:
 run-task:
 	TASK_CONFIG=config/$(config) docker compose -f docker-compose-task-runner.yml up task-runner
 
+# Run task runner dettached with specified config
+run-task-d:
+	TASK_CONFIG=config/$(config) docker compose -f docker-compose-task-runner.yml up task-runner -d
+
 # Stop task runner
 stop-task:
 	docker compose -f docker-compose-task-runner.yml down
