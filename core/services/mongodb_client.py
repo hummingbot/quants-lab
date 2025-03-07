@@ -457,6 +457,4 @@ class MongoClient:
                 for field in ["end_price", "start_price", "limit_price"]
             )
         ]
-
-        logging.info(f"Retrieved {len(filtered_configs)} filtered controller config records")
         return filtered_configs
