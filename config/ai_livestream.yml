@@ -1,0 +1,12 @@
+tasks:
+  candles_downloader:
+    enabled: true
+    task_class: tasks.data_collection.simple_candles_downloader.SimpleCandlesDownloader
+    frequency_hours: 0.02
+    config:
+      connector_name: binance
+      intervals:
+        - 1s
+      days_data_retention: 7
+      trading_pairs:
+        - BTC-USDT
