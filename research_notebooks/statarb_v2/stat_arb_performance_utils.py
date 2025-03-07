@@ -296,18 +296,22 @@ async def create_coint_figure(connector_instance,
 
 async def apply_filters(connector_instance,
                         config: Dict[str, Any],
-                        base_candles: pd.DataFrame,
-                        quote_candles: pd.DataFrame,
+                        base_entry_price: float,
+                        quote_entry_price: float,
                         max_base_step: float,
                         max_quote_step: float,
                         min_grid_range_ratio: float,
                         max_grid_range_ratio: float,
-                        max_entry_price_distance: float):
+                        max_entry_price_distance: float,
+                        max_notional_size: float = 20.0):
+    if base_entry_price is None or quote_entry_price is None:
+        return False
+
     # Calculate base grid metrics
     base_start_price = config["grid_config_base"]["start_price"]
     base_end_price = config["grid_config_base"]["end_price"]
-    base_entry_price = base_candles["close"].iloc[-1]
     base_executor_prices, base_step = await get_executor_prices(config, connector_instance=connector_instance)
+    base_level_amount_quote = config["total_amount_quote"] / len(base_executor_prices)
 
     base_grid_range_pct = base_end_price / base_start_price - 1
     base_entry_price_distance_from_start = (base_entry_price / base_start_price - 1) / base_grid_range_pct
@@ -315,11 +319,10 @@ async def apply_filters(connector_instance,
     # Calculate quote grid metrics
     quote_start_price = config["grid_config_quote"]["start_price"]
     quote_end_price = config["grid_config_quote"]["end_price"]
-    quote_entry_price = quote_candles["close"].iloc[-1]
     quote_executor_prices, quote_step = await get_executor_prices(config, side="short", connector_instance=connector_instance)
+    quote_level_amount_quote = config["total_amount_quote"] / len(quote_executor_prices)
 
     quote_grid_range_pct = quote_end_price / quote_start_price - 1
-    # todo
     quote_entry_price_distance_from_start = 1 - (quote_entry_price / quote_start_price - 1) / quote_grid_range_pct
 
     # Conditions using the input values
@@ -334,9 +337,12 @@ async def apply_filters(connector_instance,
                              (quote_start_price < quote_entry_price < quote_end_price))
     price_non_zero_condition = (base_end_price > 0 and quote_end_price > 0 and base_start_price > 0
                                 and quote_start_price > 0 and base_end_price > 0 and quote_end_price > 0)
+    # TODO: this should be applied after adjusting config proposals
+    notional_size_condition = ((base_level_amount_quote <= max_notional_size) and
+                               (quote_level_amount_quote <= max_notional_size))
     return (base_step_condition and quote_step_condition and grid_range_pct_condition and
-            base_entry_price_condition and quote_entry_price_condition and inside_grid_condition
-            and price_non_zero_condition and grid_range_gt_zero_condition)
+            base_entry_price_condition and inside_grid_condition and price_non_zero_condition and
+            grid_range_gt_zero_condition and quote_entry_price_condition and notional_size_condition)
 
 
 def get_grid_executor_config(controller_config_dict: Dict[str, Any], side: str = "long"):
