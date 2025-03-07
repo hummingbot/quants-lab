@@ -131,6 +131,9 @@ class CLOBDataSource:
                     end_time=new_end_time,
                     interval=interval
                 ))
+                if candles_df is None:
+                    return Candles(candles_df=pd.DataFrame(), connector_name=connector_name, trading_pair=trading_pair,
+                                   interval=interval)
                 candles_df.index = pd.to_datetime(candles_df.timestamp, unit='s')
 
             if cache_key in self._candles_cache:
