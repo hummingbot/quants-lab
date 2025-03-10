@@ -61,7 +61,6 @@ class DeploymentBaseTask(BaseTask):
         self.connector_name = self.config.get("connector_name", "binance_perpetual")
         self.connector_instance = None
         self.trading_rules = None
-        self.ex_trading_pairs = []
         self.trading_pairs = []
         self.config_candidates: List[ConfigCandidate] = []
         self.min_notionals_dict = {}
@@ -69,7 +68,6 @@ class DeploymentBaseTask(BaseTask):
         self.running = False
         self.active_bots: Dict[str, Any] = {}
         self.archived_configs: List[str] = []
-        self._bot_opportunity = asyncio.Event()
 
     async def initialize(self):
         """Initialize connections and resources."""
@@ -86,7 +84,6 @@ class DeploymentBaseTask(BaseTask):
             tasks = [
                 self._deploy_task(),
                 self._control_task(),
-                self._get_last_traded_prices(),
             ]
             await asyncio.gather(*tasks)  # Corrected gathering of tasks
         except Exception as e:
@@ -95,20 +92,20 @@ class DeploymentBaseTask(BaseTask):
 
     async def _update_exchange_info(self):
         self.trading_rules = await self.clob.get_trading_rules(self.connector_name)
-        self.ex_trading_pairs = [trading_rule.trading_pair for trading_rule in self.trading_rules.data]
+        return [trading_rule.trading_pair for trading_rule in self.trading_rules.data]
 
-    async def _update_config_candidates(self):
+    async def _generate_config_candidates(self):
         """
         Asynchronously updates the list of configuration candidates by fetching all available configurations,
         filtering them based on the relevant trading pairs, and updating the internal state accordingly.
         """
-        await self._update_exchange_info()
         all_config_candidates = await self._fetch_controller_configs()
+        ex_trading_pairs = await self._update_exchange_info()
         relevant_trading_pairs = self._extract_trading_pairs(all_config_candidates)
-        filtered_trading_pairs = sorted(relevant_trading_pairs & set(self.ex_trading_pairs))
+        filtered_trading_pairs = sorted(relevant_trading_pairs & set(ex_trading_pairs))
 
-        self.config_candidates = self._filter_configs_by_trading_pair(all_config_candidates, filtered_trading_pairs)
-        return len(self.config_candidates) > 0
+        config_candidates = self._filter_configs_by_trading_pair(all_config_candidates, filtered_trading_pairs)
+        return config_candidates
 
     async def _fetch_controller_configs(self) -> List[ConfigCandidate]:
         """
@@ -151,16 +148,17 @@ class DeploymentBaseTask(BaseTask):
             try:
                 bot_opportunity = await self._available_bot_slots()
                 if bot_opportunity:
-                    if self._update_config_candidates():
-                    await self._get_last_traded_prices()
-                    selected_candidates = await self._filter_config_candidates()
-                    self._adjust_config_candidates(selected_candidates)
-                    if not selected_candidates:
-                        logging.info(f"No config candidates found. Trying again in {self.deploy_task_interval} seconds")
-                        await asyncio.sleep(self.deploy_task_interval)
-                        continue
-                    logging.info(f"Config candidates found, preparing and launching bot...")
-                    await self._prepare_and_launch_bots(selected_candidates)
+                    config_candidates = self._generate_config_candidates()
+                    if len(config_candidates) > 0:
+                        await self._get_last_traded_prices()
+                        selected_candidates = await self._filter_config_candidates(config_candidates)
+                        if not selected_candidates:
+                            logging.info(f"No config candidates found. Trying again in {self.deploy_task_interval} seconds")
+                            await asyncio.sleep(self.deploy_task_interval)
+                            continue
+                        adjusted_candidates = self._adjust_config_candidates(selected_candidates)
+                        logging.info(f"Config candidates found, preparing and launching bot...")
+                        await self._prepare_and_launch_bots(adjusted_candidates)
             except Exception as e:
                 logging.error(f"Error during deploy task: {e}")
             await asyncio.sleep(self.deploy_task_interval)
@@ -169,15 +167,11 @@ class DeploymentBaseTask(BaseTask):
         """Check if there are available bot slots based on backend response."""
         try:
             running_bots_data = await self.backend_api_client.get_active_bots_status()
-            active_bots = running_bots_data.get("data", [])
+            active_bots_resp = running_bots_data.get("data", [])
+            active_bots = [bot_name for bot_name, _ in self.active_bots.items() if bot_name in active_bots_resp]
             n_active_bots = len(active_bots)
             max_bots = self.config["deploy_params"].get("max_bots", 1)
-            if n_active_bots < max_bots:
-                self._bot_opportunity.set()
-                return True
-            else:
-                self._bot_opportunity.clear()
-                return False
+            return n_active_bots < max_bots
 
         except Exception as e:
             logging.exception("Error during _available_bot_slots execution")
@@ -202,58 +196,66 @@ class DeploymentBaseTask(BaseTask):
                 trading_rule.trading_pair: trading_rule.min_notional_size for trading_rule in self.trading_rules.data
             }
 
-    async def _filter_config_candidates(self):
+    async def _filter_config_candidates(self, config_candidates: List[ConfigCandidate]):
         filter_candidate_params = self.config.get("filter_candidate_params", {})
         if filter_candidate_params:
             selected_candidates = []
-            error_configs = 0
-            for candidate in self.config_candidates:
+            for candidate in config_candidates:
                 try:
+                    config_already_used = candidate.id in self.archived_configs
+                    if config_already_used and not self.config.get("recycle_configs"):
+                        continue
                     meets_condition = await self._is_candidate_valid(candidate, filter_candidate_params)
-                    if meets_condition and candidate.id not in self.archived_configs:
+                    if meets_condition:
                         selected_candidates.append(candidate)
-                except Exception as e:
-                    error_configs += 1
+                except Exception:
+                    continue
             return selected_candidates
         else:
-            return self.config_candidates
+            return config_candidates
 
     async def _is_candidate_valid(self, candidate: ConfigCandidate, filter_candidate_params: Dict[str, Any]) -> Boolean:
-        pass
+        """
+        Determines whether a given configuration candidate is valid based on various filtering criteria.
+
+        This method should be implemented in subclasses to apply specific validation rules based on
+        the candidate's configuration and the provided filtering parameters.
+
+        Args:
+            candidate (ConfigCandidate): The candidate configuration to evaluate.
+            filter_candidate_params (Dict[str, Any]): A dictionary containing the filtering parameters
+                                                     used to determine validity.
+
+        Returns:
+            Boolean: True if the candidate meets the required conditions, False otherwise.
+
+        Raises:
+            NotImplementedError: If the method is not implemented in a subclass.
+        """
+        raise NotImplementedError
 
     def _adjust_config_candidates(self, config_candidates: List[ConfigCandidate]):
-        params = self.config["config_adjustment_params"]
-        for candidate in config_candidates:
-            year, iso_week = self.get_year_and_isoweek()
-            time_formatted = f"{year}||isoweek{iso_week}"
-            connector_name = candidate.config["connector_name"]
-            base_trading_pair = candidate.config["base_trading_pair"]
-            quote_trading_pair = candidate.config["quote_trading_pair"]
-            controller_id = f"{connector_name.replace('_', '-')}||{base_trading_pair}||{quote_trading_pair}||{time_formatted}"
-            tag = self.get_rounded_time()
-            candidate.config["id"] = f"{controller_id}_{tag}"
+        """
+        Adjusts configuration parameters for a list of configuration candidates.
 
-            candidate.config["total_amount_quote"] = params["total_amount_quote"]
-            candidate.config["coerce_tp_to_step"] = params["coerce_tp_to_step"]
+        This method modifies each candidate's configuration based on predefined parameters,
+        ensuring compliance with trading constraints such as leverage, minimum order amounts,
+        and triple barrier configurations.
 
-            base_min_order_amount_quote = float(self.min_notionals_dict[base_trading_pair]) * 1.5
-            quote_min_order_amount_quote = float(self.min_notionals_dict[quote_trading_pair]) * 1.5
-            min_order_amount_quote = max(base_min_order_amount_quote, quote_min_order_amount_quote)
-            candidate.config["grid_config_base"]["min_order_amount_quote"] = min_order_amount_quote
-            candidate.config["grid_config_quote"]["min_order_amount_quote"] = min_order_amount_quote
+        Adjustments include:
+        - Assigning a unique identifier to each candidate.
+        - Updating total quote amount and order constraints.
+        - Setting leverage and connector-related configurations.
+        - Applying minimum spread and risk management parameters.
 
-            candidate.config["leverage"] = params["leverage"]
-            candidate.config["connector_name"] = self.config["connector_name"]
-            candidate.config["min_spread_between_orders"] = params["min_spread_between_orders"]
-            candidate.config["triple_barrier_config"] = {
-                'stop_loss': params["stop_loss"],
-                'take_profit': params["take_profit"],
-                'time_limit': params["time_limit"],
-                'trailing_stop': {
-                    'activation_price': params["activation_price"],
-                    'trailing_delta': params["trailing_delta"]
-                }
-            }
+        Args:
+            config_candidates (List[ConfigCandidate]): A list of configuration candidates
+                                                       to be adjusted.
+
+        Raises:
+            NotImplementedError: If the method is not implemented in a subclass.
+        """
+        raise NotImplementedError
 
     async def _prepare_and_launch_bots(self, selected_candidates: List[ConfigCandidate]):
         script_name = self.config["deploy_params"].get("script_name", "v2_with_controllers.py")
@@ -261,6 +263,7 @@ class DeploymentBaseTask(BaseTask):
         credentials = self.config["deploy_params"].get("credentials", "master_account")
         time_to_cash_out = self.config["deploy_params"].get("time_to_cash_out")
         max_controller_configs = min(self.config["deploy_params"].get("max_controller_configs", 2), len(selected_candidates))
+
         # TODO: sort configs by multidimensional ghetman criteria
         # TODO: drop duplicate markets
         final_candidates = selected_candidates[:max_controller_configs]
@@ -293,12 +296,14 @@ class DeploymentBaseTask(BaseTask):
         while self.running:
             try:
                 active_bots_data = await self.backend_api_client.get_active_bots_status()
-                active_bots = active_bots_data["data"] or []
+                active_bots_resp = active_bots_data["data"] or []
+                active_bots = {bot_name: data for bot_name, data in active_bots_resp.items()
+                               if bot_name in self.active_bots}
                 if len(active_bots) == 0:
                     continue
-                for bot_name, stats in active_bots.items():
-                    self._control_error_logs(stats["error_logs"])
-                    for controller_id, metrics in stats["performance"].items():
+                for bot_name, data in active_bots.items():
+                    self._control_error_logs(data["error_logs"])
+                    for controller_id, metrics in data["performance"].items():
                         if metrics["status"] == "running":
                             controller_info = metrics["performance"].copy()
                             controller_info["start_timestamp"] = self.active_bots[bot_name]["start_timestamp"]
@@ -403,6 +408,7 @@ async def main():
         "mongo_uri": mongo_uri,
         "backend_api_server": os.getenv("BACKEND_API_SERVER", "localhost"),
         "min_config_timestamp": time.time() - 1.5 * 24 * 60 * 60,
+        "recycle_configs": False,
         "filter_candidate_params": {
             "max_base_step": 0.001,
             "max_quote_step": 0.001,
@@ -440,7 +446,7 @@ async def main():
             "max_early_stop_time": 24 * 60 * 60
         }
     }
-    task = DeploymentTask(name="deployment_task",
+    task = DeploymentBaseTask(name="deployment_task",
                           frequency=timedelta(minutes=20),
                           config=task_config)
     await task.execute()
