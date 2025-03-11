@@ -68,6 +68,7 @@ class DeploymentBaseTask(BaseTask):
         self.running = False
         self.active_bots: Dict[str, Any] = {}
         self.archived_configs: List[str] = []
+        self.archived_bots: Dict[str, Any] = {}
 
     async def initialize(self):
         """Initialize connections and resources."""
@@ -103,7 +104,7 @@ class DeploymentBaseTask(BaseTask):
         ex_trading_pairs = await self._update_exchange_info()
         relevant_trading_pairs = self._extract_trading_pairs(all_config_candidates)
         filtered_trading_pairs = sorted(relevant_trading_pairs & set(ex_trading_pairs))
-
+        self.trading_pairs = filtered_trading_pairs
         config_candidates = self._filter_configs_by_trading_pair(all_config_candidates, filtered_trading_pairs)
         return config_candidates
 
@@ -148,7 +149,7 @@ class DeploymentBaseTask(BaseTask):
             try:
                 bot_opportunity = await self._available_bot_slots()
                 if bot_opportunity:
-                    config_candidates = self._generate_config_candidates()
+                    config_candidates = await self._generate_config_candidates()
                     if len(config_candidates) > 0:
                         await self._get_last_traded_prices()
                         selected_candidates = await self._filter_config_candidates(config_candidates)
@@ -167,8 +168,8 @@ class DeploymentBaseTask(BaseTask):
         """Check if there are available bot slots based on backend response."""
         try:
             running_bots_data = await self.backend_api_client.get_active_bots_status()
-            active_bots_resp = running_bots_data.get("data", [])
-            active_bots = [bot_name for bot_name, _ in self.active_bots.items() if bot_name in active_bots_resp]
+            active_bots_resp = running_bots_data.get("data", {})
+            active_bots = [bot_name for bot_name, _ in active_bots_resp.items() if bot_name in self.active_bots.keys()]
             n_active_bots = len(active_bots)
             max_bots = self.config["deploy_params"].get("max_bots", 1)
             return n_active_bots < max_bots
@@ -296,7 +297,7 @@ class DeploymentBaseTask(BaseTask):
         while self.running:
             try:
                 active_bots_data = await self.backend_api_client.get_active_bots_status()
-                active_bots_resp = active_bots_data["data"] or []
+                active_bots_resp = active_bots_data["data"] or {}
                 active_bots = {bot_name: data for bot_name, data in active_bots_resp.items()
                                if bot_name in self.active_bots}
                 if len(active_bots) == 0:
@@ -352,13 +353,16 @@ class DeploymentBaseTask(BaseTask):
             await self._gracefully_stop_bot_and_archive(bot_name)
 
     async def _gracefully_stop_bot_and_archive(self, bot_name: str):
-        await self.backend_api_client.stop_bot(bot_name=bot_name)
-        await asyncio.sleep(self.controller_stop_delay)
-        await self.backend_api_client.stop_container(bot_name)
-        logging.info(f"Stopped container: {bot_name}")
-        await asyncio.sleep(5.0)
-        await self.backend_api_client.remove_container(bot_name, archive_locally=True)
-        logging.info(f"Successfully archived bot!")
+        if bot_name in self.active_bots:
+            await self.backend_api_client.stop_bot(bot_name=bot_name)
+            await asyncio.sleep(self.controller_stop_delay)
+            await self.backend_api_client.stop_container(bot_name)
+            logging.info(f"Stopped container: {bot_name}")
+            await asyncio.sleep(5.0)
+            await self.backend_api_client.remove_container(bot_name, archive_locally=True)
+            logging.info(f"Successfully archived bot!")
+            self.archived_bots[bot_name] = self.active_bots[bot_name].copy()
+            del self.active_bots[bot_name]
 
     @staticmethod
     def now():
