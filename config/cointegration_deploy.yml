@@ -13,7 +13,7 @@ tasks:
         max_quote_step: 0.001
         min_grid_range_ratio: 0.5
         max_grid_range_ratio: 2.0
-        max_entry_price_distance: 0.4
+        max_entry_price_distance: 0.3
         max_notional_size: 50.0
       config_adjustment_params:
         total_amount_quote: 1000.0
