@@ -17,16 +17,13 @@ from plotly.subplots import make_subplots
 from core.data_sources import CLOBDataSource
 
 
-def fetch_dbs(root_path: str):
-    backend_host = os.getenv("BACKEND_API_SERVER")
-    backend_user = os.getenv("BACKEND_API_SERVER_USER")
-    backend_data_path = os.getenv("BACKEND_API_SERVER_DATA_PATH")
+def fetch_dbs(root_path: str, host: str, user: str, data_path: str):
     local_path = os.path.join(root_path, "data/live_bot_databases")
 
     # Ensure local directory exists
     os.makedirs(local_path, exist_ok=True)
     # Step 1: List directories in BACKEND_API_SERVER_DATA_PATH
-    list_dirs_cmd = f'ssh {backend_user}@{backend_host} "ls -d {backend_data_path}/*/"'
+    list_dirs_cmd = f'ssh {user}@{host} "ls -d {data_path}/*/"'
     try:
         result = subprocess.run(list_dirs_cmd, shell=True, capture_output=True, text=True, check=True)
         directories = result.stdout.strip().split("\n")
@@ -60,8 +57,10 @@ def fetch_dbs(root_path: str):
                     print(f"Failed to fetch {remote_file}: {e.stderr}")
 
 
-def calculate_performance_metrics(selected_controller: str, all_trades_df: pd.DataFrame, side: int = 1):
-    performance_df = pd.DataFrame(all_trades_df[all_trades_df["controller_id"] == selected_controller])
+def calculate_performance_metrics(all_trades_df: pd.DataFrame, selected_controller: str = None, side: int = 1):
+    performance_df = all_trades_df.copy()
+    if selected_controller is not None:
+        performance_df = performance_df[performance_df["controller_id"] == selected_controller]
     performance_df.sort_values("timestamp", inplace=True)
     performance_df = performance_df[performance_df["side"] == side]
     performance_df["datetime"] = pd.to_datetime(performance_df["timestamp"], unit="s")
