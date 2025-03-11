@@ -16,23 +16,11 @@ from core.data_sources.clob import CLOBDataSource
 from core.services.mongodb_client import MongoClient
 from core.services.backend_api_client import BackendAPIClient
 import research_notebooks.statarb_v2.stat_arb_performance_utils as utils
-
+from tasks.deployment.models import ConfigCandidate
 
 logging.getLogger("asyncio").setLevel(logging.CRITICAL)
 logging.getLogger("hummingbot").setLevel(logging.ERROR)
 load_dotenv()
-
-
-class ConfigCandidate(BaseModel):
-    config: Dict[str, Any]
-    extra_info: Dict[str, Any]
-    id: str
-
-    @classmethod
-    def from_mongo(cls, data):
-        """Convert MongoDB document to Pydantic model."""
-        data["id"] = str(data["_id"])  # Convert ObjectId to string
-        return cls(**data)
 
 
 class DeploymentBaseTask(BaseTask):
