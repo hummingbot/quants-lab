@@ -8,7 +8,7 @@ dependencies:
   - libcxx
   - pip
   - pip:
-      - hummingbot==20241124
+      - hummingbot
       - numpy==1.26.4
       - plotly
       - pycoingecko
