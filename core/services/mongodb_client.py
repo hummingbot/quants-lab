@@ -108,18 +108,3 @@ class MongoClient:
         except Exception as e:
             logging.error(f"Error deleting documents from {collection_name}: {str(e)}")
             raise
-
-    async def add_controller_config_data(self, processed_data: List[Dict[str, Any]]):
-        try:
-            collection = self.db.controller_configs
-
-            # Create compound index on timestamp and pairs if it doesn't exist
-            await collection.create_index()
-
-            # Insert the processed funding rates data
-            result = await collection.insert_many(processed_data)
-            logging.info(f"Successfully inserted {len(result.inserted_ids)} processed funding rate records")
-
-        except Exception as e:
-            logging.error(f"Error adding controller config data: {str(e)}")
-            raise
