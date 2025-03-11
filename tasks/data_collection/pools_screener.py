@@ -1,5 +1,6 @@
 import asyncio
 import logging
+import os
 from datetime import datetime, timedelta
 import pandas as pd
 from typing import Dict, Any
@@ -21,12 +22,8 @@ class PoolsScreenerTask(BaseTask):
         
         # Initialize MongoDB client with Docker configuration
         self.mongo_client = MongoClient(
-            username=self.config.get("username", "admin"),
-            password=self.config.get("password", "admin"),
-            host=self.config.get("host", "localhost"),
-            port=self.config.get("port", "27017"),
+            uri=self.config.get("mongo_uri", ""),
             database=self.config.get("database", "strategies"),
-            debug_mode=False
         )
         # Configuration
         self.network = self.config.get("network", "solana")
@@ -118,16 +115,18 @@ class PoolsScreenerTask(BaseTask):
             
             filtered_top = self.filter_pools(cleaned_top.copy())
             filtered_new = self.filter_pools(cleaned_new.copy())
-            
+            document = {
+                'timestamp': datetime.utcnow(),
+                'trending_pools': cleaned_top.to_dict('records') if not cleaned_top.empty else [],
+                'filtered_trending_pools': filtered_top.to_dict(
+                    'records') if not filtered_top.empty else [],
+                'new_pools': cleaned_new.to_dict('records') if not cleaned_new.empty else [],
+                'filtered_new_pools': filtered_new.to_dict(
+                    'records') if not filtered_new.empty else []
+            }
             # Store data using MongoDBClient
-            await self.mongo_client.add_pools_data(
-                trending_pools_df=cleaned_top,
-                new_pools_df=cleaned_new,
-                filtered_trending_pools_df=filtered_top,
-                filtered_new_pools_df=filtered_new
-            )
-            
-            # Log results
+            await self.mongo_client.insert_documents(collection_name="pools",
+                                                     documents=[document])
             logging.info(f"Screening completed at {datetime.now()}")
             logging.info(f"Top pools: {len(cleaned_top)} (filtered: {len(filtered_top)})")
             logging.info(f"New pools: {len(cleaned_new)} (filtered: {len(filtered_new)})")
@@ -139,7 +138,14 @@ class PoolsScreenerTask(BaseTask):
 
 
 async def main():
+    mongo_uri = (
+        f"mongodb://{os.getenv('MONGO_INITDB_ROOT_USERNAME', 'admin')}:"
+        f"{os.getenv('MONGO_INITDB_ROOT_PASSWORD', 'admin')}@"
+        f"{os.getenv('MONGO_HOST', 'localhost')}:"
+        f"{os.getenv('MONGO_PORT', '27017')}/"
+    )
     config = {
+        "mongo_uri": mongo_uri,
         "network": "solana",
         "quote_asset": "SOL",
         "min_pool_age_days": 2,

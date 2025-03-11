@@ -1,20 +1,19 @@
 import asyncio
 import logging
+import os
 from datetime import timedelta
-from typing import Dict, Any
-
 import pandas as pd
-import json
+from dotenv import load_dotenv
 
 from core.services.mongodb_client import MongoClient
 from core.task_base import BaseTask
-import numpy as np
 
 
 class StatArbConfigGeneratorTask(BaseTask):
     def __init__(self, name: str, frequency: str, config: dict):
         super().__init__(name, frequency, config)
-        self.mongo_client = MongoClient()
+        self.mongo_client = MongoClient(uri=self.config.get("mongo_uri", ""),
+                                        database="quants_lab")
 
     async def initialize(self):
         await self.mongo_client.connect()
@@ -113,10 +112,10 @@ class StatArbConfigGeneratorTask(BaseTask):
         """
         try:
             await self.initialize()
-            funding_rates = await self.mongo_client.get_funding_rates_processed()
+            funding_rates = await self.mongo_client.get_documents("funding_rates_processed")
             funding_rates_df = pd.DataFrame(funding_rates)
             funding_rates_df = funding_rates_df[funding_rates_df["timestamp"] == funding_rates_df["timestamp"].max()]
-            coint_results = await self.mongo_client.get_cointegration_results()
+            coint_results = await self.mongo_client.get_documents("cointegration_results")
             coint_results_df = pd.DataFrame(coint_results)
             results_df_1 = coint_results_df.merge(funding_rates_df, left_on=["quote", "base"], right_on=["pair1", "pair2"], how="inner")
             results_df_2 = coint_results_df.merge(funding_rates_df, left_on=["base", "quote"], right_on=["pair1", "pair2"], how="inner")
@@ -157,7 +156,11 @@ class StatArbConfigGeneratorTask(BaseTask):
                 all_configs.append(record)
 
             # Store configs in MongoDB
-            await self.mongo_client.add_controller_config_data(all_configs)
+            await self.mongo_client.insert_documents(collection_name="controller_configs",
+                                                     documents=all_configs,
+                                                     index=[("controller_name", 1),
+                                                            ("controller_type", 1),
+                                                            ("connector_name", 1)])
             logging.info(f"Successfully stored {len(all_configs)} trading configs")
 
         except Exception as e:
@@ -166,7 +169,17 @@ class StatArbConfigGeneratorTask(BaseTask):
 
 
 async def main():
-    task = StatArbConfigGeneratorTask(name="golden_task", frequency=timedelta(hours=12), config={})
+    load_dotenv()
+    mongo_uri = (
+        f"mongodb://{os.getenv('MONGO_INITDB_ROOT_USERNAME', 'admin')}:"
+        f"{os.getenv('MONGO_INITDB_ROOT_PASSWORD', 'admin')}@"
+        f"{os.getenv('MONGO_HOST', 'localhost')}:"
+        f"{os.getenv('MONGO_PORT', '27017')}/"
+    )
+    config = {
+        "mongo_uri": mongo_uri
+    }
+    task = StatArbConfigGeneratorTask(name="golden_task", frequency=timedelta(hours=12), config=config)
     await task.execute()
 
 if __name__ == "__main__":

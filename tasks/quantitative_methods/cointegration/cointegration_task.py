@@ -45,7 +45,10 @@ class CointegrationTask(BaseTask):
             candles = await self.get_candles()
             cointegration_results: List[Dict[str, Any]] = self.analyze_trading_pairs(candles)
 
-            await self.mongo_client.add_cointegration_results_data(cointegration_results)
+            await self.mongo_client.insert_documents(collection_name="cointegration_results",
+                                                     documents=cointegration_results,
+                                                     index=[("base", 1), ("quote", 1)])
+
             logging.info(f"Successfully added {len(cointegration_results)} cointegration records")
 
         except Exception as e:
