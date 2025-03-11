@@ -10,7 +10,7 @@ from tasks.deployment.deployment_base_task import DeploymentBaseTask, ConfigCand
 class StatArbDeploymentTask(DeploymentBaseTask):
 
     async def _fetch_controller_configs(self) -> List[ConfigCandidate]:
-        min_timestamp = self.config.get("min_config_timestamp", 24 * 60 * 60)
+        min_timestamp = time.time() - self.config.get("min_config_timestamp", 24 * 60 * 60)
         controller_configs_query = {"extra_info.timestamp": {"$gt": min_timestamp}}
         controller_configs_data = await self.mongo_client.get_documents(collection_name="controller_configs",
                                                                         query=controller_configs_query)
