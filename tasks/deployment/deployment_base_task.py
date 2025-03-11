@@ -8,8 +8,6 @@ from datetime import datetime, timedelta, timezone
 from typing import Dict, Any, List, Set
 
 from dotenv import load_dotenv
-from narwhals import Boolean
-from pydantic import BaseModel
 
 from core.task_base import BaseTask
 from core.data_sources.clob import CLOBDataSource
@@ -203,7 +201,7 @@ class DeploymentBaseTask(BaseTask):
         else:
             return config_candidates
 
-    async def _is_candidate_valid(self, candidate: ConfigCandidate, filter_candidate_params: Dict[str, Any]) -> Boolean:
+    async def _is_candidate_valid(self, candidate: ConfigCandidate, filter_candidate_params: Dict[str, Any]) -> bool:
         """
         Determines whether a given configuration candidate is valid based on various filtering criteria.
 
