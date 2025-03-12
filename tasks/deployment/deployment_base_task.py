@@ -197,6 +197,7 @@ class DeploymentBaseTask(BaseTask):
                         selected_candidates.append(candidate)
                 except Exception:
                     continue
+            logging.info(f"Selected {len(selected_candidates)} out of {len(config_candidates)} candidates.")
             return selected_candidates
         else:
             return config_candidates
