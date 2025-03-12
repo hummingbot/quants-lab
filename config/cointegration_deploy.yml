@@ -1,14 +1,14 @@
 tasks:
   stat_arb_auto_deploy:
     enabled: true
-    task_class: tasks.quantitative_methods.deployment_task.DeploymentTask
+    task_class: tasks.deployment.implementation.stat_arb_deployment_task.StatArbDeploymentTask
     frequency_hours: 999999
     config:
       connector_name: binance_perpetual
       mongo_uri: !ENV ${MONGO_URI}
       backend_api_server: localhost
       min_config_timestamp: 129600
-      filter_params:
+      filter_candidate_params:
         max_base_step: 0.001
         max_quote_step: 0.001
         min_grid_range_ratio: 0.5
