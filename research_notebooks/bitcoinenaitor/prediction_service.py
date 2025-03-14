@@ -12,7 +12,9 @@ from hummingbot.data_feed.candles_feed.data_types import CandlesConfig
 
 
 class PredictionService:
-    def __init__(self, scaler_path: str, model_path: str, candles_config: CandlesConfig, mqtt_broker="localhost", mqtt_port=1883):
+    def __init__(self, scaler_path: str, model_path: str, candles_config: CandlesConfig, 
+                 mqtt_broker="localhost", mqtt_port=1883, 
+                 mqtt_topic_prefix="hbot/predictions", mqtt_qos=1, mqtt_retain=True):
         self.scaler = joblib.load(scaler_path)
         self.model = joblib.load(model_path)
         self.candles_config = candles_config
@@ -23,6 +25,9 @@ class PredictionService:
         self.mqtt_client = mqtt.Client()
         self.mqtt_broker = mqtt_broker
         self.mqtt_port = mqtt_port
+        self.mqtt_topic_prefix = mqtt_topic_prefix
+        self.mqtt_qos = mqtt_qos  # QoS 1 = at least once delivery
+        self.mqtt_retain = mqtt_retain  # Retain messages for late subscribers
         self.setup_mqtt()
         
     def setup_mqtt(self):
@@ -43,6 +48,13 @@ class PredictionService:
         """Callback for when the client receives a CONNACK response from the server"""
         if rc == 0:
             print("Successfully connected to MQTT broker")
+            # Publish a status message that we're online
+            self.mqtt_client.publish(
+                f"{self.mqtt_topic_prefix}/status", 
+                json.dumps({"status": "online", "timestamp": int(time.time() * 1000)}),
+                qos=self.mqtt_qos,
+                retain=True
+            )
         else:
             print(f"Failed to connect to MQTT broker with code {rc}")
     
@@ -55,20 +67,36 @@ class PredictionService:
             self.mqtt_client.loop_stop()
             self.setup_mqtt()
 
-    def publish_prediction(self, prediction, trading_pair):
-        """Publish prediction to MQTT broker"""
+    def publish_prediction(self, prediction, trading_pair, target_pct):
+        """Publish prediction to MQTT broker using a topic structure that allows for multiple listeners"""
         # Format the prediction according to the specified format
         signal = {
             "id": int(time.time() * 1000),  # current timestamp in milliseconds
             "trading_pair": trading_pair,
-            "probabilities": prediction.tolist()  # Convert numpy array to list
+            "probabilities": prediction.tolist(),  # Convert numpy array to list
+            "timestamp": datetime.now().isoformat(),
+            "target_pct": target_pct
         }
+        
+        # Create topic based on trading pair to allow more targeted subscriptions
+        # Format: hbot/predictions/{trading_pair}/ML_SIGNALS
+        normalized_pair = trading_pair.replace("-", "_").lower()
+        topic = f"{self.mqtt_topic_prefix}/{normalized_pair}/ML_SIGNALS"
         
         # Convert to JSON and publish
         try:
             message = json.dumps(signal)
-            self.mqtt_client.publish('hbot/9d0a0eeb06739f1ee4214d3632841603908b55fe/ML_SIGNALS', message)
-            print(f"Published prediction: {message}")
+            # Publish with QoS and retain flag
+            result = self.mqtt_client.publish(
+                topic, 
+                message, 
+                qos=self.mqtt_qos, 
+                retain=self.mqtt_retain
+            )
+            if result.rc == mqtt.MQTT_ERR_SUCCESS:
+                print(f"Published prediction to {topic}: {message}")
+            else:
+                print(f"Failed to publish prediction, error code: {result.rc}")
         except Exception as e:
             print(f"Failed to publish prediction: {e}")
 
@@ -79,6 +107,7 @@ class PredictionService:
                 candles_df = self.candles.candles_df.copy()
                 # Bollinger Bands with different lengths
                 candles_df["target"] = candles_df["close"].rolling(200).std() / candles_df["close"]
+                target_pct = candles_df["target"].rolling(100).mean().iloc[-1]
                 candles_df.ta.bbands(length=20, std=2, append=True)  # Standard BB
                 candles_df.ta.bbands(length=50, std=2, append=True)  # Longer term BB
 
@@ -128,13 +157,24 @@ class PredictionService:
                 prediction = self.model.predict_proba(candles_df)[-1]
                 
                 # Publish the prediction to MQTT
-                self.publish_prediction(prediction, self.candles_config.trading_pair)
+                self.publish_prediction(prediction, self.candles_config.trading_pair, target_pct)
 
             await asyncio.sleep(0.05)
             
     def cleanup(self):
         """Clean up resources when done"""
         if hasattr(self, 'mqtt_client'):
+            # Publish offline status before disconnecting
+            try:
+                self.mqtt_client.publish(
+                    f"{self.mqtt_topic_prefix}/status", 
+                    json.dumps({"status": "offline", "timestamp": int(time.time() * 1000)}),
+                    qos=self.mqtt_qos,
+                    retain=True
+                )
+            except:
+                pass
+            
             self.mqtt_client.loop_stop()
             self.mqtt_client.disconnect()
             print("Disconnected from MQTT broker")
@@ -152,7 +192,10 @@ async def main():
         model_path=model_path,
         candles_config=candles_config,
         mqtt_broker="localhost",
-        mqtt_port=1883  # Default MQTT port, matching your EMQX broker
+        mqtt_port=1883,  # Default MQTT port, matching your EMQX broker
+        mqtt_topic_prefix="hbot/predictions",  # Common prefix for all prediction topics
+        mqtt_qos=1,  # QoS 1 ensures message delivery at least once
+        mqtt_retain=True  # Retain messages for late subscribers
     )
     
     try:
