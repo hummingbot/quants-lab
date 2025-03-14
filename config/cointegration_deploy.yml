@@ -1,0 +1,41 @@
+tasks:
+  stat_arb_auto_deploy:
+    enabled: true
+    task_class: tasks.deployment.implementation.stat_arb_deployment_task.StatArbDeploymentTask
+    frequency_hours: 999999
+    config:
+      connector_name: binance_perpetual
+      mongo_uri: !ENV ${MONGO_URI}
+      backend_api_server: localhost
+      min_config_timestamp: 129600
+      filter_candidate_params:
+        max_base_step: 0.001
+        max_quote_step: 0.001
+        min_grid_range_ratio: 0.5
+        max_grid_range_ratio: 2.0
+        max_entry_price_distance: 0.3
+        max_notional_size: 50.0
+      config_adjustment_params:
+        total_amount_quote: 1000.0
+        min_spread_between_orders: 0.0004
+        leverage: 50
+        time_limit: 259200
+        stop_loss: 0.1
+        trailing_delta: 0.005
+        take_profit: 0.008
+        activation_price: 0.03
+        coerce_tp_to_step: true
+      deploy_params:
+        max_bots: 1
+        max_controller_configs: 2
+        script_name: v2_with_controllers.py
+        image_name: hummingbot/hummingbot:latest
+        credentials: master_account
+      control_params:
+        controller_max_drawdown: 0.005
+        controller_max_pnl: 0.005
+        global_time_limit: 86400
+        partial_drawdown: 0.1
+        partial_profit: 0.1
+        min_early_stop_time: 21600
+        max_early_stop_time: 86400

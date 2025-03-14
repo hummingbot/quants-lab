@@ -1,3 +1,4 @@
+import json
 import time
 from typing import List, Optional
 
@@ -62,7 +63,7 @@ class BackendAPIClient(ClientBase):
         params = {"archive_locally": archive_locally}
         if s3_bucket:
             params["s3_bucket"] = s3_bucket
-        return await self.post(endpoint, params=params, auth=self.auth)
+        return await self.post(endpoint, payload=json.dumps(params), auth=self.auth)
 
     async def stop_container(self, container_name: str):
         """Stop a specific container."""
@@ -281,7 +282,7 @@ class BackendAPIClient(ClientBase):
                 "candles_config": [],
                 "controllers_config": controller_configs,
                 "config_update_interval": 10,
-                "script_file_name": "v2_with_controllers.py",
+                "script_file_name": script_name,
             }
         }
         if time_to_cash_out:
@@ -299,4 +300,15 @@ class BackendAPIClient(ClientBase):
             "image": image_name,
             "credentials_profile": credentials,
         }
-        await self.create_hummingbot_instance(deploy_config)
+        create_resp = await self.create_hummingbot_instance(deploy_config)
+        return create_resp
+
+    def list_databases(self):
+        """Get databases list."""
+        endpoint = "list-databases"
+        return self.post(endpoint, auth=self.auth)
+
+    def read_databases(self, db_paths: List[str]):
+        """Read databases."""
+        endpoint = "read-databases"
+        return self.post(endpoint, payload=db_paths, auth=self.auth)

@@ -21,7 +21,7 @@ load_dotenv()
 class FundingRatesTask(BaseTask):
     def __init__(self, name: str, frequency: timedelta, config: Dict[str, Any]):
         super().__init__(name=name, frequency=frequency, config=config)
-        self.mongo_client = MongoClient(**config.get("db_config", {}))
+        self.mongo_client = MongoClient(config.get("mongo_uri", ""))
         self.clob = CLOBDataSource()
 
     async def initialize(self):
@@ -52,7 +52,11 @@ class FundingRatesTask(BaseTask):
                         "timestamp": current_timestamp
                     })
 
-                await self.mongo_client.add_funding_rates_data(funding_rates)
+                await self.mongo_client.insert_documents(collection_name="funding_rates",
+                                                         documents=funding_rates,
+                                                         index=[("trading_pair", 1),
+                                                                ("connector_name", 1),
+                                                                ("next_funding_utc_timestamp", 1)])
 
                 df = pd.DataFrame(funding_rates)
                 # Generate all possible combinations of trading pairs
@@ -73,7 +77,11 @@ class FundingRatesTask(BaseTask):
                         'rate2': rate2,
                         'rate_difference': rate_difference
                     })
-                await self.mongo_client.add_funding_rates_processed_data(results)
+                await self.mongo_client.insert_documents(collection_name="funding_rates_processed",
+                                                         documents=results,
+                                                         index=[("timestamp", 1),
+                                                                ("pair1", 1),
+                                                                ("pair2", 1)])
                 logging.info(f"Successfully added {len(funding_rates)} funding rate records")
 
         except Exception as e:
@@ -86,17 +94,16 @@ class FundingRatesTask(BaseTask):
 
 
 async def main():
-    mongodb_config = {
-        "username": os.getenv('MONGO_INITDB_ROOT_USERNAME', "admin"),
-        "password": os.getenv('MONGO_INITDB_ROOT_PASSWORD', "admin"),
-        "host": os.getenv('MONGO_HOST', 'localhost'),
-        "port": os.getenv('MONGO_PORT', 27017),
-        "database": "mongodb"
-    }
+    mongo_uri = (
+        f"mongodb://{os.getenv('MONGO_INITDB_ROOT_USERNAME', 'admin')}:"
+        f"{os.getenv('MONGO_INITDB_ROOT_PASSWORD', 'admin')}@"
+        f"{os.getenv('MONGO_HOST', 'localhost')}:"
+        f"{os.getenv('MONGO_PORT', '27017')}/"
+    )
     task_config = {
+        "mongo_uri": mongo_uri,
         "connector_names": ["binance_perpetual"],
         "quote_asset": "USDT",
-        "db_config": mongodb_config,
         "n_top_funding_rates_per_group": 5
     }
     task = FundingRatesTask(name="funding_rate_task",
