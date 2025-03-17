@@ -133,7 +133,7 @@ async def main():
         "connector_name": connector_name,
         "mongo_uri": mongo_uri,
         "backend_api_server": os.getenv("BACKEND_API_SERVER", "localhost"),
-        "min_config_timestamp": time.time() - 1.5 * 24 * 60 * 60,
+        "min_config_timestamp": 1.5 * 24 * 60 * 60,
         "filter_candidate_params": {
             "max_base_step": 0.001,
             "max_quote_step": 0.001,
