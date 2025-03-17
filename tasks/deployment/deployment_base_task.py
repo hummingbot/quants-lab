@@ -3,7 +3,6 @@ import os
 import asyncio
 import re
 import time
-from abc import abstractmethod
 from datetime import datetime, timedelta, timezone
 from typing import Dict, Any, List, Set
 
@@ -13,7 +12,6 @@ from core.task_base import BaseTask
 from core.data_sources.clob import CLOBDataSource
 from core.services.mongodb_client import MongoClient
 from core.services.backend_api_client import BackendAPIClient
-import research_notebooks.statarb_v2.stat_arb_performance_utils as utils
 from tasks.deployment.models import ConfigCandidate
 
 logging.getLogger("asyncio").setLevel(logging.CRITICAL)
@@ -32,9 +30,7 @@ class DeploymentBaseTask(BaseTask):
             "sleep_time": 10,
         },
     }
-    last_prices_update_interval = 10.0
-    config_candidates_update_interval = 3600.0
-    deploy_task_interval = 10.0
+    deploy_task_interval = 120.0
     control_task_interval = 3.0
     controller_stop_delay = 15.0
 
@@ -161,7 +157,7 @@ class DeploymentBaseTask(BaseTask):
             return n_active_bots < max_bots
 
         except Exception as e:
-            logging.exception("Error during _available_bot_slots execution")
+            logging.exception(f"Error during _available_bot_slots execution: {e}")
             return False
 
     async def _get_last_traded_prices(self):
@@ -170,7 +166,6 @@ class DeploymentBaseTask(BaseTask):
             self._update_min_notional_size_dict()
         except Exception as e:
             logging.error(f"Error during get last traded prices: {e}")
-        await asyncio.sleep(self.last_prices_update_interval)
 
     def _update_min_notional_size_dict(self):
         if self.connector_name in ["okx_perpetual"]:
@@ -198,6 +193,7 @@ class DeploymentBaseTask(BaseTask):
                 except Exception:
                     continue
             logging.info(f"Selected {len(selected_candidates)} out of {len(config_candidates)} candidates.")
+            print(f"Selected {len(selected_candidates)} out of {len(config_candidates)} candidates.")
             return selected_candidates
         else:
             return config_candidates
@@ -321,7 +317,7 @@ class DeploymentBaseTask(BaseTask):
         max_early_stop_time = self.config["control_params"].get("max_early_stop_time", 10e11)
         early_tp_condition = early_sl_condition = False
         if min_early_stop_time <= bot_duration <= max_early_stop_time:
-            partial_drawdown = self.config["control_params"].get("partial_drawdown", -1.0)
+            partial_drawdown = self.config["control_params"].get("partial_drawdown", 1.0)
             partial_profit = self.config["control_params"].get("partial_profit", 1.0)
             early_tp_condition = global_pnl_pct >= partial_profit
             early_sl_condition = global_pnl_pct <= -partial_drawdown
@@ -398,7 +394,7 @@ async def main():
         "connector_name": connector_name,
         "mongo_uri": mongo_uri,
         "backend_api_server": os.getenv("BACKEND_API_SERVER", "localhost"),
-        "min_config_timestamp": time.time() - 1.5 * 24 * 60 * 60,
+        "min_config_timestamp": 1.5 * 24 * 60 * 60,
         "recycle_configs": False,
         "filter_candidate_params": {
             "max_base_step": 0.001,
@@ -438,8 +434,8 @@ async def main():
         }
     }
     task = DeploymentBaseTask(name="deployment_task",
-                          frequency=timedelta(minutes=20),
-                          config=task_config)
+                              frequency=timedelta(minutes=20),
+                              config=task_config)
     await task.execute()
 
 
