@@ -374,6 +374,7 @@ class StatArbPerformanceReport:
         total_quote_volume = df["quote_amount"].sum()
         total_duration_minutes = (df["timestamp"].max() - df["timestamp"].min()) / 60
         metrics = {
+            "trading_pair": df["trading_pair"].iloc[0],
             "global_pnl": global_pnl,
             "max_draw_down": max_draw_down,
             "max_run_up": max_run_up,
