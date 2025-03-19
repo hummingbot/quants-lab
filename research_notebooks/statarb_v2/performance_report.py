@@ -61,6 +61,7 @@ class StatArbPerformanceReport:
         self.trading_sessions = []
         self.trading_pairs = []
         self.cointegration_df = pd.DataFrame()
+        self.cointegration_df_filtered = pd.DataFrame()
 
     async def initialize(self):
         await self.mongo_client.connect()
@@ -224,6 +225,7 @@ class StatArbPerformanceReport:
                 print(f"Error generating trading session for {controller_id}: {e}")
                 continue
         self.trading_sessions = trading_sessions
+        self.cointegration_df_filtered = pd.DataFrame([session.coint_info for session in self.trading_sessions])
         return trading_sessions
 
     def calculate_performance_fields(self, controller_id: str = None, side: int = 1):
@@ -517,6 +519,69 @@ class StatArbPerformanceReport:
             width=800  # Adjust width
         )
         return fig
+
+    def create_cointegration_heatmap(self, export: bool = False):
+        df = self.cointegration_df_filtered.copy()
+        df.dropna(subset=["base_asset", "quote_asset"], inplace=True)
+
+        df["timestamp"] = pd.to_numeric(df["timestamp"])
+
+        # Keep only the last timestamp per (base_asset, quote_asset) pair
+        df_filtered = df.loc[df.groupby(["base_asset", "quote_asset"])["timestamp"].idxmax()]
+
+        # Reset index (optional)
+        df_filtered = df_filtered[(df_filtered["base_asset"].isin(self.trading_pairs)) &
+                                  (df_filtered["quote_asset"].isin(self.trading_pairs))]
+
+        # Create a symmetric matrix
+        cointegration_matrix = df_filtered.pivot(index="base_asset", columns="quote_asset", values="coint_value")
+        cointegration_matrix = cointegration_matrix.combine_first(cointegration_matrix.T)
+
+        # Fill diagonal with 1.0 (or NaN if preferred)
+        for asset in set(df_filtered["base_asset"]).union(df_filtered["quote_asset"]):
+            cointegration_matrix.loc[asset, asset] = 1.0
+
+        # Get median value for white midpoint
+        median_value = np.nanmedian(cointegration_matrix.values)
+
+        np.fill_diagonal(cointegration_matrix.values, np.nan)
+
+        # Define custom colorscale
+        custom_colorscale = [
+            [0.0, "green"],  # Low values (close to 0) → Green
+            [0.5, "white"],  # Median value → White
+            [1.0, "red"]  # High values → Red
+        ]
+
+        # Replace NaNs in annotations with an empty string
+        annotations = np.where(pd.isna(cointegration_matrix.values), "", np.round(cointegration_matrix.values, 2))
+
+        # Create Heatmap with Annotations
+        fig = go.Figure(data=go.Heatmap(
+            z=cointegration_matrix.values,
+            x=cointegration_matrix.columns,
+            y=cointegration_matrix.index,
+            colorscale=custom_colorscale,
+            text=annotations,  # Annotate with cointegration values
+            hoverinfo="text",
+            texttemplate="%{text}",  # Display text in boxes
+            zmid=median_value,  # Set the white midpoint for balance
+        ))
+
+        # Layout Adjustments
+        fig.update_layout(
+            title=f"Cointegration Analysis of Traded Markets ({len(self.trading_pairs)} Selected Pairs)",
+            xaxis_title="Long Asset",
+            yaxis_title="Short Asset",
+            autosize=False,
+            width=1200,
+            height=1000,
+            font=dict(size=12)
+        )
+        if export:
+            fig.write_image("correlation_heatmap.jpg", format="jpg", scale=3)
+        else:
+            return fig
 
     @staticmethod
     def fetch_dbs(root_path: str, host: str, user: str, data_path: str):
