@@ -59,6 +59,7 @@ class StatArbPerformanceReport:
         self.all_configs = {}
         self.all_trades_df = pd.DataFrame()
         self.trading_sessions = []
+        self.trading_pairs = []
         self.cointegration_df = pd.DataFrame()
 
     async def initialize(self):
@@ -94,7 +95,7 @@ class StatArbPerformanceReport:
         self.all_configs = all_configs
         self.all_trades_df = self.get_all_trades_df()
         self.cointegration_df = await self.get_cointegration_df()
-
+        self.trading_pairs = list(self.all_trades_df["trading_pair"].unique())
         print(f"Deployed instances: {len(dbs)}")
         print(f"Configurations used: {len(all_configs)}")
 
@@ -129,52 +130,150 @@ class StatArbPerformanceReport:
                     }
                     all_trades.append(fill_dict)
         all_trades_df = pd.DataFrame(all_trades)
-        print(f"Available controllers:\n" + "\n".join(
-            f"   - {controller}" for controller in all_trades_df["controller_id"].unique()))
+
         self.all_trades_df = all_trades_df
         return all_trades_df
 
-    async def get_trading_session(self):
+    async def get_cointegration_df(self):
+        query = {
+            "timestamp": {
+                "$gt": self.from_timestamp,
+                "$lt": self.to_timestamp
+            }
+        }
+        cointegration_analysis = await self.mongo_client.get_documents(collection_name="cointegration_results",
+                                                                       query=query)
+        cointegration_values = []
+        for document in cointegration_analysis:
+            timestamp = document["timestamp"]
+            base_asset = document["base"]
+            quote_asset = document["quote"]
+            coint_value = document["coint_value"]
+            base_beta = document["grid_base"]["beta"]
+            base_p_value = document["grid_base"]["p_value"]
+            base_z_score = document["grid_base"]["z_score"]
+            base_side = document["grid_base"]["side"]
+            base_start_price = document["grid_base"]["start_price"]
+            base_end_price = document["grid_base"]["end_price"]
+            quote_beta = document["grid_quote"]["beta"]
+            quote_p_value = document["grid_quote"]["p_value"]
+            quote_z_score = document["grid_quote"]["z_score"]
+            quote_side = document["grid_quote"]["side"]
+            quote_start_price = document["grid_quote"]["start_price"]
+            quote_end_price = document["grid_quote"]["end_price"]
+
+            cointegration_values.append(
+                {
+                    "timestamp": timestamp,
+                    "base_asset": base_asset,
+                    "quote_asset": quote_asset,
+                    "coint_value": coint_value,
+                    "base_beta": base_beta,
+                    "base_p_value": base_p_value,
+                    "base_z_score": base_z_score,
+                    "base_side": base_side,
+                    "base_start_price": base_start_price,
+                    "base_end_price": base_end_price,
+                    "quote_beta": quote_beta,
+                    "quote_p_value": quote_p_value,
+                    "quote_z_score": quote_z_score,
+                    "quote_side": quote_side,
+                    "quote_start_price": quote_start_price,
+                    "quote_end_price": quote_end_price,
+                }
+            )
+        cointegration_df = pd.DataFrame(cointegration_values)
+        self.cointegration_df = cointegration_df
+        return cointegration_df
+
+    async def build_trading_sessions(self):
         trading_sessions = []
         for controller in self.all_controllers:
             controller_id = controller["id"]
+            long_candles_df = short_candles_df = pd.DataFrame()
+            long_performance_fig = short_performance_fig = go.Figure()
+            long_metrics = short_metrics = {}
             try:
                 controller_config = controller["config"]
+                controller_config["id"] = controller_id
                 long_df = self.calculate_performance_fields(controller_id=controller_id, side=1)
                 if len(long_df) > 0:
                     long_candles = await self.get_execution_candles(long_df)
+                    long_candles_df = long_candles.data
                     long_performance_fig = await self.plot_candles_with_global_pnl_chart(long_candles, long_df, side=1)
                     long_metrics = self.summarize_performance_metrics(long_df, controller_config, side=1)
-                else:
-                    long_candles = pd.DataFrame()
-                    long_performance_fig = go.Figure()
-                    long_metrics = {}
                 short_df = self.calculate_performance_fields(controller_id=controller_id, side=2)
                 if len(short_df) > 0:
                     short_candles = await self.get_execution_candles(short_df)
+                    short_candles_df = short_candles.data
                     short_performance_fig = await self.plot_candles_with_global_pnl_chart(short_candles, short_df, side=2)
                     short_metrics = self.summarize_performance_metrics(short_df, controller_config, side=2)
-                else:
-                    short_candles = pd.DataFrame()
-                    short_performance_fig = go.Figure()
-                    short_metrics = {}
-                from_timestamp = long_df.timestamp.min() or short_df.timestamp.min()
-                coint_info = self.get_cointegration_info(controller_config, from_timestamp)
+                to_timestamp = long_df.timestamp.min() or short_df.timestamp.min()
+                coint_info = self.get_cointegration_info(controller_config, to_timestamp)
                 trading_sessions.append(TradingSession(controller_config=controller_config,
                                                        long_df=long_df,
                                                        long_performance_fig=long_performance_fig,
                                                        long_metrics=long_metrics,
-                                                       long_candles=long_candles.data,
+                                                       long_candles=long_candles_df,
                                                        short_df=short_df,
                                                        short_performance_fig=short_performance_fig,
                                                        short_metrics=short_metrics,
-                                                       short_candles=short_candles.data,
+                                                       short_candles=short_candles_df,
                                                        coint_info=coint_info))
             except Exception as e:
                 print(f"Error generating trading session for {controller_id}: {e}")
                 continue
         self.trading_sessions = trading_sessions
         return trading_sessions
+
+    def calculate_performance_fields(self, controller_id: str = None, side: int = 1):
+        performance_df = self.all_trades_df.copy()
+        if controller_id is not None:
+            performance_df = performance_df[performance_df["controller_id"] == controller_id]
+        performance_df.sort_values("timestamp", inplace=True)
+        performance_df = performance_df[performance_df["side"] == side]
+        performance_df["datetime"] = pd.to_datetime(performance_df["timestamp"], unit="s")
+
+        # Initialize columns
+        performance_df["base_amount_open"] = np.where(performance_df["position_action"] == "OPEN",
+                                                      performance_df["base_amount"], 0)
+        performance_df["base_amount_close"] = np.where(performance_df["position_action"] == "CLOSE",
+                                                       performance_df["base_amount"], 0)
+        performance_df["cum_base_open"] = performance_df["base_amount_open"].cumsum()
+        performance_df["cum_base_close"] = performance_df["base_amount_close"].cumsum()
+
+        performance_df["cum_quote_open"] = (performance_df["base_amount_open"] * performance_df["price"]).cumsum()
+        performance_df["cum_quote_close"] = (performance_df["base_amount_close"] * performance_df["price"]).cumsum()
+
+        # Break-even calculation
+        performance_df["break_even_open"] = performance_df["cum_quote_open"] / performance_df["cum_base_open"]
+        performance_df["break_even_close"] = performance_df["cum_quote_close"] / performance_df["cum_base_close"]
+
+        # PnL calculations
+        if side == 1:  # Long
+            performance_df["realized_pnl"] = (performance_df["break_even_close"] - performance_df["break_even_open"]) * \
+                                             performance_df["cum_base_close"]
+            performance_df["unrealized_pnl"] = (performance_df["price"] - performance_df["break_even_open"]) * (
+                        performance_df["cum_base_open"] - performance_df["cum_base_close"])
+        else:  # Short (side=2)
+            performance_df["realized_pnl"] = (performance_df["break_even_open"] - performance_df["break_even_close"]) * \
+                                             performance_df["cum_base_close"]
+            performance_df["unrealized_pnl"] = (performance_df["break_even_open"] - performance_df["price"]) * (
+                        performance_df["cum_base_open"] - performance_df["cum_base_close"])
+
+        # Global PnL
+        performance_df["global_pnl"] = (performance_df["realized_pnl"] + performance_df["unrealized_pnl"] -
+                                        performance_df["cumulative_fee_paid_quote"].cumsum())
+        return performance_df
+
+    async def get_execution_candles(self, performance_df: pd.DataFrame) -> Candles:
+        self.clob = CLOBDataSource()
+        candles = await self.clob.get_candles(connector_name="binance_perpetual",
+                                              trading_pair=performance_df["trading_pair"].iloc[0],
+                                              interval="1m",
+                                              start_time=performance_df["timestamp"].min() - 5 * 60,
+                                              end_time=performance_df["timestamp"].max() + 5 * 60)
+        return candles
 
     @staticmethod
     async def plot_candles_with_global_pnl_chart(candles: Candles, df: pd.DataFrame, side: int = 1):
@@ -262,46 +361,6 @@ class StatArbPerformanceReport:
 
         return fig
 
-    def calculate_performance_fields(self, controller_id: str = None, side: int = 1):
-        performance_df = self.all_trades_df.copy()
-        if controller_id is not None:
-            performance_df = performance_df[performance_df["controller_id"] == controller_id]
-        performance_df.sort_values("timestamp", inplace=True)
-        performance_df = performance_df[performance_df["side"] == side]
-        performance_df["datetime"] = pd.to_datetime(performance_df["timestamp"], unit="s")
-
-        # Initialize columns
-        performance_df["base_amount_open"] = np.where(performance_df["position_action"] == "OPEN",
-                                                      performance_df["base_amount"], 0)
-        performance_df["base_amount_close"] = np.where(performance_df["position_action"] == "CLOSE",
-                                                       performance_df["base_amount"], 0)
-        performance_df["cum_base_open"] = performance_df["base_amount_open"].cumsum()
-        performance_df["cum_base_close"] = performance_df["base_amount_close"].cumsum()
-
-        performance_df["cum_quote_open"] = (performance_df["base_amount_open"] * performance_df["price"]).cumsum()
-        performance_df["cum_quote_close"] = (performance_df["base_amount_close"] * performance_df["price"]).cumsum()
-
-        # Break-even calculation
-        performance_df["break_even_open"] = performance_df["cum_quote_open"] / performance_df["cum_base_open"]
-        performance_df["break_even_close"] = performance_df["cum_quote_close"] / performance_df["cum_base_close"]
-
-        # PnL calculations
-        if side == 1:  # Long
-            performance_df["realized_pnl"] = (performance_df["break_even_close"] - performance_df["break_even_open"]) * \
-                                             performance_df["cum_base_close"]
-            performance_df["unrealized_pnl"] = (performance_df["price"] - performance_df["break_even_open"]) * (
-                        performance_df["cum_base_open"] - performance_df["cum_base_close"])
-        else:  # Short (side=2)
-            performance_df["realized_pnl"] = (performance_df["break_even_open"] - performance_df["break_even_close"]) * \
-                                             performance_df["cum_base_close"]
-            performance_df["unrealized_pnl"] = (performance_df["break_even_open"] - performance_df["price"]) * (
-                        performance_df["cum_base_open"] - performance_df["cum_base_close"])
-
-        # Global PnL
-        performance_df["global_pnl"] = (performance_df["realized_pnl"] + performance_df["unrealized_pnl"] -
-                                        performance_df["cumulative_fee_paid_quote"].cumsum())
-        return performance_df
-
     @staticmethod
     def summarize_performance_metrics(df: pd.DataFrame, controller_config: Dict[str, Any], side: int = 1):
         # side_key = "grid_config_base" if side == 1 else "grid_config_quote"
@@ -322,69 +381,17 @@ class StatArbPerformanceReport:
         }
         return metrics
 
-    def get_cointegration_info(self, controller_config: Dict[str, Any], from_timestamp: float):
+    def get_cointegration_info(self, controller_config: Dict[str, Any], to_timestamp: float):
         df = self.cointegration_df.copy()
         long_trading_pair = controller_config["base_trading_pair"]
         short_trading_pair = controller_config["quote_trading_pair"]
         coint_values = df[(df["base_asset"] == long_trading_pair) & (df["quote_asset"] == short_trading_pair) &
-                          (df["timestamp"] <= from_timestamp)].sort_values("timestamp")
+                          (df["timestamp"] <= to_timestamp)].sort_values("timestamp")
         if len(coint_values) > 0:
             coint_info = coint_values.iloc[-1].to_dict()
-            coint_info["signal_delay_hours"] = (from_timestamp - coint_info["timestamp"]) / 3600
+            coint_info["signal_delay_hours"] = (to_timestamp - coint_info["timestamp"]) / 3600
             return coint_info
         return {}
-
-    async def get_cointegration_df(self):
-        query = {
-            "timestamp": {
-                "$gt": self.from_timestamp,
-                "$lt": self.to_timestamp
-            }
-        }
-        cointegration_analysis = await self.mongo_client.get_documents(collection_name="cointegration_results",
-                                                                       query=query)
-        cointegration_values = []
-        for document in cointegration_analysis:
-            timestamp = document["timestamp"]
-            base_asset = document["base"]
-            quote_asset = document["quote"]
-            coint_value = document["coint_value"]
-            base_beta = document["grid_base"]["beta"]
-            base_p_value = document["grid_base"]["p_value"]
-            base_z_score = document["grid_base"]["z_score"]
-            base_side = document["grid_base"]["side"]
-            base_start_price = document["grid_base"]["start_price"]
-            base_end_price = document["grid_base"]["end_price"]
-            quote_beta = document["grid_quote"]["beta"]
-            quote_p_value = document["grid_quote"]["p_value"]
-            quote_z_score = document["grid_quote"]["z_score"]
-            quote_side = document["grid_quote"]["side"]
-            quote_start_price = document["grid_quote"]["start_price"]
-            quote_end_price = document["grid_quote"]["end_price"]
-
-            cointegration_values.append(
-                {
-                    "timestamp": timestamp,
-                    "base_asset": base_asset,
-                    "quote_asset": quote_asset,
-                    "coint_value": coint_value,
-                    "base_beta": base_beta,
-                    "base_p_value": base_p_value,
-                    "base_z_score": base_z_score,
-                    "base_side": base_side,
-                    "base_start_price": base_start_price,
-                    "base_end_price": base_end_price,
-                    "quote_beta": quote_beta,
-                    "quote_p_value": quote_p_value,
-                    "quote_z_score": quote_z_score,
-                    "quote_side": quote_side,
-                    "quote_start_price": quote_start_price,
-                    "quote_end_price": quote_end_price,
-                }
-            )
-        cointegration_df = pd.DataFrame(cointegration_values)
-        self.cointegration_df = cointegration_df
-        return cointegration_df
 
     def create_gantt_chart(self):
         agg_trades_df = (
@@ -511,21 +518,6 @@ class StatArbPerformanceReport:
         )
         return fig
 
-    async def get_execution_candles(self, performance_df: pd.DataFrame):
-        i = 0
-        while i < 3:
-            try:
-                candles = await self.clob.get_candles(connector_name="binance_perpetual",
-                                                      trading_pair=performance_df["trading_pair"].iloc[0],
-                                                      interval="1m",
-                                                      start_time=performance_df["timestamp"].min() - 5 * 60,
-                                                      end_time=performance_df["timestamp"].max() + 5 * 60)
-                return candles
-            except KeyError:
-                i += 1
-                await asyncio.sleep(3.0)
-        return pd.DataFrame()
-
     @staticmethod
     def fetch_dbs(root_path: str, host: str, user: str, data_path: str):
         local_path = os.path.join(root_path, "data/live_bot_databases")
@@ -609,7 +601,7 @@ async def main():
                                      params["backend_user"],
                                      params["backend_data_path"])
     await performance_report.load_data()
-    trading_sessions = await performance_report.get_trading_session()
+    trading_sessions = await performance_report.build_trading_sessions()
     print(performance_report.summary)
 
 
