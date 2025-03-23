@@ -4,6 +4,6 @@ services:
   quants-lab-image-builder:
     image: hummingbot/quants-lab:latest
     build:
-      context: ../  # relative to the compose file location
+      context: .  # relative to the compose file location
       dockerfile: Dockerfile
     command: echo "Image built successfully"
