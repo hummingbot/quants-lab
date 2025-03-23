@@ -6,6 +6,7 @@ services:
     volumes:
       - .:/quants-lab
       - ./config:/quants-lab/config
+    build: .
     # env_file:
     #  - .env
     network_mode: host
@@ -18,4 +19,4 @@ services:
       driver: "json-file"
       options:
         max-size: "200m"
-        max-file: "10" 
+        max-file: "10"
