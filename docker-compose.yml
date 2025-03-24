@@ -3,7 +3,5 @@ version: '3.8'
 services:
   quants-lab-image-builder:
     image: hummingbot/quants-lab:latest
-    build:
-      context: .  # relative to the compose file location
-      dockerfile: Dockerfile
+    build: .
     command: echo "Image built successfully"
