@@ -4,4 +4,4 @@ services:
   quants-lab-image-builder:
     image: hummingbot/quants-lab:latest
     build: .
-    command: echo "Image built successfully"
+    command: echo "Image built successfully donero"
