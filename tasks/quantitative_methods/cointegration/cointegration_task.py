@@ -181,8 +181,8 @@ class CointegrationTask(BaseTask):
         # Progress bar for the combinations
         with tqdm(total=total_combinations, desc="Analyzing Cointegration", unit="pair") as pbar:
             # Analyze each possible pair combination
-            for i in range(len(pair_names[:20])):
-                for j in range(i + 1, len(pair_names[:20])):
+            for i in range(len(pair_names)):
+                for j in range(i + 1, len(pair_names)):
                     pair1 = pair_names[i]
                     pair2 = pair_names[j]
 
