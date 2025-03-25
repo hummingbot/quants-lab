@@ -26,7 +26,8 @@ load_dotenv()
 class CointegrationTask(BaseTask):
     def __init__(self, name: str, frequency: timedelta, config: Dict[str, Any]):
         super().__init__(name=name, frequency=frequency, config=config)
-        self.mongo_client = MongoClient(**config.get("db_config", {}))
+        self.mongo_client = MongoClient(uri=self.config.get("mongo_uri", ""),
+                                        database="quants_lab")
         self.root_path = "../../.."
         self.clob = CLOBDataSource()
 
@@ -140,13 +141,23 @@ class CointegrationTask(BaseTask):
                     'start_price': float(long_position['entry_price']),
                     'end_price': float(long_position['end_price']),
                     'limit_price': float(long_position['limit_price']),
-                    'beta': float(long_position['beta'])  # Replace max_open_orders with beta
+                    'beta': float(long_position['beta']), # Replace max_open_orders with beta
+                    'p_value': float(long_position['p_value']),
+                    'z_score': float(long_position['z_score']),
+                    'side': long_position['side'],
+                    'signal_strength': float(long_position['signal_strength']),
+                    'mean_reversion_prob': float(long_position['mean_reversion_prob']),
                 },
                 'grid_quote': {
                     'start_price': float(short_position['entry_price']),
                     'end_price': float(short_position['end_price']),
                     'limit_price': float(short_position['limit_price']),
-                    'beta': float(short_position['beta'])  # Replace max_open_orders with beta
+                    'beta': float(short_position['beta']) , # Replace max_open_orders with beta
+                    'p_value': float(short_position['p_value']),
+                    'z_score': float(short_position['z_score']),
+                    'side': short_position['side'],
+                    'signal_strength': float(short_position['signal_strength']),
+                    'mean_reversion_prob': float(short_position['mean_reversion_prob']),
                 },
                 'coint_value': float(coint_value)
             }
@@ -157,22 +168,6 @@ class CointegrationTask(BaseTask):
 
         # Sort results by cointegration value
         pair_results.sort(key=lambda x: x['coint_value'])
-
-        # Print summary
-        print(f"\nFound {len(pair_results)} cointegrated pairs:")
-        print("-" * 50)
-        for result in pair_results:
-            print(f"\nLong {result['base']} vs Short {result['quote']}")
-            print(f"Cointegration value: {result['coint_value']:.4f}")
-            print(f"Grid Base - Entry: {result['grid_base']['start_price']:.2f}, "
-                  f"End: {result['grid_base']['end_price']:.2f}, "
-                  f"Limit: {result['grid_base']['limit_price']:.2f}, "
-                  f"Beta: {result['grid_base']['beta']:.4f}")
-            print(f"Grid Quote - Entry: {result['grid_quote']['start_price']:.2f}, "
-                  f"End: {result['grid_quote']['end_price']:.2f}, "
-                  f"Limit: {result['grid_quote']['limit_price']:.2f}, "
-                  f"Beta: {result['grid_quote']['beta']:.4f}")
-
         return pair_results
 
     def analyze_multiple_pairs(self, candles: List[Candles]):
@@ -186,8 +181,8 @@ class CointegrationTask(BaseTask):
         # Progress bar for the combinations
         with tqdm(total=total_combinations, desc="Analyzing Cointegration", unit="pair") as pbar:
             # Analyze each possible pair combination
-            for i in range(len(pair_names)):
-                for j in range(i + 1, len(pair_names)):
+            for i in range(len(pair_names[:20])):
+                for j in range(i + 1, len(pair_names[:20])):
                     pair1 = pair_names[i]
                     pair2 = pair_names[j]
 
@@ -453,14 +448,8 @@ class CointegrationTask(BaseTask):
 
 
 async def main():
+    load_dotenv()
     days_of_data = 14
-    mongodb_config = {
-        "username": os.getenv('MONGO_INITDB_ROOT_USERNAME', "admin"),
-        "password": os.getenv('MONGO_INITDB_ROOT_PASSWORD', "admin"),
-        "host": os.getenv('MONGO_HOST', 'localhost'),
-        "port": os.getenv('MONGO_PORT', 27017),
-        "database": "mongodb"
-    }
     candles_config = dict(connector_name='binance_perpetual',
                           interval='15m',
                           days=days_of_data,
@@ -469,9 +458,9 @@ async def main():
     task_config = {
         "connector_names": ["binance_perpetual"],
         "quote_asset": "USDT",
-        "db_config": mongodb_config,
+        "mongo_uri": os.getenv("MONGO_URI", ""),
         "candles_config": candles_config,
-        "update_candles": True,
+        "update_candles": False,
         "volume_quantile": 0.75,
         "z_score_threshold": 0.5,
         "lookback_days": days_of_data,
