@@ -1,5 +1,5 @@
 from datetime import timedelta
-
+import time
 import numpy as np
 import pandas as pd
 from dotenv import load_dotenv
@@ -159,7 +159,8 @@ class CointegrationTask(BaseTask):
                     'signal_strength': float(short_position['signal_strength']),
                     'mean_reversion_prob': float(short_position['mean_reversion_prob']),
                 },
-                'coint_value': float(coint_value)
+                'coint_value': float(coint_value),
+                'timestamp': time.time()
             }
             pair_results.append(result)
 

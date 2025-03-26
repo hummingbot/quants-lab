@@ -1,6 +1,7 @@
 import asyncio
 import logging
 import os
+import time
 from datetime import timedelta
 import pandas as pd
 from dotenv import load_dotenv
@@ -161,7 +162,8 @@ class StatArbConfigGeneratorTask(BaseTask):
                         "quote_side": row["quote_side"],
                         "quote_signal_strength": row["quote_signal_strength"],
                         "quote_mean_reversion_prob": row["quote_mean_reversion_prob"],
-                    }
+                    },
+                    "timestamp": time.time()
                 }
                 all_configs.append(record)
 
