@@ -4,7 +4,7 @@
 
 
 uninstall:
-	conda env remove -n quants-lab
+	conda env remove -n quants-lab -y
 
 install:
 	conda env create -f environment.yml
