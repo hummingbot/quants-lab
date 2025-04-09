@@ -8,7 +8,7 @@ dependencies:
   - libcxx
   - pip
   - pip:
-      - /Users/dman/Documents/code/hummingbot/dist/hummingbot-20250303-cp312-cp312-macosx_11_0_arm64.whl
+      - hummingbot
       - pycoingecko
       - geckoterminal-py==0.2.5
       - glom
