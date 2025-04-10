@@ -1,16 +1,17 @@
 from datetime import timedelta
-import time
+
 import numpy as np
 import pandas as pd
 from dotenv import load_dotenv
 import logging
 import asyncio
 import os
-import sys
 from typing import List, Dict, Any, Tuple
 
 from scipy import stats
-from statsmodels.tsa.stattools import coint
+from statsmodels.tsa.stattools import coint, grangercausalitytests
+from pyinform.transferentropy import transfer_entropy
+from dtaidistance import dtw
 from sklearn.linear_model import LinearRegression
 from tqdm import tqdm
 
@@ -26,8 +27,7 @@ load_dotenv()
 class CointegrationTask(BaseTask):
     def __init__(self, name: str, frequency: timedelta, config: Dict[str, Any]):
         super().__init__(name=name, frequency=frequency, config=config)
-        self.mongo_client = MongoClient(uri=self.config.get("mongo_uri", ""),
-                                        database="quants_lab")
+        self.mongo_client = MongoClient(self.config.get("mongo_uri"))
         self.root_path = "../../.."
         self.clob = CLOBDataSource()
 
@@ -79,7 +79,8 @@ class CointegrationTask(BaseTask):
             df["trading_pair"] = candle.trading_pair
             all_candles = pd.concat([all_candles, df])
         grouped_candles = all_candles.groupby("trading_pair")["quote_asset_volume"].sum().reset_index()
-        volume_filter_quantile = grouped_candles["quote_asset_volume"].quantile(self.config.get("volume_quantile", 0.75))
+        volume_filter_quantile = grouped_candles["quote_asset_volume"].quantile(
+            self.config.get("volume_quantile", 0.75))
         selected_candles = grouped_candles[grouped_candles["quote_asset_volume"] >= volume_filter_quantile]
         trading_pairs = [
             candle.trading_pair for candle in candles
@@ -141,26 +142,15 @@ class CointegrationTask(BaseTask):
                     'start_price': float(long_position['entry_price']),
                     'end_price': float(long_position['end_price']),
                     'limit_price': float(long_position['limit_price']),
-                    'beta': float(long_position['beta']), # Replace max_open_orders with beta
-                    'p_value': float(long_position['p_value']),
-                    'z_score': float(long_position['z_score']),
-                    'side': long_position['side'],
-                    'signal_strength': float(long_position['signal_strength']),
-                    'mean_reversion_prob': float(long_position['mean_reversion_prob']),
+                    'beta': float(long_position['beta'])  # Replace max_open_orders with beta
                 },
                 'grid_quote': {
                     'start_price': float(short_position['entry_price']),
                     'end_price': float(short_position['end_price']),
                     'limit_price': float(short_position['limit_price']),
-                    'beta': float(short_position['beta']) , # Replace max_open_orders with beta
-                    'p_value': float(short_position['p_value']),
-                    'z_score': float(short_position['z_score']),
-                    'side': short_position['side'],
-                    'signal_strength': float(short_position['signal_strength']),
-                    'mean_reversion_prob': float(short_position['mean_reversion_prob']),
+                    'beta': float(short_position['beta'])  # Replace max_open_orders with beta
                 },
-                'coint_value': float(coint_value),
-                'timestamp': time.time()
+                'coint_value': float(coint_value)
             }
             pair_results.append(result)
 
@@ -169,6 +159,22 @@ class CointegrationTask(BaseTask):
 
         # Sort results by cointegration value
         pair_results.sort(key=lambda x: x['coint_value'])
+
+        # Print summary
+        print(f"\nFound {len(pair_results)} cointegrated pairs:")
+        print("-" * 50)
+        for result in pair_results:
+            print(f"\nLong {result['base']} vs Short {result['quote']}")
+            print(f"Cointegration value: {result['coint_value']:.4f}")
+            print(f"Grid Base - Entry: {result['grid_base']['start_price']:.2f}, "
+                  f"End: {result['grid_base']['end_price']:.2f}, "
+                  f"Limit: {result['grid_base']['limit_price']:.2f}, "
+                  f"Beta: {result['grid_base']['beta']:.4f}")
+            print(f"Grid Quote - Entry: {result['grid_quote']['start_price']:.2f}, "
+                  f"End: {result['grid_quote']['end_price']:.2f}, "
+                  f"Limit: {result['grid_quote']['limit_price']:.2f}, "
+                  f"Beta: {result['grid_quote']['beta']:.4f}")
+
         return pair_results
 
     def analyze_multiple_pairs(self, candles: List[Candles]):
@@ -191,6 +197,14 @@ class CointegrationTask(BaseTask):
                         # Get candle data
                         candle1 = next((candle for candle in candles if candle.trading_pair == pair1), None)
                         candle2 = next((candle for candle in candles if candle.trading_pair == pair2), None)
+
+                        # Determine dominant-follower behaviour
+                        cross_correlation = self.cross_correlation_function(candle1, candle2, max_lag=6)
+                        granger_causality1 = self.granger_causality(candle1, candle2, max_lag=6)
+                        granger_causality2 = self.granger_causality(candle2, candle1, max_lag=6)
+                        dtw_distance = self.dtw_distance_analysis(candle1, candle2)
+                        transfer_entropy1 = self.transfer_entropy_analysis(candle1, candle2, k=1, bins=3)
+                        transfer_entropy2 = self.transfer_entropy_analysis(candle2, candle1, k=1, bins=3)
 
                         # Get normalized price series
                         price1 = candle1.data["close"].pct_change().add(1).cumprod()
@@ -219,7 +233,13 @@ class CointegrationTask(BaseTask):
                             'beta': analysis_1vs2['beta'],
                             'entry_price': grid_1vs2['entry_price'] if grid_1vs2['side'] != 'both' else None,
                             'end_price': grid_1vs2['end_price'] if grid_1vs2['side'] != 'both' else None,
-                            'limit_price': grid_1vs2['limit_price'] if grid_1vs2['side'] != 'both' else None
+                            'limit_price': grid_1vs2['limit_price'] if grid_1vs2['side'] != 'both' else None,
+                            'dominance': {
+                                'cross_correlation': cross_correlation,
+                                'granger_causality': granger_causality1,
+                                'dtw_distance': dtw_distance,
+                                'transfer_entropy': transfer_entropy1
+                            }
                         })
 
                         # Store results for second direction
@@ -234,7 +254,13 @@ class CointegrationTask(BaseTask):
                             'beta': analysis_2vs1['beta'],
                             'entry_price': grid_2vs1['entry_price'] if grid_2vs1['side'] != 'both' else None,
                             'end_price': grid_2vs1['end_price'] if grid_2vs1['side'] != 'both' else None,
-                            'limit_price': grid_2vs1['limit_price'] if grid_2vs1['side'] != 'both' else None
+                            'limit_price': grid_2vs1['limit_price'] if grid_2vs1['side'] != 'both' else None,
+                            'dominance': {
+                                'cross_correlation': cross_correlation,
+                                'granger_causality': granger_causality2,
+                                'dtw_distance': dtw_distance,
+                                'transfer_entropy2': transfer_entropy2,
+                            }
                         })
                         pbar.update(1)
                     except Exception as e:
@@ -259,6 +285,270 @@ class CointegrationTask(BaseTask):
                             ascending=[False, False])
 
         return df
+
+    @staticmethod
+    def cross_correlation_function(candle1, candle2, max_lag=6):
+        """
+        Computes the lead-lag relationship between two trading pairs based on a certain interval percentage returns.
+
+        This method analyzes which market tends to move first (dominant) and which tends to follow (follower),
+        by computing the Pearson correlation between shifted return series across a range of time lags.
+
+        Parameters:
+        -----------
+        candles1 : Candles
+        candles2 : Candles
+        max_lag : int, default=6
+            Maximum number of lags (in both directions) to test. A lag of ±6 implies up to 30 minutes
+            forward/backward testing when using 5-minute candles.
+
+        Returns:
+        --------
+        results : dict
+            A dictionary containing:
+            - "best_lag": The lag with the highest correlation.
+            - "best_lag_corr": The maximum correlation value.
+            - "dominant": The trading pair that tends to move first (None if lag is 0).
+            - "follower": The trading pair that tends to follow (None if lag is 0).
+
+        Notes:
+        ------
+        - A positive lag means `candles1` leads `candles2`.
+        - A negative lag means `candles2` leads `candles1`.
+        - If the best lag is 0, both series are considered synchronous and no leader is assigned.
+        """
+        results = {
+            "dominant": None,
+            "follower": None
+        }
+        s1 = candle1.data.close.pct_change()
+        s2 = candle2.data.close.pct_change()
+
+        # Align
+        min_len = min(len(s1), len(s2))
+        series1 = s1[-min_len:]
+        series2 = s2[-min_len:]
+
+        lags = np.arange(-max_lag, max_lag + 1)
+        correlations = [series1.corr(series2.shift(lag)) for lag in lags]
+
+        max_corr = max(correlations)
+        best_lag = lags[np.argmax(correlations)]
+
+        results["best_lag"] = best_lag
+        results["best_lag_corr"] = max_corr
+
+        if best_lag == 0:
+            return results
+
+        results["dominant"] = candle2.trading_pair if best_lag < 0 else candle1.trading_pair
+        results["follower"] = candle1.trading_pair if best_lag < 0 else candle2.trading_pair
+        return results
+
+    @staticmethod
+    def granger_causality(predictor_candles: Candles, response_candles: Candles, max_lag=5):
+        """
+        Performs a one-way Granger Causality Test from predictor → response using specific interval returns.
+
+        Tests whether past returns of the predictor (X) help forecast the returns of the response (Y).
+        Returns detailed stats including significant lags, best lag, and the dominant-follower relation.
+
+        Parameters:
+        -----------
+        predictor_candles : Candles
+        response_candles : Candles
+        max_lag : int, default=6
+            Maximum number of lags (in 5-minute steps) to test.
+
+        Returns:
+        --------
+        result : dict
+            Dictionary containing:
+            - 'predictor': trading pair name of X
+            - 'response': trading pair name of Y
+            - 'p_values': dictionary of {lag: p-value}
+            - 'significant_lags': dictionary of {lag: p-value} where p < 0.05
+            - 'causal': True if any lag is significant
+            - 'best_lag': lag with lowest p-value (if significant)
+            - 'best_p_value': the corresponding lowest p-value (if significant)
+            - 'dominant': predictor trading pair if significant, else None
+            - 'follower': response trading pair if significant, else None
+
+        Notes:
+        ------
+        - Uses returns via `.pct_change()` and aligns series.
+        - A p-value < 0.05 at any lag means the predictor Granger-causes the response.
+        """
+        # Compute returns
+        x = predictor_candles.data.close.pct_change().dropna()
+        y = response_candles.data.close.pct_change().dropna()
+
+        # Align lengths
+        min_len = min(len(x), len(y))
+        x = x[-min_len:]
+        y = y[-min_len:]
+
+        # Prepare for Granger test
+        df = pd.concat([y, x], axis=1)
+        df.columns = ['Y', 'X']
+
+        # Run test
+        test_result = grangercausalitytests(df, maxlag=max_lag, verbose=False)
+
+        # Extract p-values
+        p_values = {
+            lag: round(stat[0]['ssr_ftest'][1], 4)
+            for lag, stat in test_result.items()
+        }
+
+        # Filter significant
+        significant = {lag: p for lag, p in p_values.items() if p < 0.05}
+
+        # Initialize result
+        result = {
+            'predictor': predictor_candles.trading_pair,
+            'response': response_candles.trading_pair,
+            'p_values': p_values,
+            'significant_lags': significant,
+            'causal': bool(significant),
+            'dominant': None,
+            'follower': None,
+        }
+
+        if significant:
+            best_lag = min(significant, key=significant.get)
+            result['best_lag'] = best_lag
+            result['best_p_value'] = significant[best_lag]
+            result['dominant'] = predictor_candles.trading_pair
+            result['follower'] = response_candles.trading_pair
+
+        return result
+
+    @staticmethod
+    def dtw_distance_analysis(candle1, candle2):
+        """
+        Computes the Dynamic Time Warping (DTW) distance between two trading pairs over 5-minute candles.
+
+        DTW measures similarity in shape between two time series, allowing for flexible time alignment.
+        The method assumes the trading pair with lower volatility (smoother path) as dominant.
+
+        Parameters:
+        -----------
+        candle1 : Candles
+        candle2 : Candles
+
+        Returns:
+        --------
+        result : dict
+            Dictionary with:
+            - 'pair_1': trading pair from candles1
+            - 'pair_2': trading pair from candles2
+            - 'dtw_distance': DTW distance between the aligned time series
+            - 'dominant': assumed leader (lower-volatility series)
+            - 'follower': assumed follower
+
+        Notes:
+        ------
+        - DTW distance is symmetric (no direction).
+        - Dominant is inferred by lower standard deviation in the preprocessed series.
+        """
+        # Normalize
+        s1 = candle1.data.close.pct_change().dropna()
+        s2 = candle2.data.close.pct_change().dropna()
+
+        # Align
+        min_len = min(len(s1), len(s2))
+        s1 = s1[-min_len:]
+        s2 = s2[-min_len:]
+
+        # DTW distance
+        distance = float(dtw.distance(s1.values, s2.values))
+
+        # Dominance by volatility
+        std1 = s1.std()
+        std2 = s2.std()
+
+        if std1 < std2:
+            dominant = candle1.trading_pair
+            follower = candle2.trading_pair
+        elif std2 < std1:
+            dominant = candle2.trading_pair
+            follower = candle1.trading_pair
+        else:
+            dominant = follower = None  # equal volatility → unclear
+
+        return {
+            'dtw_distance': round(distance, 6),
+            'dominant': dominant,
+            'follower': follower
+        }
+
+    @staticmethod
+    def transfer_entropy_analysis(predictor_candles, response_candles, k=1, bins=3):
+        """
+        Computes one-way Transfer Entropy from predictor → response using symbolic 5-minute data.
+
+        Transfer Entropy (TE) quantifies how much information past values of one asset (predictor)
+        contribute to predicting the future of another (response), even for non-linear dependencies.
+
+        Parameters:
+        -----------
+        predictor_candles : Candles
+        response_candles : Candles
+        k : int, default=1
+            History length (order) to use in the TE calculation.
+        bins : int, default=3
+            Number of bins to use for symbolic discretization.
+
+        Returns:
+        --------
+        result : dict
+            Dictionary containing:
+            - 'predictor': name of the source asset (X)
+            - 'response': name of the target asset (Y)
+            - 'transfer_entropy': float value of TE(X → Y)
+            - 'dominant': predictor if TE > 0, else None
+            - 'follower': response if TE > 0, else None
+            - 'symbolic_bins': number of bins used
+            - 'history_k': k used for TE calculation
+
+        Notes:
+        ------
+        - TE is directional: TE(X→Y) ≠ TE(Y→X)
+        - Output values are ≥ 0; higher = more information transfer
+        - Returns must be discretized for symbolic entropy-based methods
+        """
+        # Extract raw price data
+        s1 = predictor_candles.data.close.pct_change().dropna()
+        s2 = response_candles.data.close.pct_change().dropna()
+
+        # Align lengths
+        min_len = min(len(s1), len(s2))
+        s1 = s1[-min_len:]
+        s2 = s2[-min_len:]
+
+        # Symbolic binning
+        s1_binned = np.digitize(s1, bins=np.histogram_bin_edges(s1, bins=bins)) - 1
+        s2_binned = np.digitize(s2, bins=np.histogram_bin_edges(s2, bins=bins)) - 1
+
+        x = s1_binned.astype(int).tolist()
+        y = s2_binned.astype(int).tolist()
+
+        # Compute TE from X → Y
+        try:
+            te = round(transfer_entropy(x, y, k), 6)
+        except Exception as e:
+            te = None
+
+        return {
+            'predictor': predictor_candles.trading_pair,
+            'response': response_candles.trading_pair,
+            'transfer_entropy': te,
+            'dominant': predictor_candles.trading_pair if te and te > 0 else None,
+            'follower': response_candles.trading_pair if te and te > 0 else None,
+            'symbolic_bins': bins,
+            'history_k': k
+        }
 
     def generate_grid_levels(self, analysis, current_price):
         """
@@ -348,7 +638,7 @@ class CointegrationTask(BaseTask):
         lookback_days = self.config.get("lookback_days", 14)
         signal_days = self.config.get("signal_days", 3)
         z_score_threshold = self.config.get("z_score_threshold", 2.0)
-        
+
         # Calculate periods for 15m candles
         lookback_periods = lookback_days * int(interval_multiplier[interval])
         signal_periods = signal_days * int(interval_multiplier[interval])
@@ -449,17 +739,16 @@ class CointegrationTask(BaseTask):
 
 
 async def main():
-    load_dotenv()
-    days_of_data = 14
+    days_of_data = 10
     candles_config = dict(connector_name='binance_perpetual',
-                          interval='15m',
+                          interval='5m',
                           days=days_of_data,
                           batch_size=20,
                           sleep_time=5.0)
     task_config = {
         "connector_names": ["binance_perpetual"],
         "quote_asset": "USDT",
-        "mongo_uri": os.getenv("MONGO_URI", ""),
+        "mongo_uri": os.getenv("MONGO_URI", "mongodb://admin:admin@localhost:27017/"),
         "candles_config": candles_config,
         "update_candles": False,
         "volume_quantile": 0.75,
