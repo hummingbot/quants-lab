@@ -1,49 +1,37 @@
-from decimal import Decimal
 from typing import List
 
 import pandas_ta as ta  # noqa: F401
-from hummingbot.client.config.config_data_types import ClientFieldData
-from hummingbot.core.data_type.common import TradeType, OrderType
 from hummingbot.data_feed.candles_feed.data_types import CandlesConfig
 from hummingbot.strategy_v2.controllers.directional_trading_controller_base import (
     DirectionalTradingControllerBase,
     DirectionalTradingControllerConfigBase,
 )
-from hummingbot.strategy_v2.executors.position_executor.data_types import PositionExecutorConfig, TripleBarrierConfig, \
-    TrailingStop
-from hummingbot.strategy_v2.models.executor_actions import ExecutorAction, StopExecutorAction
-from pydantic import Field, validator
-
-from core.features.candles.peak_analyzer import PeakAnalyzer
+from pydantic import Field, field_validator
 
 
 class TrendExampleControllerConfig(DirectionalTradingControllerConfigBase):
     controller_name = "trend_example"
     candles_config: List[CandlesConfig] = []
-    candles_connector: str = Field(
-        default=None)
-    candles_trading_pair: str = Field(
-        default=None)
-    interval: str = Field(
-        default="3m",
-        client_data=ClientFieldData(
-            prompt=lambda mi: "Enter the candle interval (e.g., 1m, 5m, 1h, 1d): ",
-            prompt_on_new=False))
+    candles_connector: str = Field(default=None)
+    candles_trading_pair: str = Field(default=None)
+    interval: str = Field(default="3m")
     # EMAs
     ema_short: int = 8
     ema_medium: int = 29
     ema_long: int = 31
 
-    @validator("candles_connector", pre=True, always=True)
-    def set_candles_connector(cls, v, values):
+    @field_validator("candles_connector", mode="before")
+    @classmethod
+    def set_candles_connector(cls, v, validation_info: ValidationInfo):
         if v is None or v == "":
-            return values.get("connector_name")
+            return validation_info.data.get("connector_name")
         return v
 
-    @validator("candles_trading_pair", pre=True, always=True)
-    def set_candles_trading_pair(cls, v, values):
+    @field_validator("candles_trading_pair", mode="before")
+    @classmethod
+    def set_candles_trading_pair(cls, v, validation_info: ValidationInfo):
         if v is None or v == "":
-            return values.get("trading_pair")
+            return validation_info.data.get("trading_pair")
         return v
 
 
