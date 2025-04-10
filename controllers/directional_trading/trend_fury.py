@@ -8,7 +8,8 @@ from hummingbot.strategy_v2.controllers.directional_trading_controller_base impo
     DirectionalTradingControllerConfigBase,
 )
 from hummingbot.strategy_v2.models.executor_actions import ExecutorAction, StopExecutorAction
-from pydantic import Field, validator
+from pydantic import Field, validator, field_validator
+from pydantic_core.core_schema import ValidationInfo
 
 from core.features.candles.trend_fury import TrendFury, TrendFuryConfig
 
@@ -16,78 +17,32 @@ from core.features.candles.trend_fury import TrendFury, TrendFuryConfig
 class TrendFuryControllerConfig(DirectionalTradingControllerConfigBase):
     controller_name = "trend_fury"
     candles_config: List[CandlesConfig] = []
-    candles_connector: str = Field(
-        default=None,
-    )
-    candles_trading_pair: str = Field(
-        default=None,
-    )
-    interval: str = Field(
-        default="3m",
-        client_data=ClientFieldData(
-            prompt=lambda mi: "Enter the candle interval (e.g., 1m, 5m, 1h, 1d): ",
-            prompt_on_new=False))
-    window: int = Field(
-        default=50,
-        client_data=ClientFieldData(
-            prompt=lambda mi: "Enter the rolling window size for regression: ",
-            prompt_on_new=True))
-    vwap_window: int = Field(
-        default=50,
-        client_data=ClientFieldData(
-            prompt=lambda mi: "Enter the rolling window size for VWAP: ",
-            prompt_on_new=True))
-    use_returns: bool = Field(
-        default=False,
-        client_data=ClientFieldData(
-            prompt=lambda mi: "Use returns instead of prices? (True/False): ",
-            prompt_on_new=True))
-    use_volume_weighting: bool = Field(
-        default=False,
-        client_data=ClientFieldData(
-            prompt=lambda mi: "Use volume-weighted regression? (True/False): ",
-            prompt_on_new=True))
-    volume_normalization_window: int = Field(
-        default=50,
-        client_data=ClientFieldData(
-            prompt=lambda mi: "Enter the window size for volume normalization: ",
-            prompt_on_new=True))
-    cum_diff_quantile_threshold: float = Field(
-        default=0.5,
-        client_data=ClientFieldData(
-            prompt=lambda mi: "Enter the threshold for significant slope changes (0-1): ",
-            prompt_on_new=True))
-    reversal_sensitivity: float = Field(
-        default=0.3,
-        client_data=ClientFieldData(
-            prompt=lambda mi: "Enter the sensitivity for detecting reversals (0-1): ",
-            prompt_on_new=True))
-    use_vwap_filter: bool = Field(
-        default=False,
-        client_data=ClientFieldData(
-            prompt=lambda mi: "Use VWAP based signal filtering? (True/False): ",
-            prompt_on_new=True))
-    use_slope_filter: bool = Field(
-        default=False,
-        client_data=ClientFieldData(
-            prompt=lambda mi: "Use slope based signal filtering? (True/False): ",
-            prompt_on_new=True))
-    slope_quantile_threshold: float = Field(
-        default=0.4,
-        client_data=ClientFieldData(
-            prompt=lambda mi: "Enter the threshold for slope quantile (0-1): ",
-            prompt_on_new=True))
+    candles_connector: str = None
+    candles_trading_pair: str = None
+    interval: str = "3m"
+    window: int = 50
+    vwap_window: int = 50
+    use_returns: bool = False
+    use_volume_weighting: bool = False
+    volume_normalization_window: int = 50
+    cum_diff_quantile_threshold: float = 0.5
+    reversal_sensitivity: float = 0.3
+    use_vwap_filter: bool = False
+    use_slope_filter: bool = False
+    slope_quantile_threshold: float = 0.4
 
-    @validator("candles_connector", pre=True, always=True)
-    def set_candles_connector(cls, v, values):
+    @field_validator("candles_connector", mode="before")
+    @classmethod
+    def set_candles_connector(cls, v, validation_info: ValidationInfo):
         if v is None or v == "":
-            return values.get("connector_name")
+            return validation_info.data.get("connector_name")
         return v
 
-    @validator("candles_trading_pair", pre=True, always=True)
-    def set_candles_trading_pair(cls, v, values):
+    @field_validator("candles_trading_pair", mode="before")
+    @classmethod
+    def set_candles_trading_pair(cls, v, validation_info: ValidationInfo):
         if v is None or v == "":
-            return values.get("trading_pair")
+            return validation_info.data.get("trading_pair")
         return v
 
 
