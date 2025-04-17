@@ -32,7 +32,7 @@ class DeploymentBaseTask(BaseTask):
     }
     deploy_task_interval = 120.0
     control_task_interval = 3.0
-    controller_stop_delay = 15.0
+    controller_stop_delay = 30.0
 
     def __init__(self, name: str, frequency: timedelta, config: Dict[str, Any]):
         super().__init__(name=name, frequency=frequency, config=config)
