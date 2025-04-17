@@ -1,4 +1,5 @@
 import time
+import warnings
 from datetime import timedelta
 from itertools import combinations
 
@@ -20,6 +21,7 @@ from core.services.mongodb_client import MongoClient
 from core.task_base import BaseTask
 
 logging.getLogger("asyncio").setLevel(logging.CRITICAL)
+warnings.simplefilter(action='ignore', category=FutureWarning)
 load_dotenv()
 
 
@@ -56,7 +58,6 @@ class CointegrationV2Task(BaseTask):
             }
             results = self.analyze_all_pairs(trading_pairs, candles_dict)
             results_df = pd.DataFrame(results)
-            # Filter for cointegrated pairs
 
             cointegration_results = []
             processed_pairs = set()
@@ -116,7 +117,8 @@ class CointegrationV2Task(BaseTask):
             self.logs.append(f"Found {len(cointegration_results)} cointegrated pairs:")
 
             if len(cointegration_results) > 0:
-                await self.mongo_client.insert_documents(collection_name="cointegration_results",
+                await self.mongo_client.insert_documents(collection_name="cointegration_results_v2",
+                                                         db_name="quants_lab",
                                                          documents=cointegration_results,
                                                          index=[("base", 1), ("quote", 1)])
 
@@ -258,8 +260,8 @@ class CointegrationV2Task(BaseTask):
         max_corr = max(correlations)
         best_lag = lags[np.argmax(correlations)]
 
-        results["best_lag"] = best_lag
-        results["best_lag_corr"] = max_corr
+        results["best_lag"] = int(best_lag)
+        results["best_lag_corr"] = float(max_corr)
 
         if best_lag == 0:
             return results
@@ -316,7 +318,7 @@ class CointegrationV2Task(BaseTask):
         df.columns = ['Y', 'X']
 
         # Run test
-        test_result = grangercausalitytests(df, maxlag=max_lag)
+        test_result = grangercausalitytests(df, maxlag=max_lag, verbose=False)
 
         # Extract p-values
         p_values = {
@@ -325,13 +327,13 @@ class CointegrationV2Task(BaseTask):
         }
 
         # Filter significant
-        significant = {lag: p for lag, p in p_values.items() if p < 0.05}
+        significant = {str(lag): p for lag, p in p_values.items() if p < 0.05}
 
         # Initialize result
         result = {
             'predictor': predictor_candles.trading_pair,
             'response': response_candles.trading_pair,
-            'p_values': p_values,
+            'p_values': {str(key): value for key, value in p_values.items()},
             'significant_lags': significant,
             'causal': bool(significant),
             'dominant': None,
@@ -340,8 +342,8 @@ class CointegrationV2Task(BaseTask):
 
         if significant:
             best_lag = min(significant, key=significant.get)
-            result['best_lag'] = best_lag
-            result['best_p_value'] = significant[best_lag]
+            result['best_lag'] = int(best_lag)
+            result['best_p_value'] = float(significant[best_lag])
             result['dominant'] = predictor_candles.trading_pair
             result['follower'] = response_candles.trading_pair
 
@@ -466,7 +468,7 @@ class CointegrationV2Task(BaseTask):
         return {
             'predictor': predictor_candles.trading_pair,
             'response': response_candles.trading_pair,
-            'transfer_entropy': te,
+            'transfer_entropy': float(te),
             'dominant': predictor_candles.trading_pair if te and te > 0 else None,
             'follower': response_candles.trading_pair if te and te > 0 else None,
             'symbolic_bins': bins,
