@@ -311,7 +311,7 @@ async def main():
         "mongo_uri": os.getenv("MONGO_URI", ""),
         "database": "quants_lab",
         "from_timestamp": datetime(2025, 3, 10, 0, 0, 0).timestamp(),
-        "to_timestamp": datetime(2025, 3, 16, 23, 59, 59).timestamp(),
+        "to_timestamp": datetime(2025, 12, 31, 23, 59, 59).timestamp(),
         "root_path": _root_path,
         "backend_host": os.getenv("BACKEND_API_SERVER"),
         "backend_user": os.getenv("BACKEND_API_SERVER_USER", "root"),
@@ -321,7 +321,7 @@ async def main():
     performance_report = StatArbPerformanceReport(**params)
     await performance_report.initialize(fetch_dbs=False)
     await performance_report.load_data()
-    trading_sessions = await performance_report.build_trading_sessions()
+    await performance_report.build_trading_sessions()
     await performance_report.upload_trading_sessions()
     print(performance_report.summary)
 
