@@ -206,7 +206,9 @@ class StatArbPerformanceReport(PerformanceReport):
         long_df_cond = len(session.performance_metrics["long_df"]) > 0
         short_df_cond = len(session.performance_metrics["short_df"]) > 0
         if long_df_cond and short_df_cond:
-            return {"success": False, "msg": "Missing long and short data"}
+            return {"success": True, "msg": ""}
+        if not long_df_cond and not short_df_cond:
+            return {"success": False, "msg": "Missing long or short data"}
         if not long_df_cond:
             return {"success": False, "msg": "Missing long data"}
         if not short_df_cond:
