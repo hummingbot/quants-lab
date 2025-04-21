@@ -7,7 +7,6 @@ import plotly.graph_objects as go
 from pydantic import BaseModel
 from statsmodels.tsa.stattools import coint
 from typing import Tuple, List, Dict
-import sys
 import time
 import math
 from dotenv import load_dotenv
@@ -18,10 +17,6 @@ import pandas as pd
 from core.data_sources import CLOBDataSource
 from core.data_structures.candles import Candles
 from core.services.mongodb_client import MongoClient
-
-# root_path = os.path.abspath(os.path.join(os.getcwd(), '../..'))
-# sys.path.append(root_path)
-
 
 
 class CointegrationV2Study(BaseModel):
@@ -43,6 +38,8 @@ class CointegrationV2Study(BaseModel):
     mean_reversion_prob: float
     median_error: float
     y_pred: pd.Series
+    close_dominant: pd.Series
+    close_hedge: pd.Series
 
     class Config:
         arbitrary_types_allowed = True
@@ -58,12 +55,12 @@ class CointegrationV2Study(BaseModel):
                        f"Actual Cointegration: {self.current_coint_value:.6f} - ")
         fig = make_subplots(rows=2, cols=1, shared_xaxes=True, subplot_titles=[row_1_title, "Z-score"], row_heights=[2, 1], x_title="Datetime")
         fig.add_trace(go.Scatter(
-            name=f"{self.dominant} | Base Asset (Long)",
+            name=f"{self.dominant}",
             x=close_dominant.index,
             y=close_dominant
         ), row=1, col=1)
         fig.add_trace(go.Scatter(
-            name=f"{self.hedge} | Quote Asset (Short)",
+            name=f"{self.hedge}",
             x=close_hedge.index,
             y=close_hedge
         ), row=1, col=1)
@@ -87,8 +84,7 @@ class CointegrationV2Study(BaseModel):
         fig.add_vline(x=lookback_datetime)
         fig.add_vline(x=pd.to_datetime(self.timestamp, unit="s"))
 
-
-        fig.update_layout(height=1000, width=1400)
+        fig.update_layout(height=800, width=1400)
         fig.show()
 
 
@@ -105,7 +101,8 @@ class CointegrationAnalyzer:
         self.candles_dict: Dict[str, Candles] = None
         self.z_score_threshold = 2.0
         self.analysis_cols = ["current_coint_value", "alpha", "beta", "z_t", "z_mean", "z_std", "signal_strength",
-                              "mean_reversion_prob", "percentage_error", "median_error", "y_pred"]
+                              "mean_reversion_prob", "percentage_error", "median_error", "y_pred", "close_dominant",
+                              "close_hedge"]
 
     async def initialize(self):
         await self.mongo_client.connect()
@@ -217,6 +214,8 @@ class CointegrationAnalyzer:
             df.at[i, "percentage_error"] = percentage_error
             df.at[i, "median_error"] = median_error
             df.at[i, "y_pred"] = y_pred
+            df.at[i, "close_dominant"] = close_dominant
+            df.at[i, "close_hedge"] = close_hedge
         return df
 
     @staticmethod
