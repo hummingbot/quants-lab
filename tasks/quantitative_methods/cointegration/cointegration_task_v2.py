@@ -61,7 +61,7 @@ class CointegrationV2Task(BaseTask):
 
             cointegration_results = []
             processed_pairs = set()
-
+            now = time.time()
             for _, row in results_df.iterrows():
                 pair_key = tuple(sorted([row['base'], row['quote']]))
 
@@ -101,8 +101,12 @@ class CointegrationV2Task(BaseTask):
                         "dominance": pair_analysis_b["dominance"],
                     },
                     'coint_value': coint_value,
+                    'connector_name': self.config["candles_config"]["connector_name"],
+                    'interval': self.config["candles_config"]["interval"],
+                    'lookback_days': self.config["lookback_days"],
                     'lookback_days_timestamp': lookback_days_timestamp,
-                    'timestamp': time.time(),
+                    'timestamp': now,
+                    'metadata': self.metadata
                 }
 
                 cointegration_results.append(result)
@@ -129,7 +133,7 @@ class CointegrationV2Task(BaseTask):
             raise
 
     async def get_candles(self):
-        trading_rules = await self.clob.get_trading_rules(connector_name=self.config["connector_names"][0])
+        trading_rules = await self.clob.get_trading_rules(connector_name=self.config["connector_name"])
         trading_pairs = trading_rules.filter_by_quote_asset("USDT").get_all_trading_pairs()
         candles_config = self.config.get("candles_config", {})
         if self.config.get("update_candles"):
@@ -166,39 +170,35 @@ class CointegrationV2Task(BaseTask):
             try:
                 candle1 = candles_dict[pair1]
                 candle2 = candles_dict[pair2]
+                interval = candle1.interval
 
-                # Bidirectional dominance measures (shared)
-                cross_corr = self.cross_correlation_function(candle1, candle2, max_lag=6)
-                # dtw_dist = self.dtw_distance_analysis(candle1, candle2)
-                dtw_dist = {}
+                for cut_value in range(0, self.config["max_lookback_steps"], self.config["lookback_step"]):
+                    close1 = candle1.data.close.iloc[cut_value:].pct_change().add(1).cumprod().dropna()
+                    close2 = candle2.data.close.iloc[cut_value:].pct_change().add(1).cumprod().dropna()
+                    cross_corr = self.cross_correlation_function(pair1, pair2, close1, close2, max_lag=6)
+                    # dtw_dist = self.dtw_distance_analysis(pair1, pair2, close1, close2)
+                    dtw_dist = {}
 
-                # Analyze both directions
-                result1 = self._analyze_pair(candle1, candle2, cross_corr, dtw_dist)
-                result2 = self._analyze_pair(candle2, candle1, cross_corr, dtw_dist)
-                results.extend([result1, result2])
+                    # Analyze both directions
+                    result1 = self._analyze_pair(pair1, pair2, close1, close2, cross_corr, dtw_dist, interval)
+                    result2 = self._analyze_pair(pair2, pair1, close2, close1, cross_corr, dtw_dist, interval)
+                    results.extend([result1, result2])
             except Exception as e:
                 print(f"Error analyzing {pair1} vs {pair2}: {str(e)}")
                 continue
         return results
 
-    def _analyze_pair(self, candle_base, candle_quote, cross_corr, dtw_dist):
+    def _analyze_pair(self, pair1, pair2, close1, close2, cross_corr, dtw_dist, interval: str = "15m"):
         try:
-            base = candle_base.trading_pair
-            quote = candle_quote.trading_pair
-
             # One-direction dominance
-            granger = self.granger_causality(candle_base, candle_quote, max_lag=6)
-            entropy = self.transfer_entropy_analysis(candle_base, candle_quote, k=1, bins=3)
+            granger = self.granger_causality(pair1, pair2, close1, close2, max_lag=6)
+            entropy = self.transfer_entropy_analysis(pair1, pair2, close1, close2, k=1, bins=3)
 
-            # Normalized price series
-            price_base = candle_base.data["close"].pct_change().add(1).cumprod()
-            price_quote = candle_quote.data["close"].pct_change().add(1).cumprod()
-
-            cointegration = self.analyze_pair_cointegration(price_base, price_quote, candle_base.interval)
+            cointegration = self.analyze_pair_cointegration(close1, close2, interval)
 
             return {
-                'base': base,
-                'quote': quote,
+                'base': pair1,
+                'quote': pair2,
                 'p_value': cointegration['p_value'],
                 'lookback_days_timestamp': cointegration['lookback_days_timestamp'],
                 'dominance': {
@@ -212,7 +212,7 @@ class CointegrationV2Task(BaseTask):
             raise
 
     @staticmethod
-    def cross_correlation_function(candle1, candle2, max_lag=6):
+    def cross_correlation_function(pair1, pair2, close1, close2, max_lag=6):
         """
         Computes the lead-lag relationship between two trading pairs based on a certain interval percentage returns.
 
@@ -246,13 +246,11 @@ class CointegrationV2Task(BaseTask):
             "dominant": None,
             "follower": None
         }
-        s1 = candle1.data.close.pct_change()
-        s2 = candle2.data.close.pct_change()
 
         # Align
-        min_len = min(len(s1), len(s2))
-        series1 = s1[-min_len:]
-        series2 = s2[-min_len:]
+        min_len = min(len(close1), len(close2))
+        series1 = close1[-min_len:]
+        series2 = close2[-min_len:]
 
         lags = np.arange(-max_lag, max_lag + 1)
         correlations = [series1.corr(series2.shift(lag)) for lag in lags]
@@ -266,12 +264,12 @@ class CointegrationV2Task(BaseTask):
         if best_lag == 0:
             return results
 
-        results["dominant"] = candle2.trading_pair if best_lag < 0 else candle1.trading_pair
-        results["follower"] = candle1.trading_pair if best_lag < 0 else candle2.trading_pair
+        results["dominant"] = pair2 if best_lag < 0 else pair1
+        results["follower"] = pair1 if best_lag < 0 else pair2
         return results
 
     @staticmethod
-    def granger_causality(predictor_candles: Candles, response_candles: Candles, max_lag=5):
+    def granger_causality(pair1, pair2, close1, close2, max_lag=5):
         """
         Performs a one-way Granger Causality Test from predictor → response using specific interval returns.
 
@@ -304,14 +302,10 @@ class CointegrationV2Task(BaseTask):
         - Uses returns via `.pct_change()` and aligns series.
         - A p-value < 0.05 at any lag means the predictor Granger-causes the response.
         """
-        # Compute returns
-        x = predictor_candles.data.close.pct_change().dropna()
-        y = response_candles.data.close.pct_change().dropna()
-
         # Align lengths
-        min_len = min(len(x), len(y))
-        x = x[-min_len:]
-        y = y[-min_len:]
+        min_len = min(len(close1), len(close2))
+        x = close1[-min_len:]
+        y = close2[-min_len:]
 
         # Prepare for Granger test
         df = pd.concat([y, x], axis=1)
@@ -331,8 +325,8 @@ class CointegrationV2Task(BaseTask):
 
         # Initialize result
         result = {
-            'predictor': predictor_candles.trading_pair,
-            'response': response_candles.trading_pair,
+            'predictor': pair1,
+            'response': pair2,
             'p_values': {str(key): value for key, value in p_values.items()},
             'significant_lags': significant,
             'causal': bool(significant),
@@ -344,13 +338,13 @@ class CointegrationV2Task(BaseTask):
             best_lag = min(significant, key=significant.get)
             result['best_lag'] = int(best_lag)
             result['best_p_value'] = float(significant[best_lag])
-            result['dominant'] = predictor_candles.trading_pair
-            result['follower'] = response_candles.trading_pair
+            result['dominant'] = pair1
+            result['follower'] = pair2
 
         return result
 
     @staticmethod
-    def dtw_distance_analysis(candle1, candle2):
+    def dtw_distance_analysis(pair1, pair2, close1, close2):
         """
         Computes the Dynamic Time Warping (DTW) distance between two trading pairs over 5-minute candles.
 
@@ -377,14 +371,10 @@ class CointegrationV2Task(BaseTask):
         - DTW distance is symmetric (no direction).
         - Dominant is inferred by lower standard deviation in the preprocessed series.
         """
-        # Normalize
-        s1 = candle1.data.close.pct_change().dropna()
-        s2 = candle2.data.close.pct_change().dropna()
-
         # Align
-        min_len = min(len(s1), len(s2))
-        s1 = s1[-min_len:]
-        s2 = s2[-min_len:]
+        min_len = min(len(close1), len(close2))
+        s1 = close1[-min_len:]
+        s2 = close2[-min_len:]
 
         # DTW distance
         distance = float(dtw.distance(s1.values, s2.values))
@@ -394,11 +384,11 @@ class CointegrationV2Task(BaseTask):
         std2 = s2.std()
 
         if std1 < std2:
-            dominant = candle1.trading_pair
-            follower = candle2.trading_pair
+            dominant = pair1
+            follower = pair2
         elif std2 < std1:
-            dominant = candle2.trading_pair
-            follower = candle1.trading_pair
+            dominant = pair2
+            follower = pair1
         else:
             dominant = follower = None  # equal volatility → unclear
 
@@ -409,7 +399,7 @@ class CointegrationV2Task(BaseTask):
         }
 
     @staticmethod
-    def transfer_entropy_analysis(predictor_candles, response_candles, k=1, bins=3):
+    def transfer_entropy_analysis(pair1, pair2, close1, close2, k=1, bins=3):
         """
         Computes one-way Transfer Entropy from predictor → response using symbolic 5-minute data.
 
@@ -443,14 +433,10 @@ class CointegrationV2Task(BaseTask):
         - Output values are ≥ 0; higher = more information transfer
         - Returns must be discretized for symbolic entropy-based methods
         """
-        # Extract raw price data
-        s1 = predictor_candles.data.close.pct_change().dropna()
-        s2 = response_candles.data.close.pct_change().dropna()
-
         # Align lengths
-        min_len = min(len(s1), len(s2))
-        s1 = s1[-min_len:]
-        s2 = s2[-min_len:]
+        min_len = min(len(close1), len(close2))
+        s1 = close1[-min_len:]
+        s2 = close2[-min_len:]
 
         # Symbolic binning
         s1_binned = np.digitize(s1, bins=np.histogram_bin_edges(s1, bins=bins)) - 1
@@ -466,88 +452,14 @@ class CointegrationV2Task(BaseTask):
             te = None
 
         return {
-            'predictor': predictor_candles.trading_pair,
-            'response': response_candles.trading_pair,
+            'predictor': pair1,
+            'response': pair2,
             'transfer_entropy': float(te),
-            'dominant': predictor_candles.trading_pair if te and te > 0 else None,
-            'follower': response_candles.trading_pair if te and te > 0 else None,
+            'dominant': pair1 if te and te > 0 else None,
+            'follower': pair2 if te and te > 0 else None,
             'symbolic_bins': bins,
             'history_k': k
         }
-
-    def generate_grid_levels(self, analysis, current_price):
-        """
-        Generate grid trading levels based on Z-scores with configurable thresholds.
-
-        Args:
-            analysis (dict): Results from cointegration analysis
-            current_price (float): Current price of the asset
-
-        Returns:
-            dict: Grid trading parameters and levels
-        """
-        entry_threshold = self.config.get("entry_threshold", 1.5)
-        stop_threshold = self.config.get("stop_threshold", 1.0)
-        grid_levels = self.config.get("grid_levels", 5)
-        time_limit_hours = self.config.get("time_limit_hours", 24)
-
-        z_score = analysis['current_z_score']
-        z_std = analysis['z_std']
-        beta = analysis['position_ratio']
-
-        # Time parameters
-        current_time = analysis['actual_values'].index[-1]
-        time_limit = current_time + timedelta(hours=time_limit_hours)
-
-        if abs(z_score) > entry_threshold:
-            is_short = z_score > 0
-
-            entry_price = current_price  # TODO: shift or give tolerance to this price
-
-            # Calculate target and stop prices
-            if is_short:
-                end_price = current_price * (1 - (z_score * z_std * beta))
-                limit_price = current_price * (1 + (stop_threshold * z_std * beta))
-                grid_direction = -1
-            else:  # long
-                end_price = current_price * (1 + (abs(z_score) * z_std * beta))
-                limit_price = current_price * (1 - (stop_threshold * z_std * beta))
-                grid_direction = 1
-
-            # Generate grid levels
-            price_range = abs(end_price - entry_price)
-            grid_step = price_range / (grid_levels + 1)
-            grid_prices = [entry_price + (i * grid_step * grid_direction) for i in range(1, grid_levels + 1)]
-
-            grid = {
-                'side': 'short' if is_short else 'long',
-                'entry_price': entry_price,
-                'end_price': end_price,
-                'limit_price': limit_price,
-                'grid_prices': grid_prices,
-                'time_limit': time_limit,
-                'entry_z_score': z_score,
-                'target_z_score': 0,
-                'stop_z_score': z_score + (stop_threshold * (1 if is_short else -1)),
-                'grid_levels': grid_levels,
-                'grid_step': grid_step
-            }
-
-        else:  # No signal
-            grid = {
-                'side': 'both',
-                'entry_price': None,
-                'end_price': None,
-                'limit_price': None,
-                'grid_prices': [],
-                'time_limit': None,
-                'entry_z_score': z_score,
-                'target_z_score': None,
-                'stop_z_score': None,
-                'grid_levels': 0,
-                'grid_step': None
-            }
-        return grid
 
     def analyze_pair_cointegration(self, y_col, x_col, interval: str = "15m"):
         """Comprehensive cointegration analysis combining spread analysis and trading signals."""
@@ -595,27 +507,23 @@ class CointegrationV2Task(BaseTask):
 
 
 async def main():
-    days_of_data = 10
+    days_of_data = 15
     candles_config = dict(connector_name='binance_perpetual',
-                          interval='5m',
+                          interval='15m',
                           days=days_of_data,
                           batch_size=20,
                           sleep_time=5.0)
     task_config = {
-        "connector_names": ["binance_perpetual"],
+        "connector_name": "binance_perpetual",
         "quote_asset": "USDT",
         "mongo_uri": os.getenv("MONGO_URI", "mongodb://admin:admin@localhost:27017/"),
         "candles_config": candles_config,
         "update_candles": False,
         "volume_quantile": 0.75,
-        "z_score_threshold": 0.5,
         "lookback_days": days_of_data,
-        "signal_days": 3,
-
+        "max_lookback_steps": 3,
+        "lookback_step": 4 * 24 * 5,
         "p_value_threshold": 0.05,
-        "entry_threshold": 1.5,
-        "stop_threshold": 1.0,
-        "grid_levels": 5,
         "time_limit_hours": 24
     }
     task = CointegrationV2Task(name="cointegration_task_v2",

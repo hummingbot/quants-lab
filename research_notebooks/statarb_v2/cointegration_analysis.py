@@ -6,7 +6,7 @@ from plotly.subplots import make_subplots
 import plotly.graph_objects as go
 from pydantic import BaseModel
 from statsmodels.tsa.stattools import coint
-from typing import Tuple, List, Dict
+from typing import Tuple, List, Dict, Any
 import time
 import math
 from dotenv import load_dotenv
@@ -81,6 +81,10 @@ class CointegrationV2Study(BaseModel):
             y=self.z_t
         ), row=2, col=1)
 
+        for i in [1.0, 1.5, 2.0]:
+            fig.add_hline(y=i * self.z_std, row=2)
+            fig.add_hline(y=-i * self.z_std, row=2)
+
         fig.add_vline(x=lookback_datetime)
         fig.add_vline(x=pd.to_datetime(self.timestamp, unit="s"))
 
@@ -129,8 +133,10 @@ class CointegrationAnalyzer:
             interval = row["interval"]
             connector_name = row["connector_name"]
             lookback_days = row["lookback_days"]
+            metadata = row["metadata"]
             results.append({
                 "dominant": dominant,
+                "metadata": metadata,
                 "hedge": hedge,
                 "coint_value": coint_value,
                 "lookback_days_timestamp": lookback_days_timestamp,
