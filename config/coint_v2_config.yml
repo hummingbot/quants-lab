@@ -6,7 +6,7 @@ candles_config:
   interval: 15m
   days: 15
   batch_size: 20
-  sleep_time: 50.
+  sleep_time: 5.0
 update_candles: true
 volume_quantile: 0.75
 lookback_days: 15
