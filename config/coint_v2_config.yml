@@ -17,5 +17,5 @@ tasks:
       volume_quantile: 0.75
       lookback_days: 15
       max_lookback_steps: 3
-      lookback_step: 4 * 24 * 5
+      lookback_step: 480
       p_value_threshold: 0.05
