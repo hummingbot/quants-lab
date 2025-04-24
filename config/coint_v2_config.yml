@@ -1,5 +1,5 @@
 tasks:
-  all_in_one_task:
+  coint_v2_task:
     enabled: true
     task_class: tasks.quantitative_methods.cointegration.cointegration_task_v2.CointegrationV2Task
     frequency_hours: 12.0
