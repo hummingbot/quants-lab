@@ -32,6 +32,17 @@ class BaseTask(ABC):
     async def execute(self):
         pass
 
+    def reset_metadata(self):
+        self.metadata = {
+            "name": self.name,
+            "timestamp": self.now(),
+            "server": "localhost",
+            "owner": "admin",
+            "frequency": self.frequency.seconds,
+            "config": self.config,
+            "logs": self.logs,
+        }
+
     async def run_with_frequency(self):
         while True:
             now = datetime.now()

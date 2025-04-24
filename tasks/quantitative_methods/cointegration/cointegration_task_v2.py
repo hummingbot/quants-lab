@@ -21,6 +21,7 @@ from core.services.mongodb_client import MongoClient
 from core.task_base import BaseTask
 
 logging.getLogger("asyncio").setLevel(logging.CRITICAL)
+logging.getLogger("CLOBDataSource").setLevel(logging.CRITICAL)
 warnings.simplefilter(action='ignore', category=FutureWarning)
 load_dotenv()
 
@@ -34,19 +35,18 @@ class CointegrationV2Task(BaseTask):
 
     async def initialize(self):
         """Initialize connections and resources."""
+        self.reset_metadata()
         await self.mongo_client.connect()
 
     async def cleanup(self):
         """Cleanup resources."""
         await self.mongo_client.disconnect()
 
-    def update_metadata(self, ):
-        self.metadata = {}
-
     async def execute(self):
         """Main task execution logic."""
         try:
             await self.initialize()
+            self.clob = CLOBDataSource()  # we need to refresh because it breaks on the second iteration
             candles = await self.get_candles()
             trading_pairs = self.get_trading_pairs_filtered_by_volume(candles)
             self.logs.append(f"{self.now()} - Filtered {len(trading_pairs)} trading pairs out of {len(candles)}, "
@@ -86,7 +86,7 @@ class CointegrationV2Task(BaseTask):
                 pair_analysis_a = pair_analysis.iloc[0]
                 pair_analysis_b = pair_analysis.iloc[1]
 
-                # Create result dictionary for this pair
+                # Create a result dictionary for this pair
                 result = {
                     'direction_a': {
                         "dominant": pair_analysis_a["base"],
@@ -118,7 +118,7 @@ class CointegrationV2Task(BaseTask):
             cointegration_results.sort(key=lambda x: x['coint_value'])
 
             # Print summary
-            self.logs.append(f"Found {len(cointegration_results)} cointegrated pairs:")
+            self.logs.append(f"{self.now()} - Found {len(cointegration_results)} cointegrated pairs.")
 
             if len(cointegration_results) > 0:
                 await self.mongo_client.insert_documents(collection_name="cointegration_results_v2",
@@ -126,8 +126,7 @@ class CointegrationV2Task(BaseTask):
                                                          documents=cointegration_results,
                                                          index=[("base", 1), ("quote", 1)])
 
-                logging.info(f"Successfully added {len(cointegration_results)} cointegration records")
-
+                self.logs.append(f"{self.now()} - Successfully added {len(cointegration_results)} cointegration records")
         except Exception as e:
             logging.error(f"Error in Cointegration Task: {str(e)}")
             raise
@@ -524,7 +523,6 @@ async def main():
         "max_lookback_steps": 3,
         "lookback_step": 4 * 24 * 5,
         "p_value_threshold": 0.05,
-        "time_limit_hours": 24
     }
     task = CointegrationV2Task(name="cointegration_task_v2",
                                frequency=timedelta(hours=1),
