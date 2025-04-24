@@ -23,7 +23,7 @@ class BaseTask(ABC):
             "timestamp": self.now(),
             "server": "localhost",
             "owner": "admin",
-            "frequency": self.frequency,
+            "frequency": self.frequency.seconds,
             "config": self.config,
             "logs": self.logs,
         }
