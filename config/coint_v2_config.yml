@@ -1,0 +1,15 @@
+connector_name: binance_perpetual
+quote_asset: USDT
+mongo_uri: mongodb://admin:admin@localhost:27017/
+candles_config:
+  connector_name: binance_perpetual
+  interval: 15m
+  days: 15
+  batch_size: 20
+  sleep_time: 50.
+update_candles: true
+volume_quantile: 0.75
+lookback_days: 15
+max_lookback_steps: 3
+lookback_step: 4 * 24 * 5
+p_value_threshold: 0.05
