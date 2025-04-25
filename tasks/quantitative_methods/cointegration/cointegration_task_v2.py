@@ -21,7 +21,7 @@ from core.services.mongodb_client import MongoClient
 from core.task_base import BaseTask
 
 logging.getLogger("asyncio").setLevel(logging.CRITICAL)
-logging.getLogger("CLOBDataSource").setLevel(logging.CRITICAL)
+logging.getLogger("core.data_sources.clob").setLevel(logging.CRITICAL)
 warnings.simplefilter(action='ignore', category=FutureWarning)
 load_dotenv()
 
@@ -125,8 +125,9 @@ class CointegrationV2Task(BaseTask):
                                                          db_name="quants_lab",
                                                          documents=cointegration_results,
                                                          index=[("base", 1), ("quote", 1)])
-
-                self.logs.append(f"{self.now()} - Successfully added {len(cointegration_results)} cointegration records")
+                logging_msg = f"{self.now()} - Successfully added {len(cointegration_results)} cointegration records"
+                logging.info(logging_msg)
+                self.logs.append(logging_msg)
         except Exception as e:
             logging.error(f"Error in Cointegration Task: {str(e)}")
             raise
