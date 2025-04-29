@@ -1,7 +1,0 @@
-version: '3.8'
-
-services:
-  quants-lab-image-builder:
-    image: hummingbot/quants-lab:latest
-    build: .
-    command: echo "Image built successfully donero"

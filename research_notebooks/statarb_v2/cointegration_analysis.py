@@ -22,10 +22,6 @@ from core.data_structures.candles import Candles
 from core.services.mongodb_client import MongoClient
 
 
-# TODO: replace close_dominant -> dominant_cum_returns
-# TODO: replace close_hedge -> hedge_cum_returns
-
-
 class CointegrationV2Study(BaseModel):
     dominant: str
     hedge: str
