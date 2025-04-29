@@ -1,0 +1,21 @@
+tasks:
+  coint_v2_task:
+    enabled: true
+    task_class: tasks.quantitative_methods.cointegration.cointegration_task_v2.CointegrationV2Task
+    frequency_hours: 12.0
+    config:
+      connector_name: binance_perpetual
+      quote_asset: USDT
+      mongo_uri: mongodb://admin:admin@localhost:27017/
+      candles_config:
+        connector_name: binance_perpetual
+        interval: 15m
+        days: 15
+        batch_size: 20
+        sleep_time: 5.0
+      update_candles: true
+      volume_quantile: 0.75
+      lookback_days: 15
+      max_lookback_steps: 3
+      lookback_step: 480
+      p_value_threshold: 0.05

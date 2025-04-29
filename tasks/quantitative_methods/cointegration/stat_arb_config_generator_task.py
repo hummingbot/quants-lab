@@ -1,6 +1,7 @@
 import asyncio
 import logging
 import os
+import time
 from datetime import timedelta
 import pandas as pd
 from dotenv import load_dotenv
@@ -148,10 +149,21 @@ class StatArbConfigGeneratorTask(BaseTask):
                         "coint_value": row["coint_value"],
                         "rate_difference": row["rate_difference"],
                         "base_rate": row["rate1"],
-                        "quote_rate": row["rate2"],
                         "base_beta": row["base_beta"],
-                        "quote_beta": row["quote_beta"]
-                    }
+                        "base_p_value": row["base_p_value"],
+                        "base_z_score": row["base_z_score"],
+                        "base_side": row["base_side"],
+                        "base_signal_strength": row["base_signal_strength"],
+                        "base_mean_reversion_prob": row["base_mean_reversion_prob"],
+                        "quote_rate": row["rate2"],
+                        "quote_beta": row["quote_beta"],
+                        "quote_p_value": row["quote_p_value"],
+                        "quote_z_score": row["quote_z_score"],
+                        "quote_side": row["quote_side"],
+                        "quote_signal_strength": row["quote_signal_strength"],
+                        "quote_mean_reversion_prob": row["quote_mean_reversion_prob"],
+                    },
+                    "timestamp": time.time()
                 }
                 all_configs.append(record)
 
@@ -170,12 +182,7 @@ class StatArbConfigGeneratorTask(BaseTask):
 
 async def main():
     load_dotenv()
-    mongo_uri = (
-        f"mongodb://{os.getenv('MONGO_INITDB_ROOT_USERNAME', 'admin')}:"
-        f"{os.getenv('MONGO_INITDB_ROOT_PASSWORD', 'admin')}@"
-        f"{os.getenv('MONGO_HOST', 'localhost')}:"
-        f"{os.getenv('MONGO_PORT', '27017')}/"
-    )
+    mongo_uri = os.getenv("MONGO_URI", "")
     config = {
         "mongo_uri": mongo_uri
     }

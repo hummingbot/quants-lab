@@ -1,8 +1,11 @@
 import asyncio
+import time
 from abc import ABC, abstractmethod
 from datetime import datetime, timedelta
 from typing import Any, Dict
 import logging
+import pandas as pd
+
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -14,10 +17,31 @@ class BaseTask(ABC):
         self.frequency = frequency
         self.config = config
         self.last_run = None
+        self.logs = []
+        self.metadata = {
+            "name": self.name,
+            "timestamp": self.now(),
+            "server": "localhost",
+            "owner": "admin",
+            "frequency": self.frequency.seconds,
+            "config": self.config,
+            "logs": self.logs,
+        }
 
     @abstractmethod
     async def execute(self):
         pass
+
+    def reset_metadata(self):
+        self.metadata = {
+            "name": self.name,
+            "timestamp": self.now(),
+            "server": "localhost",
+            "owner": "admin",
+            "frequency": self.frequency.seconds,
+            "config": self.config,
+            "logs": self.logs,
+        }
 
     async def run_with_frequency(self):
         while True:
@@ -29,6 +53,10 @@ class BaseTask(ABC):
                 except Exception as e:
                     logger.info(f" Error executing task {self.name}: {e}")
             await asyncio.sleep(1)  # Check every second
+
+    @staticmethod
+    def now():
+        return pd.to_datetime(time.time(), unit="s").strftime("%Y-%m-%d %H:%M:%S")
 
 
 class TaskOrchestrator:
