@@ -13,10 +13,17 @@ from dotenv import load_dotenv
 import logging
 import os
 import pandas as pd
+from plotly.subplots import make_subplots
+import statsmodels.api as sm
+from statsmodels.tsa.stattools import adfuller
 
 from core.data_sources import CLOBDataSource
 from core.data_structures.candles import Candles
 from core.services.mongodb_client import MongoClient
+
+
+# TODO: replace close_dominant -> dominant_cum_returns
+# TODO: replace close_hedge -> hedge_cum_returns
 
 
 class CointegrationV2Study(BaseModel):
@@ -38,8 +45,8 @@ class CointegrationV2Study(BaseModel):
     mean_reversion_prob: float
     median_error: float
     y_pred: pd.Series
-    close_dominant: pd.Series
-    close_hedge: pd.Series
+    dominant_cum_returns: pd.Series
+    hedge_cum_returns: pd.Series
 
     class Config:
         arbitrary_types_allowed = True
@@ -48,21 +55,21 @@ class CointegrationV2Study(BaseModel):
         candles_dom = candles_dict[self.dominant].data
         candles_hed = candles_dict[self.hedge].data
         lookback_datetime = pd.to_datetime(self.lookback_days_timestamp, unit="s")
-        close_dominant = candles_dom[candles_dom.index >= lookback_datetime]["close"].pct_change().add(1).cumprod().dropna()
-        close_hedge = candles_hed[candles_hed.index >= lookback_datetime]["close"].pct_change().add(1).cumprod().dropna()
+        dominant_cum_returns = candles_dom[candles_dom.index >= lookback_datetime]["close"].pct_change().add(1).cumprod().dropna()
+        hedge_cum_returns = candles_hed[candles_hed.index >= lookback_datetime]["close"].pct_change().add(1).cumprod().dropna()
 
         row_1_title = (f"Initial Cointegration: {self.coint_value:.6f} - "
                        f"Actual Cointegration: {self.current_coint_value:.6f} - ")
         fig = make_subplots(rows=2, cols=1, shared_xaxes=True, subplot_titles=[row_1_title, "Z-score"], row_heights=[2, 1], x_title="Datetime")
         fig.add_trace(go.Scatter(
             name=f"{self.dominant}",
-            x=close_dominant.index,
-            y=close_dominant
+            x=dominant_cum_returns.index,
+            y=dominant_cum_returns
         ), row=1, col=1)
         fig.add_trace(go.Scatter(
             name=f"{self.hedge}",
-            x=close_hedge.index,
-            y=close_hedge
+            x=hedge_cum_returns.index,
+            y=hedge_cum_returns
         ), row=1, col=1)
         fig.add_trace(go.Scatter(
             name="y_pred",
@@ -89,7 +96,81 @@ class CointegrationV2Study(BaseModel):
         fig.add_vline(x=pd.to_datetime(self.timestamp, unit="s"))
 
         fig.update_layout(height=800, width=1400)
-        fig.show()
+        return fig
+
+    def count_crosses(self, seconds_ago: int = None):
+        s = (self.dominant_cum_returns - self.hedge_cum_returns)
+        if seconds_ago is not None:
+            s = s[s.index > pd.to_datetime(time.time() - seconds_ago, unit="s")]
+        signs = np.sign(s)
+        sign_changes = (signs.shift(1) * signs) < 0
+        count = sign_changes.sum()
+        return count
+
+    def get_cointegration_validation_df(self, window: int = 100):
+        series = self.z_t.dropna()
+        df = pd.DataFrame(index=series.index)
+
+        # Rolling statistics
+        df[f"rolling_mean_{window}"] = series.rolling(window).mean()
+        df[f"rolling_median_{window}"] = series.rolling(window).median()
+        df[f"rolling_std_{window}"] = series.rolling(window).std()
+
+        # Rolling ADF p-values (start from window-th index)
+        pvals = []
+        pval_index = []
+        for i in range(window, len(series)):
+            window_data = series[i - window:i]
+            pval = adfuller(window_data)[1]
+            pvals.append(pval)
+            pval_index.append(series.index[i])
+
+        df.loc[pval_index, f"rolling_adf_{window}"] = pvals
+
+        # Calculate global half-life and broadcast it
+        halflife_value = self.calculate_half_life()
+        df["halflife"] = halflife_value
+        return df
+
+    def calculate_half_life(self):
+        spread_lag = self.z_t.shift(1)
+        delta = self.z_t - spread_lag
+        model = sm.OLS(delta[1:], sm.add_constant(spread_lag[1:]))
+        res = model.fit()
+        halflife = -np.log(2) / res.params.iloc[1]
+        return halflife
+
+    @staticmethod
+    def plot_rolling_adf(cointegration_validation_df: pd.DataFrame, window: int = 100):
+        fig = go.Figure()
+        fig.add_trace(go.Scatter(x=cointegration_validation_df.index,
+                                 y=cointegration_validation_df[f"rolling_adf_{window}"],
+                                 name="Rolling ADF (P-value)"))
+        fig.update_layout(title="Rolling ADF (P-value)",
+                          yaxis=dict(tickformat="%0.2f", title="p-value"),
+                          xaxis=dict(title="datetime"))
+        return fig
+
+    @staticmethod
+    def plot_rolling_stats(cointegration_validation_df: pd.DataFrame, window: int = 100):
+        fig = go.Figure()
+        for col in [f"rolling_mean_{window}", f"rolling_median_{window}", f"rolling_std_{window}"]:
+            name = f"Rolling {col.split('_')[1].capitalize()} Z_t ({window} periods)"
+            fig.add_trace(go.Scatter(name=name,
+                                     x=cointegration_validation_df.index,
+                                     y=cointegration_validation_df[col]))
+        fig.update_layout(title="Mean and Variance Stability (z_t)",
+                          yaxis=dict(title="z_t"),
+                          xaxis=dict(title="datetime"),
+                          legend=dict(
+                              orientation="h",  # horizontal layout
+                              yanchor="bottom",  # anchor at bottom of the legend box
+                              y=1.02,  # position just above the plot area
+                              xanchor="left",
+                              x=0
+                          )
+                          )
+        return fig
 
 
 class CointegrationAnalyzer:
@@ -105,8 +186,8 @@ class CointegrationAnalyzer:
         self.candles_dict: Dict[str, Candles] = None
         self.z_score_threshold = 2.0
         self.analysis_cols = ["current_coint_value", "alpha", "beta", "z_t", "z_mean", "z_std", "signal_strength",
-                              "mean_reversion_prob", "percentage_error", "median_error", "y_pred", "close_dominant",
-                              "close_hedge"]
+                              "mean_reversion_prob", "percentage_error", "median_error", "y_pred", "dominant_cum_returns",
+                              "hedge_cum_returns", "metadata"]
 
     async def initialize(self):
         await self.mongo_client.connect()
@@ -168,18 +249,22 @@ class CointegrationAnalyzer:
         self.candles_dict = candles_dict
 
     def update_analysis_cols(self, df: pd.DataFrame):
+        """
+        If z_score (hedge_cum_returns - y_pred) > 0 it means that we need to short hedge and long dominant
+        """
         df[self.analysis_cols] = None
 
         for i, row in df.iterrows():
             candles_dominant = self.candles_dict[row["dominant"]].data
             candles_hedge = self.candles_dict[row["hedge"]].data
-            close_dominant = candles_dominant.loc[
+            dominant_cum_returns = candles_dominant.loc[
                 candles_dominant["timestamp"] >= row["lookback_days_timestamp"], "close"].pct_change().add(
                 1).cumprod().dropna()
-            close_hedge = candles_hedge.loc[
+            hedge_cum_returns = candles_hedge.loc[
                 candles_hedge["timestamp"] >= row["lookback_days_timestamp"], "close"].pct_change().add(
                 1).cumprod().dropna()
-            y, x = close_dominant.values, close_hedge.values
+            min_len = min(len(dominant_cum_returns), len(hedge_cum_returns))
+            y, x = hedge_cum_returns.values[:min_len], dominant_cum_returns.values[:min_len]
 
             # Run Engle-Granger test
             coint_res: Tuple = coint(y, x)
@@ -193,12 +278,12 @@ class CointegrationAnalyzer:
 
             # Calculate spread (z_t)
             z_t = pd.Series(y - (alpha + beta * x))
-            z_t.index = close_dominant.index.copy()
+            z_t.index = dominant_cum_returns.index.copy()
             z_mean = z_t.mean()
             z_std = z_t.std()
 
             # Calculate recent predictions and spread
-            y_pred = alpha + beta * close_hedge
+            y_pred = alpha + beta * dominant_cum_returns
 
             # Calculate current Z-score
             current_z_score = (z_t.iloc[-1] - z_mean) / z_std
@@ -207,7 +292,7 @@ class CointegrationAnalyzer:
             mean_reversion_prob = 1 - stats.norm.cdf(abs(current_z_score))
 
             # Calculate percentage error for recent period
-            percentage_error = ((y_pred - close_dominant) / close_dominant.abs()) * 100
+            percentage_error = ((y_pred - hedge_cum_returns) / hedge_cum_returns.abs()) * 100
             median_error = np.median(percentage_error)
             df.at[i, "current_coint_value"] = current_coint_value
             df.at[i, "alpha"] = alpha
@@ -220,8 +305,8 @@ class CointegrationAnalyzer:
             df.at[i, "percentage_error"] = percentage_error
             df.at[i, "median_error"] = median_error
             df.at[i, "y_pred"] = y_pred
-            df.at[i, "close_dominant"] = close_dominant
-            df.at[i, "close_hedge"] = close_hedge
+            df.at[i, "dominant_cum_returns"] = dominant_cum_returns
+            df.at[i, "hedge_cum_returns"] = hedge_cum_returns
         return df
 
     @staticmethod
