@@ -30,3 +30,7 @@ run-task-d:
 # Stop task runner
 stop-task:
 	docker compose -f docker-compose-task-runner.yml down
+
+# See reference_local_hummingbot.sh for available options
+reference-local-hummingbot:
+	bash ./scripts/reference_local_hummingbot.sh $(if $(force-repackage),--force-repackage,) $(ARGS)
