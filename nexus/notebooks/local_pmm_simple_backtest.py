@@ -1,5 +1,6 @@
 import asyncio
 import datetime
+import time
 import logging
 import os
 import sys
@@ -75,7 +76,6 @@ config = PMMSimpleConfig(
 start = int(datetime.datetime(2024, 1, 1).timestamp())
 end = int(datetime.datetime(2024, 1, 2).timestamp())
 
-
 async def main():
     clob = CLOBDataSource(local_data_path=local_data_path)
     try:
@@ -84,17 +84,16 @@ async def main():
         if candles_df is None:
             raise FileNotFoundError(f"Candles file BTCUSDT_1m.parquet not found in {local_data_path}.")
         backtesting._bt_engine.backtesting_data_provider.candles_feeds["binance_perpetual_BTCUSDT_1m"] = candles_df
-        # backtesting._bt_engine.backtesting_data_provider.start_time = candles_df["timestamp"].min()
-        # backtesting._bt_engine.backtesting_data_provider.end_time = candles_df["timestamp"].max()
-
-        backtesting._bt_engine.backtesting_data_provider.start_time = start
-        backtesting._bt_engine.backtesting_data_provider.end_time = end
+        backtesting._bt_engine.backtesting_data_provider.start_time = candles_df["timestamp"].min()
+        backtesting._bt_engine.backtesting_data_provider.end_time = candles_df["timestamp"].max()
 
         result = await backtesting.run_backtesting(config, start, end, "1m")
         print(result.get_results_summary())
     finally:
         await clob.trades_feeds["binance_perpetual"]._session.close()
 
-
 if __name__ == "__main__":
+    timer_start = time.perf_counter()
     asyncio.run(main())
+    timer_end = time.perf_counter()
+    print(f"Elapsed just this part: {timer_end - timer_start:.4f} seconds")
