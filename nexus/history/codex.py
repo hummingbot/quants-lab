@@ -20,7 +20,7 @@ API_KEY = os.getenv("GDRIVE_API_KEY")  # Put this in env
 FILES_TO_DOWNLOAD = [
     {
         "file_id": "1gQ8ZF61VxnzNqoE7W_UNquVmPq68PvSc", 
-        "save_path": "history/binance-futures/BTCUSDT_1m.parquet"
+        "save_path": "nexus/history/binance-futures/BTCUSDT_1m.parquet"
     },
     # Add more entries here
 ]

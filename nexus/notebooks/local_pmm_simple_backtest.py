@@ -33,7 +33,7 @@ from core.data_sources.clob import CLOBDataSource  # noqa: E402
 # The original path pointed to `nexus/history`, which does not contain the
 # data file shipped with the repository, so we point directly to the
 # repository-level `history` folder instead.
-local_data_path = os.path.join(root_path, "history", "binance-futures")
+local_data_path = os.path.join(root_path, "nexus", "history", "binance-futures")
 print(f"Using local data path: {local_data_path}")
 backtesting = BacktestingEngine(load_cached_data=False)
 
