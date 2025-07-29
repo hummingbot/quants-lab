@@ -16,18 +16,8 @@ from core.data_sources.clob import CLOBDataSource  # noqa: E402
 
 # Load local dataset
 local_data_path = os.path.join(root_path, "nexus", "history", "binance-futures")
-clob = CLOBDataSource(local_data_path=local_data_path)
 
 backtesting = BacktestingEngine(load_cached_data=False)
-
-# Preload candles from local file
-clob._load_local_dataset("binance_perpetual", "BTCUSDT", "1m")
-backtesting._bt_engine.backtesting_data_provider.candles_feeds["binance_perpetual_BTCUSDT_1m"] = clob.candles_cache[
-    ("binance_perpetual", "BTCUSDT", "1m")
-].candles_df
-bt_data = backtesting._bt_engine.backtesting_data_provider.candles_feeds["binance_perpetual_BTCUSDT_1m"]
-backtesting._bt_engine.backtesting_data_provider.start_time = bt_data["timestamp"].min()
-backtesting._bt_engine.backtesting_data_provider.end_time = bt_data["timestamp"].max()
 
 config = PMMSimpleConfig(
     connector_name="binance_perpetual",
@@ -48,8 +38,24 @@ end = int(datetime.datetime(2024, 1, 2).timestamp())
 
 
 async def main():
-    result = await backtesting.run_backtesting(config, start, end, "1m")
-    print(result.get_results_summary())
+    clob = CLOBDataSource(local_data_path=local_data_path)
+    try:
+        # Preload candles from local file
+        candles_df = clob._load_local_dataset("binance_perpetual", "BTCUSDT", "1m")
+        if candles_df is None:
+            raise FileNotFoundError(
+                f"Candles file BTCUSDT_1m.parquet not found in {local_data_path}."
+            )
+        backtesting._bt_engine.backtesting_data_provider.candles_feeds[
+            "binance_perpetual_BTCUSDT_1m"
+        ] = candles_df
+        backtesting._bt_engine.backtesting_data_provider.start_time = candles_df["timestamp"].min()
+        backtesting._bt_engine.backtesting_data_provider.end_time = candles_df["timestamp"].max()
+
+        result = await backtesting.run_backtesting(config, start, end, "1m")
+        print(result.get_results_summary())
+    finally:
+        await clob.trades_feeds["binance_perpetual"]._session.close()
 
 
 if __name__ == "__main__":
