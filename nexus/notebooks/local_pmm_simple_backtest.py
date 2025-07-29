@@ -22,15 +22,33 @@ from core.backtesting import BacktestingEngine  # noqa: E402
 from core.data_sources.clob import CLOBDataSource  # noqa: E402
 
 # Load local dataset
-local_data_path = os.path.join(root_path, "nexus", "history", "binance-futures")
+# The historical data lives under the repository's `history` folder. The
+# original path pointed to `nexus/history`, which does not contain the data
+# file shipped with the repository.
+local_data_path = os.path.join(root_path, "history", "binance-futures")
 
 backtesting = BacktestingEngine(load_cached_data=False)
+
+# The default backtesting engine attempts to retrieve trading rules from
+# the exchange via network calls. The environment used for the example
+# execution has no network access, so we monkey patch the provider
+# methods that would otherwise try to reach the exchange.
+provider = backtesting._bt_engine.backtesting_data_provider
+
+async def _noop_initialize_trading_rules(connector_name: str):
+    return None
+
+provider.initialize_trading_rules = _noop_initialize_trading_rules
+provider.quantize_order_amount = lambda connector_name, trading_pair, amount: amount
+provider.quantize_order_price = lambda connector_name, trading_pair, price: price
 
 config = PMMSimpleConfig(
     connector_name="binance_perpetual",
     trading_pair="BTCUSDT",
     sell_spreads=Distributions.arithmetic(3, 0.002, 0.001),
     buy_spreads=Distributions.arithmetic(3, 0.002, 0.001),
+    buy_amounts_pct=[1, 1, 1],
+    sell_amounts_pct=[1, 1, 1],
     total_amount_quote=Decimal("1000"),
     take_profit=Decimal("0.003"),
     stop_loss=Decimal("0.003"),
