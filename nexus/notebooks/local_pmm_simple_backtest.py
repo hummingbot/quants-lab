@@ -25,8 +25,8 @@ from core.data_sources.clob import CLOBDataSource  # noqa: E402
 # The historical data lives under the repository's `history` folder. The
 # original path pointed to `nexus/history`, which does not contain the data
 # file shipped with the repository.
-local_data_path = os.path.join(root_path, "history", "binance-futures")
-
+local_data_path = os.path.join(root_path, "nexus", "history", "binance-futures")
+print(f"Using local data path: {local_data_path}")
 backtesting = BacktestingEngine(load_cached_data=False)
 
 # The default backtesting engine attempts to retrieve trading rules from
