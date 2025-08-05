@@ -9,6 +9,6 @@
 
 Editable install for active development
 ```
-    git clone https://github.com/madpower2000/nexus.git ../nexus
-    pip install -e ../nexus
+    git clone https://github.com/madpower2000/nexus.git 
+    pip install -e ./nexus
 ```
