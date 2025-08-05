@@ -4,15 +4,15 @@ import logging
 import os
 import time
 from datetime import timedelta
-from typing import Any, Dict
 from decimal import Decimal
+from typing import Any
 
 import pandas as pd
 from dotenv import load_dotenv
 from hummingbot.strategy_v2.executors.position_executor.data_types import TrailingStop
 
 from controllers.directional_trading.macd_bb_v1 import MACDBBV1ControllerConfig
-from core.backtesting.optimizer import StrategyOptimizer, BacktestingConfig, BaseStrategyConfigGenerator
+from core.backtesting.optimizer import BacktestingConfig, BaseStrategyConfigGenerator, StrategyOptimizer
 from core.task_base import BaseTask
 
 logging.basicConfig(level=logging.INFO)
@@ -68,35 +68,54 @@ class MACDBBConfigGenerator(BaseStrategyConfigGenerator):
 
 
 class MACDBBBacktestingTask(BaseTask):
-    def __init__(self, name: str, frequency: timedelta, config: Dict[str, Any]):
+    def __init__(self, name: str, frequency: timedelta, config: dict[str, Any]):
         super().__init__(name, frequency, config)
         self.resolution = self.config["resolution"]
         self.screener_config = self.config
-        self.root_path = self.config.get('root_path', "")
+        self.root_path = self.config.get("root_path", "")
 
     async def execute(self):
         optimizer = StrategyOptimizer(root_path=self.root_path, resolution=self.resolution, load_cached_data=True)
-        selected_pairs = ['1000SHIB-USDT', 'WLD-USDT', 'ACT-USDT', '1000BONK-USDT', 'DOGE-USDT', 'AGLD-USDT',
-                          'SUI-USDT', '1000SATS-USDT', 'MOODENG-USDT', 'NEIRO-USDT', 'HBAR-USDT', 'ENA-USDT',
-                          'HMSTR-USDT', 'TROY-USDT', '1000PEPE-USDT', '1000X-USDT', 'PNUT-USDT', 'SOL-USDT',
-                          'XRP-USDT', 'SWELL-USDT']
+        selected_pairs = [
+            "1000SHIB-USDT",
+            "WLD-USDT",
+            "ACT-USDT",
+            "1000BONK-USDT",
+            "DOGE-USDT",
+            "AGLD-USDT",
+            "SUI-USDT",
+            "1000SATS-USDT",
+            "MOODENG-USDT",
+            "NEIRO-USDT",
+            "HBAR-USDT",
+            "ENA-USDT",
+            "HMSTR-USDT",
+            "TROY-USDT",
+            "1000PEPE-USDT",
+            "1000X-USDT",
+            "PNUT-USDT",
+            "SOL-USDT",
+            "XRP-USDT",
+            "SWELL-USDT",
+        ]
         connector_name = "binance_perpetual"
         for trading_pair in selected_pairs:
             end_date = time.time() - self.config["end_time_buffer_hours"]
             start_date = end_date - self.config["lookback_days"] * 24 * 60 * 60
             logger.info(f"Optimizing strategy for {connector_name} {trading_pair} {start_date} {end_date}")
-            config_generator = MACDBBConfigGenerator(start_date=pd.to_datetime(start_date, unit="s"), end_date=pd.to_datetime(end_date, unit="s"),
-                                                     config={"connector_name": self.config["connector_name"],
-                                                             "trading_pair": trading_pair})
+            config_generator = MACDBBConfigGenerator(
+                start_date=pd.to_datetime(start_date, unit="s"),
+                end_date=pd.to_datetime(end_date, unit="s"),
+                config={"connector_name": self.config["connector_name"], "trading_pair": trading_pair},
+            )
             logger.info(f"Fetching candles for {connector_name} {trading_pair} {start_date} {end_date}")
             today_str = datetime.datetime.now().strftime("%Y-%m-%d")
-            await optimizer.optimize(study_name=f"macd_bb_v1_task{today_str}",
-                                     config_generator=config_generator, n_trials=50)
+            await optimizer.optimize(study_name=f"macd_bb_v1_task{today_str}", config_generator=config_generator, n_trials=50)
 
 
 async def main():
     config = {
-        "root_path": os.path.abspath(os.path.join(os.path.dirname(__file__), '../..')),
+        "root_path": os.path.abspath(os.path.join(os.path.dirname(__file__), "../..")),
         "connector_name": "binance_perpetual",
         "total_amount": 100,
         "lookback_days": 7,

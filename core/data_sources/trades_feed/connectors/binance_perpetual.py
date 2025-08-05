@@ -1,7 +1,6 @@
 import asyncio
 import logging
 from time import time
-from typing import Dict, Optional
 
 import aiohttp
 import pandas as pd
@@ -11,9 +10,7 @@ from core.data_sources.trades_feed.trades_feed_base import TradesFeedBase
 
 class BinancePerpetualTradesFeed(TradesFeedBase):
     _base_url = "https://fapi.binance.com"
-    _endpoints = {
-        "historical_agg_trades": "/fapi/v1/aggTrades"
-    }
+    _endpoints = {"historical_agg_trades": "/fapi/v1/aggTrades"}
     _logger = None
 
     REQUEST_WEIGHT_LIMIT = 2400
@@ -34,7 +31,7 @@ class BinancePerpetualTradesFeed(TradesFeedBase):
         base, quote = trading_pair.split("-")
         return f"{base}{quote}"
 
-    async def _get_historical_trades(self, trading_pair: str, start_time: int, end_time: int, from_id: Optional[int] = None):
+    async def _get_historical_trades(self, trading_pair: str, start_time: int, end_time: int, from_id: int | None = None):
         all_trades_collected = False
         end_ts = int(end_time * 1000)
         start_ts = int(start_time * 1000)
@@ -72,7 +69,7 @@ class BinancePerpetualTradesFeed(TradesFeedBase):
         df["volume"] = df["volume"].astype(float)
         return df
 
-    async def _get_historical_trades_request(self, params: Dict):
+    async def _get_historical_trades_request(self, params: dict):
         try:
             url = f"{self._base_url}{self._endpoints['historical_agg_trades']}"
             async with self._session.get(url, params=params) as response:

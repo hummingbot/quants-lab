@@ -2,6 +2,42 @@
 requires = ["setuptools>=42", "wheel"]
 build-backend = "setuptools.build_meta"
 
+[project]
+name = "quants-lab"
+version = "0.1.0"
+requires-python = ">=3.12"
+description = "quants-lab"
+readme = "README.md"
+dependencies = [
+    "asyncpg>=0.30.0",
+    "defillama>=2.3.0",
+    "geckoterminal-py==0.2.5",
+    "glom>=24.11.0",
+    "hummingbot>=20250715",
+    "jupyter>=1.1.1",
+    "motor>=3.3.2",
+    "numpy>=1.26.4",
+    "optuna>=4.4.0",
+    "optuna-dashboard>=0.19.0",
+    "pandas>=2.3.1",
+    "pandas-ta==0.3.14b0",
+    "pathlib>=1.0.1",
+    "plotly>=6.2.0",
+    "psycopg2-binary>=2.9.10",
+    "pyarrow>=21.0.0",
+    "pycoingecko>=3.2.0",
+    "pydantic>=2.11.7",
+    "python-dotenv>=1.1.1",
+    "pyyaml>=6.0.2",
+    "scikit-learn>=1.7.1",
+    "sqlalchemy>=2.0.42",
+    "statsmodels>=0.14.5",
+    "streamlit>=1.47.1",
+]
+
+[tool.setuptools]
+packages = ["controllers", "core", "lab", "tasks"]
+
 [tool.black]
 line-length = 130
 target-version = ["py38"]
@@ -21,3 +57,33 @@ repos = [
     { repo = "https://github.com/psf/black", rev = "21.6b0", hooks = [{ id = "black" }] },
     { repo = "https://github.com/pre-commit/mirrors-isort", rev = "v5.9.3", hooks = [{ id = "isort" }] }
 ]
+
+[dependency-groups]
+dev = [
+    "pre-commit>=4.2.0",
+    "ruff>=0.12.7",
+]
+
+[tool.ruff]
+line-length = 130
+target-version = "py312"
+exclude = [
+  "data/", "history/", "research_notebooks/", ".venv/",
+  "dist/", "build/", ".ipynb_checkpoints/", "quants_lab.egg-info/",
+]
+
+[tool.ruff.lint]
+# Keep the essentials only; this avoids PD/N/B/SIM/C4 families entirely
+select = ["E", "F", "I"]
+ignore = [
+  "E402",      # import not at top
+  "E501",      # line too long
+  "F821",      # undefined name (legacy code – risky to ignore)
+  "F841",      # unused local
+]
+
+[tool.ruff.lint.per-file-ignores]
+"**/__init__.py" = ["F401"]  # allow re-exports
+
+[tool.ruff.format]
+line-ending = "auto"

@@ -1,6 +1,5 @@
 import json
 import time
-from typing import List, Optional
 
 import aiohttp
 import pandas as pd
@@ -15,6 +14,7 @@ class BackendAPIClient(ClientBase):
     create new Hummingbot instances, start and stop them, add new script and controller config files, and get the status
     of the active bots.
     """
+
     _shared_instance = None
 
     @classmethod
@@ -88,10 +88,11 @@ class BackendAPIClient(ClientBase):
     async def stop_bot(self, bot_name: str, skip_order_cancellation: bool = False, async_backend: bool = True):
         """Stop a Hummingbot bot."""
         endpoint = "stop-bot"
-        return await self.post(endpoint,
-                               payload={"bot_name": bot_name, "skip_order_cancellation": skip_order_cancellation,
-                                        "async_backend": async_backend},
-                               auth=self.auth)
+        return await self.post(
+            endpoint,
+            payload={"bot_name": bot_name, "skip_order_cancellation": skip_order_cancellation, "async_backend": async_backend},
+            auth=self.auth,
+        )
 
     async def import_strategy(self, strategy_config: dict):
         """Import a trading strategy to a bot."""
@@ -134,10 +135,7 @@ class BackendAPIClient(ClientBase):
     async def add_controller_config(self, controller_config: dict):
         """Add a new controller configuration."""
         endpoint = "add-controller-config"
-        config = {
-            "name": controller_config["id"],
-            "content": controller_config
-        }
+        config = {"name": controller_config["id"], "content": controller_config}
         return await self.post(endpoint, payload=config, auth=self.auth)
 
     async def delete_controller_config(self, controller_name: str):
@@ -148,16 +146,10 @@ class BackendAPIClient(ClientBase):
     async def get_real_time_candles(self, connector: str, trading_pair: str, interval: str, max_records: int):
         """Get candles data."""
         endpoint = "real-time-candles"
-        payload = {
-            "connector": connector,
-            "trading_pair": trading_pair,
-            "interval": interval,
-            "max_records": max_records
-        }
+        payload = {"connector": connector, "trading_pair": trading_pair, "interval": interval, "max_records": max_records}
         return await self.post(endpoint, payload=payload, auth=self.auth)
 
-    async def get_historical_candles(self, connector: str, trading_pair: str, interval: str, start_time: int,
-                                     end_time: int):
+    async def get_historical_candles(self, connector: str, trading_pair: str, interval: str, start_time: int, end_time: int):
         """Get historical candles data."""
         endpoint = "historical-candles"
         payload = {
@@ -165,12 +157,11 @@ class BackendAPIClient(ClientBase):
             "trading_pair": trading_pair,
             "interval": interval,
             "start_time": start_time,
-            "end_time": end_time
+            "end_time": end_time,
         }
         return await self.post(endpoint, payload=payload, auth=self.auth)
 
-    async def run_backtesting(self, start_time: int, end_time: int, backtesting_resolution: str, trade_cost: float,
-                              config: dict):
+    async def run_backtesting(self, start_time: int, end_time: int, backtesting_resolution: str, trade_cost: float, config: dict):
         """Run backtesting."""
         endpoint = "run-backtesting"
         payload = {
@@ -178,7 +169,7 @@ class BackendAPIClient(ClientBase):
             "end_time": end_time,
             "backtesting_resolution": backtesting_resolution,
             "trade_cost": trade_cost,
-            "config": config
+            "config": config,
         }
         backtesting_results = await self.post(endpoint, payload=payload, auth=self.auth)
         if "error" in backtesting_results:
@@ -191,11 +182,7 @@ class BackendAPIClient(ClientBase):
             executors = []
         else:
             executors = [ExecutorInfo(**executor) for executor in backtesting_results["executors"]]
-        return {
-            "processed_data": data,
-            "executors": executors,
-            "results": backtesting_results["results"]
-        }
+        return {"processed_data": data, "executors": executors, "results": backtesting_results["results"]}
 
     async def get_all_configs_from_bot(self, bot_name: str):
         """Get all configurations from a bot."""
@@ -264,15 +251,17 @@ class BackendAPIClient(ClientBase):
         endpoint = "account-state-history"
         return await self.get(endpoint, auth=self.auth)
 
-    async def deploy_script_with_controllers(self,
-                                             bot_name: str, controller_configs: List[str],
-                                             script_name: str = "v2_with_controllers.py",
-                                             image_name: str = "hummingbot/hummingbot:latest",
-                                             credentials: str = "master_account",
-                                             time_to_cash_out: Optional[int] = None,
-                                             max_global_drawdown: Optional[float] = None,
-                                             max_controller_drawdown: Optional[float] = None,
-                                             ):
+    async def deploy_script_with_controllers(
+        self,
+        bot_name: str,
+        controller_configs: list[str],
+        script_name: str = "v2_with_controllers.py",
+        image_name: str = "hummingbot/hummingbot:latest",
+        credentials: str = "master_account",
+        time_to_cash_out: int | None = None,
+        max_global_drawdown: float | None = None,
+        max_controller_drawdown: float | None = None,
+    ):
         start_time_str = time.strftime("%Y.%m.%d_%H.%M")
         bot_name = f"{bot_name}-{start_time_str}"
         script_config = {
@@ -283,7 +272,7 @@ class BackendAPIClient(ClientBase):
                 "controllers_config": controller_configs,
                 "config_update_interval": 10,
                 "script_file_name": script_name,
-            }
+            },
         }
         if time_to_cash_out:
             script_config["content"]["time_to_cash_out"] = time_to_cash_out
@@ -308,7 +297,7 @@ class BackendAPIClient(ClientBase):
         endpoint = "list-databases"
         return self.post(endpoint, auth=self.auth)
 
-    def read_databases(self, db_paths: List[str]):
+    def read_databases(self, db_paths: list[str]):
         """Read databases."""
         endpoint = "read-databases"
         return self.post(endpoint, payload=db_paths, auth=self.auth)

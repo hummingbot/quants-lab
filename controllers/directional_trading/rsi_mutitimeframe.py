@@ -1,20 +1,17 @@
-from typing import List
-
 import pandas as pd
 import pandas_ta as ta  # noqa: F401
-from pydantic import Field, validator
-
 from hummingbot.client.config.config_data_types import ClientFieldData
 from hummingbot.data_feed.candles_feed.data_types import CandlesConfig
 from hummingbot.strategy_v2.controllers.directional_trading_controller_base import (
     DirectionalTradingControllerBase,
     DirectionalTradingControllerConfigBase,
 )
+from pydantic import Field, validator
 
 
 class RSIMultiTimeframeControllerConfig(DirectionalTradingControllerConfigBase):
     controller_name = "rsi_multitimeframe"
-    candles_config: List[CandlesConfig] = []
+    candles_config: list[CandlesConfig] = []
     candles_connector: str = Field(
         default=None,
     )
@@ -23,29 +20,21 @@ class RSIMultiTimeframeControllerConfig(DirectionalTradingControllerConfigBase):
     )
     timeframe_1: str = Field(
         default="1m",
-        client_data=ClientFieldData(
-            prompt=lambda mi: "Enter the first timeframe (e.g., 1m, 5m, 1h, 1d): ",
-            prompt_on_new=True))
+        client_data=ClientFieldData(prompt=lambda mi: "Enter the first timeframe (e.g., 1m, 5m, 1h, 1d): ", prompt_on_new=True),
+    )
     timeframe_2: str = Field(
         default="5m",
-        client_data=ClientFieldData(
-            prompt=lambda mi: "Enter the second timeframe (e.g., 1m, 5m, 1h, 1d): ",
-            prompt_on_new=True))
+        client_data=ClientFieldData(prompt=lambda mi: "Enter the second timeframe (e.g., 1m, 5m, 1h, 1d): ", prompt_on_new=True),
+    )
     rsi_length: int = Field(
-        default=14,
-        client_data=ClientFieldData(
-            prompt=lambda mi: "Enter the RSI length: ",
-            prompt_on_new=True))
+        default=14, client_data=ClientFieldData(prompt=lambda mi: "Enter the RSI length: ", prompt_on_new=True)
+    )
     rsi_overbought: float = Field(
-        default=80.0,
-        client_data=ClientFieldData(
-            prompt=lambda mi: "Enter the RSI overbought threshold: ",
-            prompt_on_new=True))
+        default=80.0, client_data=ClientFieldData(prompt=lambda mi: "Enter the RSI overbought threshold: ", prompt_on_new=True)
+    )
     rsi_oversold: float = Field(
-        default=20.0,
-        client_data=ClientFieldData(
-            prompt=lambda mi: "Enter the RSI oversold threshold: ",
-            prompt_on_new=True))
+        default=20.0, client_data=ClientFieldData(prompt=lambda mi: "Enter the RSI oversold threshold: ", prompt_on_new=True)
+    )
 
     @validator("candles_connector", pre=True, always=True)
     def set_candles_connector(cls, v, values):
@@ -64,7 +53,7 @@ class RSIMultiTimeframeController(DirectionalTradingControllerBase):
     def __init__(self, config: RSIMultiTimeframeControllerConfig, *args, **kwargs):
         self.config = config
         self.max_records = self.config.rsi_length * 2  # We double the length to have enough data for calculations
-        
+
         if len(self.config.candles_config) == 0:
             # Initialize candles for both timeframes
             self.config.candles_config = [
@@ -72,14 +61,14 @@ class RSIMultiTimeframeController(DirectionalTradingControllerBase):
                     connector=config.candles_connector,
                     trading_pair=config.candles_trading_pair,
                     interval=config.timeframe_1,
-                    max_records=self.max_records
+                    max_records=self.max_records,
                 ),
                 CandlesConfig(
                     connector=config.candles_connector,
                     trading_pair=config.candles_trading_pair,
                     interval=config.timeframe_2,
-                    max_records=self.max_records
-                )
+                    max_records=self.max_records,
+                ),
             ]
         super().__init__(config, *args, **kwargs)
 
@@ -89,15 +78,15 @@ class RSIMultiTimeframeController(DirectionalTradingControllerBase):
             connector_name=self.config.candles_connector,
             trading_pair=self.config.candles_trading_pair,
             interval=self.config.timeframe_1,
-            max_records=self.max_records
+            max_records=self.max_records,
         )
-        
+
         # Get data for timeframe 2
         df2 = self.market_data_provider.get_candles_df(
             connector_name=self.config.candles_connector,
             trading_pair=self.config.candles_trading_pair,
             interval=self.config.timeframe_2,
-            max_records=self.max_records
+            max_records=self.max_records,
         )
 
         # Calculate RSI for both timeframes
@@ -120,7 +109,7 @@ class RSIMultiTimeframeController(DirectionalTradingControllerBase):
             df2[["timestamp", f"{rsi_col}_tf2"]],
             left_on="timestamp",
             right_on="timestamp",
-            direction='backward',
+            direction="backward",
         )
 
         # Drop rows where we don't have both RSI values

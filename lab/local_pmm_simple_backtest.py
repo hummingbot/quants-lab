@@ -1,17 +1,14 @@
 import asyncio
 import datetime
-import time
 import logging
 import os
-import sys
-from decimal import Decimal
-
-import plotly.graph_objects as go
-from plotly.subplots import make_subplots
 import pathlib
 import subprocess
+import sys
+import time
 import uuid
-from enum import Enum
+from decimal import Decimal
+
 
 def show_plotly_figure(fig, base_name: str = "plot"):
     """
@@ -41,9 +38,7 @@ def show_plotly_figure(fig, base_name: str = "plot"):
 
     try:
         # 3️⃣  Convert to Windows path
-        windows_path = (
-            subprocess.check_output(["wslpath", "-w", str(html_path)]).decode().strip()
-        )
+        windows_path = subprocess.check_output(["wslpath", "-w", str(html_path)]).decode().strip()
 
         # 4️⃣  Launch in Windows (safe CWD to mute UNC warning)
         subprocess.run(
@@ -55,6 +50,7 @@ def show_plotly_figure(fig, base_name: str = "plot"):
         print(f"[Plotly] Could not open in browser: {e}")
         print(f"[Plotly] You can still open the file manually: {html_path}")
 
+
 logging.basicConfig(
     level=logging.INFO,
     format="%(asctime)s %(levelname)s %(name)s %(message)s",
@@ -63,15 +59,7 @@ logging.basicConfig(
 root_path = os.path.abspath(os.path.join(os.path.dirname(__file__), "../.."))  # noqa: E402
 sys.path.append(root_path)  # noqa: E402
 
-import pandas as pd
-from hummingbot.core.data_type.common import TradeType
-from hummingbot.strategy_v2.backtesting.executor_simulator_base import ExecutorSimulation
-from hummingbot.strategy_v2.backtesting.executors_simulator.position_executor_simulator import (
-    PositionExecutorConfig,
-    PositionExecutorSimulator,
-)
 from hummingbot.strategy_v2.executors.position_executor.data_types import TrailingStop  # noqa: E402
-from hummingbot.strategy_v2.models.executors import CloseType
 from hummingbot.strategy_v2.utils.distributions import Distributions  # noqa: E402
 
 from controllers.market_making.pmm_simple import PMMSimpleConfig  # noqa: E402
@@ -93,8 +81,10 @@ backtesting = BacktestingEngine(load_cached_data=False)
 # methods that would otherwise try to reach the exchange.
 provider = backtesting._bt_engine.backtesting_data_provider
 
+
 async def _noop_initialize_trading_rules(connector_name: str):
     return None
+
 
 from core.backtesting.position_executor_patch import patch_position_executor_simulator
 
@@ -117,11 +107,12 @@ config = PMMSimpleConfig(
     trailing_stop=TrailingStop(activation_price=Decimal("0.001"), trailing_delta=Decimal("0.0005")),
     time_limit=60 * 60,
     cooldown_time=60 * 60,
-    executor_refresh_time=60 *  10 ,
+    executor_refresh_time=60 * 10,
 )
 
 start = int(datetime.datetime(2024, 1, 1).timestamp())
 end = int(datetime.datetime(2024, 1, 5).timestamp())
+
 
 async def main():
     clob = CLOBDataSource(local_data_path=local_data_path)
@@ -136,9 +127,10 @@ async def main():
 
         result = await backtesting.run_backtesting(config, start, end, "1m")
         print(result.get_results_summary())
-        show_plotly_figure(result.get_backtesting_figure(), "backtets") 
+        show_plotly_figure(result.get_backtesting_figure(), "backtets")
     finally:
         await clob.trades_feeds["binance_perpetual"]._session.close()
+
 
 if __name__ == "__main__":
     timer_start = time.perf_counter()

@@ -1,18 +1,17 @@
+import asyncio
+import logging
+import os
 from datetime import timedelta
+from typing import Any
 
 import numpy as np
 import pandas as pd
 from dotenv import load_dotenv
-import logging
-import asyncio
-import os
-from typing import List, Dict, Any, Tuple
-
-from scipy import stats
-from statsmodels.tsa.stattools import coint, grangercausalitytests
-from pyinform.transferentropy import transfer_entropy
 from dtaidistance import dtw
+from pyinform.transferentropy import transfer_entropy
+from scipy import stats
 from sklearn.linear_model import LinearRegression
+from statsmodels.tsa.stattools import coint, grangercausalitytests
 from tqdm import tqdm
 
 from core.data_sources import CLOBDataSource
@@ -25,7 +24,7 @@ load_dotenv()
 
 
 class CointegrationTask(BaseTask):
-    def __init__(self, name: str, frequency: timedelta, config: Dict[str, Any]):
+    def __init__(self, name: str, frequency: timedelta, config: dict[str, Any]):
         super().__init__(name=name, frequency=frequency, config=config)
         self.mongo_client = MongoClient(self.config.get("mongo_uri"))
         self.root_path = "../../.."
@@ -44,11 +43,11 @@ class CointegrationTask(BaseTask):
         try:
             await self.initialize()
             candles = await self.get_candles()
-            cointegration_results: List[Dict[str, Any]] = self.analyze_trading_pairs(candles)
+            cointegration_results: list[dict[str, Any]] = self.analyze_trading_pairs(candles)
 
-            await self.mongo_client.insert_documents(collection_name="cointegration_results",
-                                                     documents=cointegration_results,
-                                                     index=[("base", 1), ("quote", 1)])
+            await self.mongo_client.insert_documents(
+                collection_name="cointegration_results", documents=cointegration_results, index=[("base", 1), ("quote", 1)]
+            )
 
             logging.info(f"Successfully added {len(cointegration_results)} cointegration records")
 
@@ -72,23 +71,19 @@ class CointegrationTask(BaseTask):
             candles = [self.clob.get_candles_from_cache(*key) for key, _ in self.clob.candles_cache.items()]
         return candles
 
-    def get_filtered_candles_by_volume_quantile(self, candles: List[Candles]):
+    def get_filtered_candles_by_volume_quantile(self, candles: list[Candles]):
         all_candles = pd.DataFrame()
         for candle in candles:
             df = candle.data.copy()
             df["trading_pair"] = candle.trading_pair
             all_candles = pd.concat([all_candles, df])
         grouped_candles = all_candles.groupby("trading_pair")["quote_asset_volume"].sum().reset_index()
-        volume_filter_quantile = grouped_candles["quote_asset_volume"].quantile(
-            self.config.get("volume_quantile", 0.75))
+        volume_filter_quantile = grouped_candles["quote_asset_volume"].quantile(self.config.get("volume_quantile", 0.75))
         selected_candles = grouped_candles[grouped_candles["quote_asset_volume"] >= volume_filter_quantile]
-        trading_pairs = [
-            candle.trading_pair for candle in candles
-            if candle.trading_pair in selected_candles.trading_pair.values
-        ]
+        trading_pairs = [candle.trading_pair for candle in candles if candle.trading_pair in selected_candles.trading_pair.values]
         return trading_pairs
 
-    def analyze_trading_pairs(self, candles: List[Candles]):
+    def analyze_trading_pairs(self, candles: list[Candles]):
         # Get the analysis DataFrame
         results_df = self.analyze_multiple_pairs(candles)
 
@@ -97,7 +92,7 @@ class CointegrationTask(BaseTask):
         processed_pairs = set()
 
         for _, row in results_df.iterrows():
-            pair_key = tuple(sorted([row['base'], row['quote']]))
+            pair_key = tuple(sorted([row["base"], row["quote"]]))
 
             # Skip if we've already processed this pair
             if pair_key in processed_pairs:
@@ -105,52 +100,65 @@ class CointegrationTask(BaseTask):
 
             # Get both directions for this pair
             pair_analysis = results_df[
-                ((results_df['base'] == row['base']) & (results_df['quote'] == row['quote'])) |
-                ((results_df['base'] == row['quote']) & (results_df['quote'] == row['base']))
-                ]
+                ((results_df["base"] == row["base"]) & (results_df["quote"] == row["quote"]))
+                | ((results_df["base"] == row["quote"]) & (results_df["quote"] == row["base"]))
+            ]
 
             # Check if both directions are cointegrated
-            if not (pair_analysis['p_value'] < self.config.get("p_value_threshold", 0.05)).all():
+            if not (pair_analysis["p_value"] < self.config.get("p_value_threshold", 0.05)).all():
                 continue
 
             # Find long and short positions
-            long_position = pair_analysis[pair_analysis['side'] == 'long'].iloc[0] if len(
-                pair_analysis[pair_analysis['side'] == 'long']) > 0 else None
-            short_position = pair_analysis[pair_analysis['side'] == 'short'].iloc[0] if len(
-                pair_analysis[pair_analysis['side'] == 'short']) > 0 else None
+            long_position = (
+                pair_analysis[pair_analysis["side"] == "long"].iloc[0]
+                if len(pair_analysis[pair_analysis["side"] == "long"]) > 0
+                else None
+            )
+            short_position = (
+                pair_analysis[pair_analysis["side"] == "short"].iloc[0]
+                if len(pair_analysis[pair_analysis["side"] == "short"]) > 0
+                else None
+            )
 
             # Skip if we don't have both positions or if any grid prices are zero/None
-            if (long_position is None or short_position is None or
-                    not long_position['entry_price'] or not long_position['end_price'] or not long_position[
-                        'limit_price'] or
-                    not short_position['entry_price'] or not short_position['end_price'] or not short_position[
-                        'limit_price'] or
-                    long_position['entry_price'] == 0 or long_position['end_price'] == 0 or long_position[
-                        'limit_price'] == 0 or
-                    short_position['entry_price'] == 0 or short_position['end_price'] == 0 or short_position[
-                        'limit_price'] == 0):
+            if (
+                long_position is None
+                or short_position is None
+                or not long_position["entry_price"]
+                or not long_position["end_price"]
+                or not long_position["limit_price"]
+                or not short_position["entry_price"]
+                or not short_position["end_price"]
+                or not short_position["limit_price"]
+                or long_position["entry_price"] == 0
+                or long_position["end_price"] == 0
+                or long_position["limit_price"] == 0
+                or short_position["entry_price"] == 0
+                or short_position["end_price"] == 0
+                or short_position["limit_price"] == 0
+            ):
                 continue
 
             # Calculate average cointegration value
-            coint_value = pair_analysis['p_value'].mean()
+            coint_value = pair_analysis["p_value"].mean()
 
             # Create result dictionary for this pair
             result = {
-                'base': long_position['base'],
-                'quote': short_position['base'],
-                'grid_base': {
-                    'start_price': float(long_position['entry_price']),
-                    'end_price': float(long_position['end_price']),
-                    'limit_price': float(long_position['limit_price']),
-                    'beta': float(long_position['beta'])  # Replace max_open_orders with beta
+                "base": long_position["base"],
+                "quote": short_position["base"],
+                "grid_base": {
+                    "start_price": float(long_position["entry_price"]),
+                    "end_price": float(long_position["end_price"]),
+                    "limit_price": float(long_position["limit_price"]),
+                    "beta": float(long_position["beta"]),  # Replace max_open_orders with beta
                 },
-                'grid_quote': {
-                    'start_price': float(short_position['entry_price']),
-                    'end_price': float(short_position['end_price']),
-                    'limit_price': float(short_position['limit_price']),
-                    'beta': float(short_position['beta'])  # Replace max_open_orders with beta
+                "grid_quote": {
+                    "start_price": float(short_position["entry_price"]),
+                    "end_price": float(short_position["end_price"]),
+                    "limit_price": float(short_position["limit_price"]),
+                    "beta": float(short_position["beta"]),  # Replace max_open_orders with beta
                 },
-                'coint_value': float(coint_value)
+                "coint_value": float(coint_value),
             }
             pair_results.append(result)
 
@@ -158,7 +166,7 @@ class CointegrationTask(BaseTask):
             processed_pairs.add(pair_key)
 
         # Sort results by cointegration value
-        pair_results.sort(key=lambda x: x['coint_value'])
+        pair_results.sort(key=lambda x: x["coint_value"])
 
         # Print summary
         print(f"\nFound {len(pair_results)} cointegrated pairs:")
@@ -166,18 +174,22 @@ class CointegrationTask(BaseTask):
         for result in pair_results:
             print(f"\nLong {result['base']} vs Short {result['quote']}")
             print(f"Cointegration value: {result['coint_value']:.4f}")
-            print(f"Grid Base - Entry: {result['grid_base']['start_price']:.2f}, "
-                  f"End: {result['grid_base']['end_price']:.2f}, "
-                  f"Limit: {result['grid_base']['limit_price']:.2f}, "
-                  f"Beta: {result['grid_base']['beta']:.4f}")
-            print(f"Grid Quote - Entry: {result['grid_quote']['start_price']:.2f}, "
-                  f"End: {result['grid_quote']['end_price']:.2f}, "
-                  f"Limit: {result['grid_quote']['limit_price']:.2f}, "
-                  f"Beta: {result['grid_quote']['beta']:.4f}")
+            print(
+                f"Grid Base - Entry: {result['grid_base']['start_price']:.2f}, "
+                f"End: {result['grid_base']['end_price']:.2f}, "
+                f"Limit: {result['grid_base']['limit_price']:.2f}, "
+                f"Beta: {result['grid_base']['beta']:.4f}"
+            )
+            print(
+                f"Grid Quote - Entry: {result['grid_quote']['start_price']:.2f}, "
+                f"End: {result['grid_quote']['end_price']:.2f}, "
+                f"Limit: {result['grid_quote']['limit_price']:.2f}, "
+                f"Beta: {result['grid_quote']['beta']:.4f}"
+            )
 
         return pair_results
 
-    def analyze_multiple_pairs(self, candles: List[Candles]):
+    def analyze_multiple_pairs(self, candles: list[Candles]):
         # Create lists to store results
         results = []
         trading_pairs = self.get_filtered_candles_by_volume_quantile(candles)
@@ -222,46 +234,50 @@ class CointegrationTask(BaseTask):
                         grid_2vs1 = self.generate_grid_levels(analysis=analysis_2vs1, current_price=current_price2)
 
                         # Store results for first direction
-                        results.append({
-                            'base': pair1,
-                            'quote': pair2,
-                            'p_value': analysis_1vs2['p_value'],
-                            'z_score': analysis_1vs2['current_z_score'],
-                            'side': analysis_1vs2['side'],
-                            'signal_strength': analysis_1vs2['signal_strength'],
-                            'mean_reversion_prob': analysis_1vs2['mean_reversion_probability'],
-                            'beta': analysis_1vs2['beta'],
-                            'entry_price': grid_1vs2['entry_price'] if grid_1vs2['side'] != 'both' else None,
-                            'end_price': grid_1vs2['end_price'] if grid_1vs2['side'] != 'both' else None,
-                            'limit_price': grid_1vs2['limit_price'] if grid_1vs2['side'] != 'both' else None,
-                            'dominance': {
-                                'cross_correlation': cross_correlation,
-                                'granger_causality': granger_causality1,
-                                'dtw_distance': dtw_distance,
-                                'transfer_entropy': transfer_entropy1
+                        results.append(
+                            {
+                                "base": pair1,
+                                "quote": pair2,
+                                "p_value": analysis_1vs2["p_value"],
+                                "z_score": analysis_1vs2["current_z_score"],
+                                "side": analysis_1vs2["side"],
+                                "signal_strength": analysis_1vs2["signal_strength"],
+                                "mean_reversion_prob": analysis_1vs2["mean_reversion_probability"],
+                                "beta": analysis_1vs2["beta"],
+                                "entry_price": grid_1vs2["entry_price"] if grid_1vs2["side"] != "both" else None,
+                                "end_price": grid_1vs2["end_price"] if grid_1vs2["side"] != "both" else None,
+                                "limit_price": grid_1vs2["limit_price"] if grid_1vs2["side"] != "both" else None,
+                                "dominance": {
+                                    "cross_correlation": cross_correlation,
+                                    "granger_causality": granger_causality1,
+                                    "dtw_distance": dtw_distance,
+                                    "transfer_entropy": transfer_entropy1,
+                                },
                             }
-                        })
+                        )
 
                         # Store results for second direction
-                        results.append({
-                            'base': pair2,
-                            'quote': pair1,
-                            'p_value': analysis_2vs1['p_value'],
-                            'z_score': analysis_2vs1['current_z_score'],
-                            'side': analysis_2vs1['side'],
-                            'signal_strength': analysis_2vs1['signal_strength'],
-                            'mean_reversion_prob': analysis_2vs1['mean_reversion_probability'],
-                            'beta': analysis_2vs1['beta'],
-                            'entry_price': grid_2vs1['entry_price'] if grid_2vs1['side'] != 'both' else None,
-                            'end_price': grid_2vs1['end_price'] if grid_2vs1['side'] != 'both' else None,
-                            'limit_price': grid_2vs1['limit_price'] if grid_2vs1['side'] != 'both' else None,
-                            'dominance': {
-                                'cross_correlation': cross_correlation,
-                                'granger_causality': granger_causality2,
-                                'dtw_distance': dtw_distance,
-                                'transfer_entropy2': transfer_entropy2,
+                        results.append(
+                            {
+                                "base": pair2,
+                                "quote": pair1,
+                                "p_value": analysis_2vs1["p_value"],
+                                "z_score": analysis_2vs1["current_z_score"],
+                                "side": analysis_2vs1["side"],
+                                "signal_strength": analysis_2vs1["signal_strength"],
+                                "mean_reversion_prob": analysis_2vs1["mean_reversion_probability"],
+                                "beta": analysis_2vs1["beta"],
+                                "entry_price": grid_2vs1["entry_price"] if grid_2vs1["side"] != "both" else None,
+                                "end_price": grid_2vs1["end_price"] if grid_2vs1["side"] != "both" else None,
+                                "limit_price": grid_2vs1["limit_price"] if grid_2vs1["side"] != "both" else None,
+                                "dominance": {
+                                    "cross_correlation": cross_correlation,
+                                    "granger_causality": granger_causality2,
+                                    "dtw_distance": dtw_distance,
+                                    "transfer_entropy2": transfer_entropy2,
+                                },
                             }
-                        })
+                        )
                         pbar.update(1)
                     except Exception as e:
                         print(f"Error analyzing {pair1} vs {pair2}: {str(e)}")
@@ -271,18 +287,14 @@ class CointegrationTask(BaseTask):
         df = pd.DataFrame(results)
 
         # Add derived columns
-        df['Cointegrated'] = df['p_value'] < self.config.get("p_value_threshold", 0.05)
-        df['potential_profit'] = np.where(df['side'] != 'both',
-                                          abs(df['end_price'] - df['entry_price']) / df['entry_price'],
-                                          0)
-        df['Risk_Ratio'] = np.where(df['side'] != 'both',
-                                    abs(df['end_price'] - df['entry_price']) /
-                                    abs(df['limit_price'] - df['entry_price']),
-                                    0)
+        df["Cointegrated"] = df["p_value"] < self.config.get("p_value_threshold", 0.05)
+        df["potential_profit"] = np.where(df["side"] != "both", abs(df["end_price"] - df["entry_price"]) / df["entry_price"], 0)
+        df["Risk_Ratio"] = np.where(
+            df["side"] != "both", abs(df["end_price"] - df["entry_price"]) / abs(df["limit_price"] - df["entry_price"]), 0
+        )
 
         # Sort by signal strength and potential profit
-        df = df.sort_values(['signal_strength', 'potential_profit'],
-                            ascending=[False, False])
+        df = df.sort_values(["signal_strength", "potential_profit"], ascending=[False, False])
 
         return df
 
@@ -317,10 +329,7 @@ class CointegrationTask(BaseTask):
         - A negative lag means `candles2` leads `candles1`.
         - If the best lag is 0, both series are considered synchronous and no leader is assigned.
         """
-        results = {
-            "dominant": None,
-            "follower": None
-        }
+        results = {"dominant": None, "follower": None}
         s1 = candle1.data.close.pct_change()
         s2 = candle2.data.close.pct_change()
 
@@ -390,37 +399,34 @@ class CointegrationTask(BaseTask):
 
         # Prepare for Granger test
         df = pd.concat([y, x], axis=1)
-        df.columns = ['Y', 'X']
+        df.columns = ["Y", "X"]
 
         # Run test
         test_result = grangercausalitytests(df, maxlag=max_lag, verbose=False)
 
         # Extract p-values
-        p_values = {
-            lag: round(stat[0]['ssr_ftest'][1], 4)
-            for lag, stat in test_result.items()
-        }
+        p_values = {lag: round(stat[0]["ssr_ftest"][1], 4) for lag, stat in test_result.items()}
 
         # Filter significant
         significant = {lag: p for lag, p in p_values.items() if p < 0.05}
 
         # Initialize result
         result = {
-            'predictor': predictor_candles.trading_pair,
-            'response': response_candles.trading_pair,
-            'p_values': p_values,
-            'significant_lags': significant,
-            'causal': bool(significant),
-            'dominant': None,
-            'follower': None,
+            "predictor": predictor_candles.trading_pair,
+            "response": response_candles.trading_pair,
+            "p_values": p_values,
+            "significant_lags": significant,
+            "causal": bool(significant),
+            "dominant": None,
+            "follower": None,
         }
 
         if significant:
             best_lag = min(significant, key=significant.get)
-            result['best_lag'] = best_lag
-            result['best_p_value'] = significant[best_lag]
-            result['dominant'] = predictor_candles.trading_pair
-            result['follower'] = response_candles.trading_pair
+            result["best_lag"] = best_lag
+            result["best_p_value"] = significant[best_lag]
+            result["dominant"] = predictor_candles.trading_pair
+            result["follower"] = response_candles.trading_pair
 
         return result
 
@@ -477,11 +483,7 @@ class CointegrationTask(BaseTask):
         else:
             dominant = follower = None  # equal volatility → unclear
 
-        return {
-            'dtw_distance': round(distance, 6),
-            'dominant': dominant,
-            'follower': follower
-        }
+        return {"dtw_distance": round(distance, 6), "dominant": dominant, "follower": follower}
 
     @staticmethod
     def transfer_entropy_analysis(predictor_candles, response_candles, k=1, bins=3):
@@ -537,17 +539,17 @@ class CointegrationTask(BaseTask):
         # Compute TE from X → Y
         try:
             te = round(transfer_entropy(x, y, k), 6)
-        except Exception as e:
+        except Exception:
             te = None
 
         return {
-            'predictor': predictor_candles.trading_pair,
-            'response': response_candles.trading_pair,
-            'transfer_entropy': te,
-            'dominant': predictor_candles.trading_pair if te and te > 0 else None,
-            'follower': response_candles.trading_pair if te and te > 0 else None,
-            'symbolic_bins': bins,
-            'history_k': k
+            "predictor": predictor_candles.trading_pair,
+            "response": response_candles.trading_pair,
+            "transfer_entropy": te,
+            "dominant": predictor_candles.trading_pair if te and te > 0 else None,
+            "follower": response_candles.trading_pair if te and te > 0 else None,
+            "symbolic_bins": bins,
+            "history_k": k,
         }
 
     def generate_grid_levels(self, analysis, current_price):
@@ -566,12 +568,12 @@ class CointegrationTask(BaseTask):
         grid_levels = self.config.get("grid_levels", 5)
         time_limit_hours = self.config.get("time_limit_hours", 24)
 
-        z_score = analysis['current_z_score']
-        z_std = analysis['z_std']
-        beta = analysis['position_ratio']
+        z_score = analysis["current_z_score"]
+        z_std = analysis["z_std"]
+        beta = analysis["position_ratio"]
 
         # Time parameters
-        current_time = analysis['actual_values'].index[-1]
+        current_time = analysis["actual_values"].index[-1]
         time_limit = current_time + timedelta(hours=time_limit_hours)
 
         if abs(z_score) > entry_threshold:
@@ -595,32 +597,32 @@ class CointegrationTask(BaseTask):
             grid_prices = [entry_price + (i * grid_step * grid_direction) for i in range(1, grid_levels + 1)]
 
             grid = {
-                'side': 'short' if is_short else 'long',
-                'entry_price': entry_price,
-                'end_price': end_price,
-                'limit_price': limit_price,
-                'grid_prices': grid_prices,
-                'time_limit': time_limit,
-                'entry_z_score': z_score,
-                'target_z_score': 0,
-                'stop_z_score': z_score + (stop_threshold * (1 if is_short else -1)),
-                'grid_levels': grid_levels,
-                'grid_step': grid_step
+                "side": "short" if is_short else "long",
+                "entry_price": entry_price,
+                "end_price": end_price,
+                "limit_price": limit_price,
+                "grid_prices": grid_prices,
+                "time_limit": time_limit,
+                "entry_z_score": z_score,
+                "target_z_score": 0,
+                "stop_z_score": z_score + (stop_threshold * (1 if is_short else -1)),
+                "grid_levels": grid_levels,
+                "grid_step": grid_step,
             }
 
         else:  # No signal
             grid = {
-                'side': 'both',
-                'entry_price': None,
-                'end_price': None,
-                'limit_price': None,
-                'grid_prices': [],
-                'time_limit': None,
-                'entry_z_score': z_score,
-                'target_z_score': None,
-                'stop_z_score': None,
-                'grid_levels': 0,
-                'grid_step': None
+                "side": "both",
+                "entry_price": None,
+                "end_price": None,
+                "limit_price": None,
+                "grid_prices": [],
+                "time_limit": None,
+                "entry_z_score": z_score,
+                "target_z_score": None,
+                "stop_z_score": None,
+                "grid_levels": 0,
+                "grid_step": None,
             }
         return grid
 
@@ -633,7 +635,7 @@ class CointegrationTask(BaseTask):
             "15m": (60 / 15) * 24,
             "30m": (60 / 15) * 24,
             "1h": 24,
-            "4h": 24 / 4
+            "4h": 24 / 4,
         }
         lookback_days = self.config.get("lookback_days", 14)
         signal_days = self.config.get("signal_days", 3)
@@ -663,7 +665,7 @@ class CointegrationTask(BaseTask):
         y, x = y_col.values, x_col.values
 
         # Run Engle-Granger test
-        coint_res: Tuple = coint(y, x)
+        coint_res: tuple = coint(y, x)
         p_value = coint_res[1]
 
         # Perform linear regression
@@ -707,44 +709,35 @@ class CointegrationTask(BaseTask):
 
         return {
             # Cointegration statistics
-            'p_value': p_value,
-            'alpha': alpha,
-            'beta': beta,
-
+            "p_value": p_value,
+            "alpha": alpha,
+            "beta": beta,
             # Spread analysis
-            'z_t': z_t,
-            'z_mean': z_mean,
-            'z_std': z_std,
-            'current_z_score': current_z_score,
-
+            "z_t": z_t,
+            "z_mean": z_mean,
+            "z_std": z_std,
+            "current_z_score": current_z_score,
             # Trading signals
-            'side': side,
-            'signal_strength': signal_strength,
-            'mean_reversion_probability': mean_reversion_prob,
-
+            "side": side,
+            "signal_strength": signal_strength,
+            "mean_reversion_probability": mean_reversion_prob,
             # Recent performance
-            'recent_spread': recent_spread,
-            'predictions': y_pred,
-            'actual_values': y_recent,
-            'median_error': median_error,
-
+            "recent_spread": recent_spread,
+            "predictions": y_pred,
+            "actual_values": y_recent,
+            "median_error": median_error,
             # Risk management
-            'stop_loss_z_score': current_z_score * 1.5,  # 50% additional deviation
-            'target_z_score': 0,  # Mean reversion target
-
+            "stop_loss_z_score": current_z_score * 1.5,  # 50% additional deviation
+            "target_z_score": 0,  # Mean reversion target
             # Trade setup
-            'position_ratio': beta,
-            'z_score_threshold': z_score_threshold
+            "position_ratio": beta,
+            "z_score_threshold": z_score_threshold,
         }
 
 
 async def main():
     days_of_data = 10
-    candles_config = dict(connector_name='binance_perpetual',
-                          interval='5m',
-                          days=days_of_data,
-                          batch_size=20,
-                          sleep_time=5.0)
+    candles_config = dict(connector_name="binance_perpetual", interval="5m", days=days_of_data, batch_size=20, sleep_time=5.0)
     task_config = {
         "connector_names": ["binance_perpetual"],
         "quote_asset": "USDT",
@@ -755,16 +748,13 @@ async def main():
         "z_score_threshold": 0.5,
         "lookback_days": days_of_data,
         "signal_days": 3,
-
         "p_value_threshold": 0.05,
         "entry_threshold": 1.5,
         "stop_threshold": 1.0,
         "grid_levels": 5,
-        "time_limit_hours": 24
+        "time_limit_hours": 24,
     }
-    task = CointegrationTask(name="cointegration_task",
-                             frequency=timedelta(hours=1),
-                             config=task_config)
+    task = CointegrationTask(name="cointegration_task", frequency=timedelta(hours=1), config=task_config)
     await task.execute()
 
 

@@ -2,7 +2,6 @@ import pandas as pd
 from hummingbot.strategy_v2.backtesting.backtesting_engine_base import BacktestingEngineBase
 
 
-
 class XtreetBacktesting(BacktestingEngineBase):
     def prepare_market_data(self) -> pd.DataFrame:
         df = super().prepare_market_data()

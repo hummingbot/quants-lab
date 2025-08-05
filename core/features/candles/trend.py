@@ -18,15 +18,15 @@ class Trend(FeatureBase[TrendConfig]):
         long_window = self.config.long_window
 
         # Ensure the candles has the required 'close' column
-        if 'close' not in candles.columns:
+        if "close" not in candles.columns:
             raise ValueError("Data handler does not contain 'close' column required for trend calculation.")
 
         # Calculate the trend score for each row
         candles = candles.copy()
-        trend_score, short_slope, long_slope = self.calculate_trending_score(candles['close'], short_window, long_window)
-        candles['trend_score'] = trend_score
-        candles['short_slope'] = short_slope
-        candles['long_slope'] = long_slope
+        trend_score, short_slope, long_slope = self.calculate_trending_score(candles["close"], short_window, long_window)
+        candles["trend_score"] = trend_score
+        candles["short_slope"] = short_slope
+        candles["long_slope"] = long_slope
         return candles
 
     def calculate_trending_score(self, series: pd.Series, short_window: int, long_window: int):

@@ -3,7 +3,7 @@ import logging
 import os
 import time
 from datetime import datetime, timedelta
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any
 
 import pandas as pd
 from hummingbot.client.config.client_config_map import ClientConfigMap
@@ -56,7 +56,7 @@ class CLOBDataSource:
         "vertex",
     ]
 
-    def __init__(self, local_data_path: Optional[str] = None):
+    def __init__(self, local_data_path: str | None = None):
         logger.info("Initializing ClobDataSource")
         self.candles_factory = CandlesFactory()
         self.trades_feeds = {"binance_perpetual": BinancePerpetualTradesFeed()}
@@ -66,7 +66,7 @@ class CLOBDataSource:
             for name, settings in self.conn_settings.items()
             if settings.type in self.CONNECTOR_TYPES and name not in self.EXCLUDED_CONNECTORS and "testnet" not in name
         }
-        self._candles_cache: Dict[Tuple[str, str, str], pd.DataFrame] = {}
+        self._candles_cache: dict[tuple[str, str, str], pd.DataFrame] = {}
         self.local_data_path = local_data_path
 
     @staticmethod
@@ -90,7 +90,7 @@ class CLOBDataSource:
         else:
             return None
 
-    def _load_local_dataset(self, connector_name: str, trading_pair: str, interval: str) -> Optional[pd.DataFrame]:
+    def _load_local_dataset(self, connector_name: str, trading_pair: str, interval: str) -> pd.DataFrame | None:
         if not self.local_data_path:
             return None
         file_name = f"{trading_pair}_{interval}.parquet"
@@ -231,7 +231,7 @@ class CLOBDataSource:
         return await self.get_candles(connector_name, trading_pair, interval, start_time, end_time, from_trades)
 
     async def get_candles_batch_last_days(
-        self, connector_name: str, trading_pairs: List, interval: str, days: int, batch_size: int = 10, sleep_time: float = 2.0
+        self, connector_name: str, trading_pairs: list, interval: str, days: int, batch_size: int = 10, sleep_time: float = 2.0
     ):
         number_of_calls = (len(trading_pairs) // batch_size) + 1
 
@@ -330,7 +330,7 @@ class CLOBDataSource:
                 logger.error(f"Error loading {file}: {type(e).__name__} - {e}")
 
     async def get_trades(
-        self, connector_name: str, trading_pair: str, start_time: int, end_time: int, from_id: Optional[int] = None
+        self, connector_name: str, trading_pair: str, start_time: int, end_time: int, from_id: int | None = None
     ):
         return await self.trades_feeds[connector_name].get_historical_trades(trading_pair, start_time, end_time, from_id)
 
@@ -342,7 +342,7 @@ class CLOBDataSource:
         return INTERVAL_MAPPING.get(interval, "T")
 
     async def get_funding_rate_history(
-        self, symbol: str, start_time: Optional[int] = None, end_time: Optional[int] = None, limit: int = 1000
+        self, symbol: str, start_time: int | None = None, end_time: int | None = None, limit: int = 1000
     ) -> pd.DataFrame:
         """Get historical funding rates for a symbol"""
         connector = self.connectors.get("binance_perpetual")
@@ -365,13 +365,13 @@ class CLOBDataSource:
             df.set_index("fundingTime", inplace=True)
         return df
 
-    async def get_current_funding_info(self, symbol: Optional[str] = None) -> Dict[str, Any]:
+    async def get_current_funding_info(self, symbol: str | None = None) -> dict[str, Any]:
         """Get current funding rate info for a symbol or all symbols"""
         connector = self.connectors.get("binance_perpetual")
         response = await connector._orderbook_ds.get_funding_info(symbol)
         return response
 
-    async def calculate_funding_metrics(self, symbol: str) -> Dict[str, Any]:
+    async def calculate_funding_metrics(self, symbol: str) -> dict[str, Any]:
         """Calculate funding rate metrics for a symbol"""
         # Get historical data for last 72 hours
         end_time = int(datetime.now().timestamp() * 1000)

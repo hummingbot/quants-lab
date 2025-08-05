@@ -1,5 +1,3 @@
-from typing import List
-
 import pandas_ta as ta  # noqa: F401
 from hummingbot.client.config.config_data_types import ClientFieldData
 from hummingbot.data_feed.candles_feed.data_types import CandlesConfig
@@ -12,56 +10,37 @@ from pydantic import Field, validator
 
 class SmugPlugControllerConfig(DirectionalTradingControllerConfigBase):
     controller_name = "smugplug"
-    candles_config: List[CandlesConfig] = []
-    candles_connector: str = Field(
-        default=None)
-    candles_trading_pair: str = Field(
-        default=None)
+    candles_config: list[CandlesConfig] = []
+    candles_connector: str = Field(default=None)
+    candles_trading_pair: str = Field(default=None)
     interval: str = Field(
         default="3m",
-        client_data=ClientFieldData(
-            prompt=lambda mi: "Enter the candle interval (e.g., 1m, 5m, 1h, 1d): ",
-            prompt_on_new=False))
+        client_data=ClientFieldData(prompt=lambda mi: "Enter the candle interval (e.g., 1m, 5m, 1h, 1d): ", prompt_on_new=False),
+    )
     macd_fast: int = Field(
-        default=21,
-        client_data=ClientFieldData(
-            prompt=lambda mi: "Enter the MACD fast period: ",
-            prompt_on_new=True))
+        default=21, client_data=ClientFieldData(prompt=lambda mi: "Enter the MACD fast period: ", prompt_on_new=True)
+    )
     macd_slow: int = Field(
-        default=42,
-        client_data=ClientFieldData(
-            prompt=lambda mi: "Enter the MACD slow period: ",
-            prompt_on_new=True))
+        default=42, client_data=ClientFieldData(prompt=lambda mi: "Enter the MACD slow period: ", prompt_on_new=True)
+    )
     macd_signal: int = Field(
-        default=9,
-        client_data=ClientFieldData(
-            prompt=lambda mi: "Enter the MACD signal period: ",
-            prompt_on_new=True))
+        default=9, client_data=ClientFieldData(prompt=lambda mi: "Enter the MACD signal period: ", prompt_on_new=True)
+    )
     ema_short: int = Field(
-        default=8,
-        client_data=ClientFieldData(
-            prompt=lambda mi: "Enter the EMA short period: ",
-            prompt_on_new=True))
+        default=8, client_data=ClientFieldData(prompt=lambda mi: "Enter the EMA short period: ", prompt_on_new=True)
+    )
     ema_medium: int = Field(
-        default=29,
-        client_data=ClientFieldData(
-            prompt=lambda mi: "Enter the EMA medium period: ",
-            prompt_on_new=True))
+        default=29, client_data=ClientFieldData(prompt=lambda mi: "Enter the EMA medium period: ", prompt_on_new=True)
+    )
     ema_long: int = Field(
-        default=31,
-        client_data=ClientFieldData(
-            prompt=lambda mi: "Enter the EMA long period: ",
-            prompt_on_new=True))
+        default=31, client_data=ClientFieldData(prompt=lambda mi: "Enter the EMA long period: ", prompt_on_new=True)
+    )
     atr_length: int = Field(
-        default=11,
-        client_data=ClientFieldData(
-            prompt=lambda mi: "Enter the ATR length: ",
-            prompt_on_new=True))
+        default=11, client_data=ClientFieldData(prompt=lambda mi: "Enter the ATR length: ", prompt_on_new=True)
+    )
     atr_multiplier: float = Field(
-        default=1.5,
-        client_data=ClientFieldData(
-            prompt=lambda mi: "Enter the ATR multiplier: ",
-            prompt_on_new=True))
+        default=1.5, client_data=ClientFieldData(prompt=lambda mi: "Enter the ATR multiplier: ", prompt_on_new=True)
+    )
 
     @validator("candles_connector", pre=True, always=True)
     def set_candles_connector(cls, v, values):
@@ -77,17 +56,18 @@ class SmugPlugControllerConfig(DirectionalTradingControllerConfigBase):
 
 
 class SmugPlugController(DirectionalTradingControllerBase):
-
     def __init__(self, config: SmugPlugControllerConfig, *args, **kwargs):
         self.config = config
         self.max_records = 1000
         if len(self.config.candles_config) == 0:
-            self.config.candles_config = [CandlesConfig(
-                connector=config.candles_connector,
-                trading_pair=config.candles_trading_pair,
-                interval=config.interval,
-                max_records=self.max_records
-            )]
+            self.config.candles_config = [
+                CandlesConfig(
+                    connector=config.candles_connector,
+                    trading_pair=config.candles_trading_pair,
+                    interval=config.interval,
+                    max_records=self.max_records,
+                )
+            ]
         super().__init__(config, *args, **kwargs)
 
     async def update_processed_data(self):
@@ -95,14 +75,11 @@ class SmugPlugController(DirectionalTradingControllerBase):
             connector_name=self.config.candles_connector,
             trading_pair=self.config.candles_trading_pair,
             interval=self.config.interval,
-            max_records=self.max_records
+            max_records=self.max_records,
         )
         # Add indicators and retrieve actual column names
         macd_columns = df.ta.macd(
-            fast=self.config.macd_fast,
-            slow=self.config.macd_slow,
-            signal=self.config.macd_signal,
-            append=True
+            fast=self.config.macd_fast, slow=self.config.macd_slow, signal=self.config.macd_signal, append=True
         )
         atr_columns = df.ta.atr(length=self.config.atr_length, append=True)
         ema_short_columns = df.ta.ema(length=self.config.ema_short, append=True)
@@ -133,18 +110,18 @@ class SmugPlugController(DirectionalTradingControllerBase):
         macdh = df[macd_hist_col]
 
         long_condition = (
-            (short_ema > medium_ema) &
-            (medium_ema > long_ema) &
-            (close > short_ema) &
-            (close > df["long_atr_support"]) &
-            (macdh > 0)
+            (short_ema > medium_ema)
+            & (medium_ema > long_ema)
+            & (close > short_ema)
+            & (close > df["long_atr_support"])
+            & (macdh > 0)
         )
         short_condition = (
-            (short_ema < medium_ema) &
-            (medium_ema < long_ema) &
-            (close < short_ema) &
-            (close < df["short_atr_resistance"]) &
-            (macdh < 0)
+            (short_ema < medium_ema)
+            & (medium_ema < long_ema)
+            & (close < short_ema)
+            & (close < df["short_atr_resistance"])
+            & (macdh < 0)
         )
 
         df["signal"] = 0

@@ -1,0 +1,1557 @@
+controllers/directional_trading/bollinger_v1.py:68:9: PD901 Avoid using the generic variable name `df` for DataFrames
+   |
+67 |     async def update_processed_data(self):
+68 |         df = self.market_data_provider.get_candles_df(
+   |         ^^ PD901
+69 |             connector_name=self.config.candles_connector,
+70 |             trading_pair=self.config.candles_trading_pair,
+   |
+
+controllers/directional_trading/dman_v3.py:74:131: E501 Line too long (140 > 130)
+   |
+72 | …
+73 | …
+74 | …, 0.01 activates the next order when the price is closer than 1%): ",
+   |                                                             ^^^^^^^^^^ E501
+75 | …
+76 | …
+   |
+
+controllers/directional_trading/dman_v3.py:164:9: PD901 Avoid using the generic variable name `df` for DataFrames
+    |
+163 |     async def update_processed_data(self):
+164 |         df = self.market_data_provider.get_candles_df(
+    |         ^^ PD901
+165 |             connector_name=self.config.candles_connector,
+166 |             trading_pair=self.config.candles_trading_pair,
+    |
+
+controllers/directional_trading/dman_v3.py:188:13: PD901 Avoid using the generic variable name `df` for DataFrames
+    |
+186 |     def get_spread_multiplier(self) -> Decimal:
+187 |         if self.config.dynamic_order_spread:
+188 |             df = self.processed_data["features"]
+    |             ^^ PD901
+189 |             bb_width = df[f"BBB_{self.config.bb_length}_{self.config.bb_std}"].iloc[-1]
+190 |             return Decimal(bb_width / 200)
+    |
+
+controllers/directional_trading/macd_bb_v1.py:71:9: PD901 Avoid using the generic variable name `df` for DataFrames
+   |
+70 |     async def update_processed_data(self):
+71 |         df = self.market_data_provider.get_candles_df(
+   |         ^^ PD901
+72 |             connector_name=self.config.candles_connector,
+73 |             trading_pair=self.config.candles_trading_pair,
+   |
+
+controllers/directional_trading/peinjo.py:52:31: N805 First argument of a method should be named `self`
+   |
+51 |     @validator("candles_connector", pre=True, always=True)
+52 |     def set_candles_connector(cls, v, values):
+   |                               ^^^ N805
+53 |         if v is None or v == "":
+54 |             return values.get("connector_name")
+   |
+   = help: Rename `cls` to `self`
+
+controllers/directional_trading/peinjo.py:58:34: N805 First argument of a method should be named `self`
+   |
+57 |     @validator("candles_trading_pair", pre=True, always=True)
+58 |     def set_candles_trading_pair(cls, v, values):
+   |                                  ^^^ N805
+59 |         if v is None or v == "":
+60 |             return values.get("trading_pair")
+   |
+   = help: Rename `cls` to `self`
+
+controllers/directional_trading/peinjo.py:89:9: PD901 Avoid using the generic variable name `df` for DataFrames
+   |
+88 |     async def update_processed_data(self):
+89 |         df = self.market_data_provider.get_candles_df(
+   |         ^^ PD901
+90 |             connector_name=self.config.candles_connector,
+91 |             trading_pair=self.config.candles_trading_pair,
+   |
+
+controllers/directional_trading/peinjo.py:113:13: B007 Loop control variable `date` not used within loop body
+    |
+111 |         # Group by date
+112 |         grouped = df.groupby(df.index.date)
+113 |         for date, group in grouped:
+    |             ^^^^ B007
+114 |             # Compute open prices for 8, 9, 10, 11 hours for this specific day
+115 |             open_prices = group.between_time("08:00", "11:59")["open"].resample("1H").first()
+    |
+    = help: Rename unused `date` to `_date`
+
+controllers/directional_trading/raj_reversion.py:69:31: N805 First argument of a method should be named `self`
+   |
+68 |     @validator("candles_connector", pre=True, always=True)
+69 |     def set_candles_connector(cls, v, values):
+   |                               ^^^ N805
+70 |         if v is None or v == "":
+71 |             return values.get("connector_name")
+   |
+   = help: Rename `cls` to `self`
+
+controllers/directional_trading/raj_reversion.py:75:34: N805 First argument of a method should be named `self`
+   |
+74 |     @validator("candles_trading_pair", pre=True, always=True)
+75 |     def set_candles_trading_pair(cls, v, values):
+   |                                  ^^^ N805
+76 |         if v is None or v == "":
+77 |             return values.get("trading_pair")
+   |
+   = help: Rename `cls` to `self`
+
+controllers/directional_trading/raj_reversion.py:175:9: PD901 Avoid using the generic variable name `df` for DataFrames
+    |
+174 |     async def update_processed_data(self):
+175 |         df = self.market_data_provider.get_candles_df(
+    |         ^^ PD901
+176 |             connector_name=self.config.candles_connector,
+177 |             trading_pair=self.config.candles_trading_pair,
+    |
+
+controllers/directional_trading/rsi_mutitimeframe.py:41:31: N805 First argument of a method should be named `self`
+   |
+40 |     @validator("candles_connector", pre=True, always=True)
+41 |     def set_candles_connector(cls, v, values):
+   |                               ^^^ N805
+42 |         if v is None or v == "":
+43 |             return values.get("connector_name")
+   |
+   = help: Rename `cls` to `self`
+
+controllers/directional_trading/rsi_mutitimeframe.py:47:34: N805 First argument of a method should be named `self`
+   |
+46 |     @validator("candles_trading_pair", pre=True, always=True)
+47 |     def set_candles_trading_pair(cls, v, values):
+   |                                  ^^^ N805
+48 |         if v is None or v == "":
+49 |             return values.get("trading_pair")
+   |
+   = help: Rename `cls` to `self`
+
+controllers/directional_trading/rsi_mutitimeframe.py:99:57: PD002 `inplace=True` should be avoided; it has inconsistent behavior
+    |
+ 97 |         # Rename RSI columns to distinguish between timeframes
+ 98 |         rsi_col = f"RSI_{self.config.rsi_length}"
+ 99 |         df1.rename(columns={rsi_col: f"{rsi_col}_tf1"}, inplace=True)
+    |                                                         ^^^^^^^^^^^^ PD002
+100 |         df2.rename(columns={rsi_col: f"{rsi_col}_tf2"}, inplace=True)
+    |
+    = help: Assign to variable; remove `inplace` arg
+
+controllers/directional_trading/rsi_mutitimeframe.py:100:57: PD002 `inplace=True` should be avoided; it has inconsistent behavior
+    |
+ 98 |         rsi_col = f"RSI_{self.config.rsi_length}"
+ 99 |         df1.rename(columns={rsi_col: f"{rsi_col}_tf1"}, inplace=True)
+100 |         df2.rename(columns={rsi_col: f"{rsi_col}_tf2"}, inplace=True)
+    |                                                         ^^^^^^^^^^^^ PD002
+101 |
+102 |         # For timeframe 2, shift the RSI values forward to ensure we're using the last completed candle
+    |
+    = help: Assign to variable; remove `inplace` arg
+
+controllers/directional_trading/smugplug.py:47:31: N805 First argument of a method should be named `self`
+   |
+46 |     @validator("candles_connector", pre=True, always=True)
+47 |     def set_candles_connector(cls, v, values):
+   |                               ^^^ N805
+48 |         if v is None or v == "":
+49 |             return values.get("connector_name")
+   |
+   = help: Rename `cls` to `self`
+
+controllers/directional_trading/smugplug.py:53:34: N805 First argument of a method should be named `self`
+   |
+52 |     @validator("candles_trading_pair", pre=True, always=True)
+53 |     def set_candles_trading_pair(cls, v, values):
+   |                                  ^^^ N805
+54 |         if v is None or v == "":
+55 |             return values.get("trading_pair")
+   |
+   = help: Rename `cls` to `self`
+
+controllers/directional_trading/smugplug.py:75:9: PD901 Avoid using the generic variable name `df` for DataFrames
+   |
+74 |     async def update_processed_data(self):
+75 |         df = self.market_data_provider.get_candles_df(
+   |         ^^ PD901
+76 |             connector_name=self.config.candles_connector,
+77 |             trading_pair=self.config.candles_trading_pair,
+   |
+
+controllers/directional_trading/supertrend_v1.py:71:9: PD901 Avoid using the generic variable name `df` for DataFrames
+   |
+70 |     async def update_processed_data(self):
+71 |         df = self.market_data_provider.get_candles_df(
+   |         ^^ PD901
+72 |             connector_name=self.config.candles_connector,
+73 |             trading_pair=self.config.candles_trading_pair,
+   |
+
+controllers/directional_trading/trend_example.py:24:56: F821 Undefined name `ValidationInfo`
+   |
+22 |     @field_validator("candles_connector", mode="before")
+23 |     @classmethod
+24 |     def set_candles_connector(cls, v, validation_info: ValidationInfo):
+   |                                                        ^^^^^^^^^^^^^^ F821
+25 |         if v is None or v == "":
+26 |             return validation_info.data.get("connector_name")
+   |
+
+controllers/directional_trading/trend_example.py:31:59: F821 Undefined name `ValidationInfo`
+   |
+29 |     @field_validator("candles_trading_pair", mode="before")
+30 |     @classmethod
+31 |     def set_candles_trading_pair(cls, v, validation_info: ValidationInfo):
+   |                                                           ^^^^^^^^^^^^^^ F821
+32 |         if v is None or v == "":
+33 |             return validation_info.data.get("trading_pair")
+   |
+
+controllers/directional_trading/trend_example.py:53:9: PD901 Avoid using the generic variable name `df` for DataFrames
+   |
+52 |     async def update_processed_data(self):
+53 |         df = self.market_data_provider.get_candles_df(
+   |         ^^ PD901
+54 |             connector_name=self.config.candles_connector,
+55 |             trading_pair=self.config.candles_trading_pair,
+   |
+
+controllers/directional_trading/trend_fury.py:77:9: PD901 Avoid using the generic variable name `df` for DataFrames
+   |
+76 |     async def update_processed_data(self):
+77 |         df = self.market_data_provider.get_candles_df(
+   |         ^^ PD901
+78 |             connector_name=self.config.candles_connector,
+79 |             trading_pair=self.config.candles_trading_pair,
+   |
+
+controllers/directional_trading/trend_fury.py:84:9: PD901 Avoid using the generic variable name `df` for DataFrames
+   |
+82 |         )
+83 |
+84 |         df = self.trend_fury.calculate(df)
+   |         ^^ PD901
+85 |
+86 |         self.processed_data["signal"] = df["signal"].iloc[-1]
+   |
+
+controllers/directional_trading/xgridt.py:42:31: N805 First argument of a method should be named `self`
+   |
+41 |     @validator("candles_connector", pre=True, always=True)
+42 |     def set_candles_connector(cls, v, values):
+   |                               ^^^ N805
+43 |         if v is None or v == "":
+44 |             return values.get("connector_name")
+   |
+   = help: Rename `cls` to `self`
+
+controllers/directional_trading/xgridt.py:48:34: N805 First argument of a method should be named `self`
+   |
+47 |     @validator("candles_trading_pair", pre=True, always=True)
+48 |     def set_candles_trading_pair(cls, v, values):
+   |                                  ^^^ N805
+49 |         if v is None or v == "":
+50 |             return values.get("trading_pair")
+   |
+   = help: Rename `cls` to `self`
+
+controllers/directional_trading/xgridt.py:72:9: PD901 Avoid using the generic variable name `df` for DataFrames
+   |
+71 |     async def update_processed_data(self):
+72 |         df = self.market_data_provider.get_candles_df(
+   |         ^^ PD901
+73 |             connector_name=self.config.candles_connector,
+74 |             trading_pair=self.config.candles_trading_pair,
+   |
+
+controllers/directional_trading/xgridt.py:105:29: PD002 `inplace=True` should be avoided; it has inconsistent behavior
+    |
+103 |         df.loc[high_peaks[0], "TP_LONG"] = high_peaks[1]
+104 |         df.loc[low_peaks[0], "TP_SHORT"] = low_peaks[1]
+105 |         df["TP_LONG"].ffill(inplace=True)
+    |                             ^^^^^^^^^^^^ PD002
+106 |         df["TP_SHORT"].ffill(inplace=True)
+    |
+    = help: Assign to variable; remove `inplace` arg
+
+controllers/directional_trading/xgridt.py:106:30: PD002 `inplace=True` should be avoided; it has inconsistent behavior
+    |
+104 |         df.loc[low_peaks[0], "TP_SHORT"] = low_peaks[1]
+105 |         df["TP_LONG"].ffill(inplace=True)
+106 |         df["TP_SHORT"].ffill(inplace=True)
+    |                              ^^^^^^^^^^^^ PD002
+107 |
+108 |         # Apply the function to create the TP_LONG column
+    |
+    = help: Assign to variable; remove `inplace` arg
+
+controllers/directional_trading/xgridt.py:168:9: F841 Local variable `limit_price` is assigned to but never used
+    |
+166 |         tp_price = self.processed_data["TP_LONG"] if trade_type == TradeType.BUY else self.processed_data["TP_SHORT"]
+167 |         sl_price = self.processed_data["SL_LONG"] if trade_type == TradeType.BUY else self.processed_data["SL_SHORT"]
+168 |         limit_price = self.processed_data["LIMIT_LONG"] if trade_type == TradeType.BUY else self.processed_data["LIMIT_SHORT"]
+    |         ^^^^^^^^^^^ F841
+169 |         tp_pct = abs(Decimal(tp_price) - price) / price
+170 |         sl_pct = abs(Decimal(sl_price) - price) / price
+    |
+    = help: Remove assignment to unused variable `limit_price`
+
+controllers/directional_trading/xtreet_bb.py:112:33: N805 First argument of a method should be named `self`
+    |
+111 |     @validator("activation_bounds", pre=True, always=True)
+112 |     def parse_activation_bounds(cls, v):
+    |                                 ^^^ N805
+113 |         if isinstance(v, str):
+114 |             if v == "":
+    |
+    = help: Rename `cls` to `self`
+
+controllers/directional_trading/xtreet_bb.py:122:26: N805 First argument of a method should be named `self`
+    |
+121 |     @validator("dca_spreads", pre=True, always=True)
+122 |     def validate_spreads(cls, v):
+    |                          ^^^ N805
+123 |         if isinstance(v, str):
+124 |             return [Decimal(val) for val in v.split(",")]
+    |
+    = help: Rename `cls` to `self`
+
+controllers/directional_trading/xtreet_bb.py:128:26: N805 First argument of a method should be named `self`
+    |
+127 |     @validator("dca_amounts_pct", pre=True, always=True)
+128 |     def validate_amounts(cls, v, values):
+    |                          ^^^ N805
+129 |         spreads = values.get("dca_spreads")
+130 |         if isinstance(v, str):
+    |
+    = help: Rename `cls` to `self`
+
+controllers/directional_trading/xtreet_bb.py:158:31: N805 First argument of a method should be named `self`
+    |
+157 |     @validator("candles_connector", pre=True, always=True)
+158 |     def set_candles_connector(cls, v, values):
+    |                               ^^^ N805
+159 |         if v is None or v == "":
+160 |             return values.get("connector_name")
+    |
+    = help: Rename `cls` to `self`
+
+controllers/directional_trading/xtreet_bb.py:164:34: N805 First argument of a method should be named `self`
+    |
+163 |     @validator("candles_trading_pair", pre=True, always=True)
+164 |     def set_candles_trading_pair(cls, v, values):
+    |                                  ^^^ N805
+165 |         if v is None or v == "":
+166 |             return values.get("trading_pair")
+    |
+    = help: Rename `cls` to `self`
+
+controllers/directional_trading/xtreet_bb.py:191:9: PD901 Avoid using the generic variable name `df` for DataFrames
+    |
+190 |     async def update_processed_data(self):
+191 |         df = self.market_data_provider.get_candles_df(
+    |         ^^ PD901
+192 |             connector_name=self.config.candles_connector,
+193 |             trading_pair=self.config.candles_trading_pair,
+    |
+
+controllers/directional_trading/xtreet_bb.py:228:13: PD901 Avoid using the generic variable name `df` for DataFrames
+    |
+226 |     def get_spread_multiplier(self) -> Decimal:
+227 |         if self.config.dynamic_order_spread:
+228 |             df = self.processed_data["features"]
+    |             ^^ PD901
+229 |             bb_width = df[f"BBB_{self.config.bb_length}_{self.config.bb_std}"].iloc[-1]
+230 |             return Decimal(bb_width / 200)
+    |
+
+controllers/market_making/dman_maker_v2.py:77:9: SIM102 Use a single `if` statement instead of nested `if` statements
+   |
+76 |       def first_level_refresh_condition(self, executor):
+77 | /         if self.config.top_executor_refresh_time is not None:
+78 | |             if self.get_level_from_level_id(executor.custom_info["level_id"]) == 0:
+   | |___________________________________________________________________________________^ SIM102
+79 |                   return self.market_data_provider.time() - executor.timestamp > self.config.top_executor_refresh_time
+80 |           return False
+   |
+   = help: Combine `if` statements using `and`
+
+core/backtesting/optimizer.py:71:5: B027 `BaseStrategyConfigGenerator.generate_custom_configs` is an empty method in an abstract base class, but has no abstract decorator
+   |
+69 |           pass
+70 |
+71 | /     async def generate_custom_configs(self) -> list[BacktestingConfig]:
+72 | |         """
+73 | |         Generate custom configurations for optimization.
+74 | |         This method must be implemented by subclasses.
+75 | |
+76 | |         Returns:
+77 | |             List[BacktestingConfig]: A list of objects containing the configuration, start time, and end time.
+78 | |         """
+79 | |         pass
+   | |____________^ B027
+   |
+
+core/backtesting/optimizer.py:176:9: PD901 Avoid using the generic variable name `df` for DataFrames
+    |
+174 |         """
+175 |         study = self.get_study(study_name)
+176 |         df = study.trials_dataframe()
+    |         ^^ PD901
+177 |         df.dropna(inplace=True)
+178 |         # Renaming the columns that start with 'user_attrs_'
+    |
+
+core/backtesting/triple_barrier_method.py:13:32: PD002 `inplace=True` should be avoided; it has inconsistent behavior
+   |
+11 |         df["target"] = 1 / 100
+12 |     df["tl"] = df.index + pd.Timedelta(seconds=tl)
+13 |     df.dropna(subset="target", inplace=True)
+   |                                ^^^^^^^^^^^^ PD002
+14 |
+15 |     df = apply_tp_sl_on_tl(df, tp=tp, sl=sl)
+   |
+   = help: Assign to variable; remove `inplace` arg
+
+core/backtesting/triple_barrier_method.py:15:5: PD901 Avoid using the generic variable name `df` for DataFrames
+   |
+13 |     df.dropna(subset="target", inplace=True)
+14 |
+15 |     df = apply_tp_sl_on_tl(df, tp=tp, sl=sl)
+   |     ^^ PD901
+16 |
+17 |     df = get_bins(df, trade_cost)
+   |
+
+core/backtesting/triple_barrier_method.py:17:5: PD901 Avoid using the generic variable name `df` for DataFrames
+   |
+15 |     df = apply_tp_sl_on_tl(df, tp=tp, sl=sl)
+16 |
+17 |     df = get_bins(df, trade_cost)
+   |     ^^ PD901
+18 |
+19 |     df["tp"] = df["close"] * (1 + df["target"] * tp * df["side"])
+   |
+
+core/backtesting/triple_barrier_method.py:31:18: PD011 Use `.to_numpy()` instead of `.values`
+   |
+30 |     # 2) create out object
+31 |     df["ret"] = (px.loc[df["close_time"].values].values / px.loc[df.index] - 1) * df["side"]
+   |                  ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ PD011
+32 |     df["real_class"] = np.sign(df["ret"] - trade_cost)
+33 |     return df
+   |
+
+core/backtesting/triple_barrier_method.py:31:25: PD011 Use `.to_numpy()` instead of `.values`
+   |
+30 |     # 2) create out object
+31 |     df["ret"] = (px.loc[df["close_time"].values].values / px.loc[df.index] - 1) * df["side"]
+   |                         ^^^^^^^^^^^^^^^^^^^^^^^ PD011
+32 |     df["real_class"] = np.sign(df["ret"] - trade_cost)
+33 |     return df
+   |
+
+core/backtesting/triple_barrier_method.py:38:5: SIM108 Use ternary operator `take_profit = tp * events["target"] if tp > 0 else pd.Series(index=df.index)` instead of `if`-`else`-block
+   |
+36 |   def apply_tp_sl_on_tl(df: pd.DataFrame, tp: float, sl: float):
+37 |       events = df[df["side"] != 0].copy()
+38 | /     if tp > 0:
+39 | |         take_profit = tp * events["target"]
+40 | |     else:
+41 | |         take_profit = pd.Series(index=df.index)  # NaNs
+   | |_______________________________________________^ SIM108
+42 |       if sl > 0:
+43 |           stop_loss = -sl * events["target"]
+   |
+   = help: Replace `if`-`else`-block with `take_profit = tp * events["target"] if tp > 0 else pd.Series(index=df.index)`
+
+core/backtesting/triple_barrier_method.py:42:5: SIM108 Use ternary operator `stop_loss = -sl * events["target"] if sl > 0 else pd.Series(index=df.index)` instead of `if`-`else`-block
+   |
+40 |       else:
+41 |           take_profit = pd.Series(index=df.index)  # NaNs
+42 | /     if sl > 0:
+43 | |         stop_loss = -sl * events["target"]
+44 | |     else:
+45 | |         stop_loss = pd.Series(index=df.index)  # NaNs
+   | |_____________________________________________^ SIM108
+46 |
+47 |       for loc, tl in events["tl"].fillna(df.index[-1]).items():
+   |
+   = help: Replace `if`-`else`-block with `stop_loss = -sl * events["target"] if sl > 0 else pd.Series(index=df.index)`
+
+core/backtesting/triple_barrier_method.py:49:43: PD008 Use `.loc` instead of `.at`. If speed is important, use NumPy.
+   |
+47 |     for loc, tl in events["tl"].fillna(df.index[-1]).items():
+48 |         df0 = df.close[loc:tl]  # path prices
+49 |         df0 = (df0 / df.close[loc] - 1) * events.at[loc, "side"]  # path returns
+   |                                           ^^^^^^^^^^^^^^^^^^^^^^ PD008
+50 |         df.loc[loc, "stop_loss_time"] = df0[df0 < stop_loss[loc]].index.min()  # earliest stop loss.
+51 |         df.loc[loc, "take_profit_time"] = df0[df0 > take_profit[loc]].index.min()  # earliest profit taking.
+   |
+
+core/backtesting/triple_barrier_method.py:54:86: PD002 `inplace=True` should be avoided; it has inconsistent behavior
+   |
+52 |     df["close_time"] = df[["tl", "take_profit_time", "stop_loss_time"]].dropna(how="all").min(axis=1)
+53 |     df["close_type"] = df[["take_profit_time", "stop_loss_time", "tl"]].dropna(how="all").idxmin(axis=1)
+54 |     df["close_type"].replace({"take_profit_time": 1, "stop_loss_time": -1, "tl": 0}, inplace=True)
+   |                                                                                      ^^^^^^^^^^^^ PD002
+55 |     return df
+   |
+   = help: Assign to variable; remove `inplace` arg
+
+core/data_sources/clob.py:75:29: SIM118 Use `key in dict` instead of `key in dict.keys()`
+   |
+73 |     def get_connector_config_map(connector_name: str):
+74 |         connector_config = AllConnectorSettings.get_connector_config_keys(connector_name)
+75 |         return {key: "" for key in connector_config.__fields__.keys() if key != "connector"}
+   |                             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ SIM118
+76 |
+77 |     @property
+   |
+   = help: Remove `.keys()`
+
+core/data_sources/clob.py:111:17: PD002 `inplace=True` should be avoided; it has inconsistent behavior
+    |
+109 |                     "taker_quote_vol": "taker_buy_quote_volume",
+110 |                 },
+111 |                 inplace=True,
+    |                 ^^^^^^^^^^^^ PD002
+112 |             )
+113 |             candles.index = pd.to_datetime(candles["timestamp"], unit="s")
+    |
+    = help: Assign to variable; remove `inplace` arg
+
+core/data_sources/clob.py:360:9: PD901 Avoid using the generic variable name `df` for DataFrames
+    |
+358 |         )
+359 |
+360 |         df = pd.DataFrame(response)
+    |         ^^ PD901
+361 |         if not df.empty:
+362 |             df["fundingTime"] = pd.to_datetime(df["fundingTime"], unit="ms")
+    |
+
+core/data_sources/clob.py:365:41: PD002 `inplace=True` should be avoided; it has inconsistent behavior
+    |
+363 |             df["fundingRate"] = df["fundingRate"].astype(float)
+364 |             df["markPrice"] = df["markPrice"].astype(float)
+365 |             df.set_index("fundingTime", inplace=True)
+    |                                         ^^^^^^^^^^^^ PD002
+366 |         return df
+    |
+    = help: Assign to variable; remove `inplace` arg
+
+core/data_sources/hummingbot_database.py:107:13: B007 Loop control variable `i` not used within loop body
+    |
+105 |         executors["custom_info"] = executors["custom_info"].apply(lambda x: json.loads(x) if isinstance(x, str) else x)
+106 |         executors["config"] = executors["config"].apply(lambda x: json.loads(x) if isinstance(x, str) else x)
+107 |         for i, executor in executors.iterrows():
+    |             ^ B007
+108 |             executor["custom_info"]["side"] = TradeType(executor["custom_info"]["side"])
+109 |         return executors
+    |
+    = help: Rename unused `i` to `_i`
+
+core/data_sources/hummingbot_database.py:114:40: PD011 Use `.to_numpy()` instead of `.values`
+    |
+112 |         executors = self.get_executors_from_controller_id(controller_id)
+113 |         controllers_data = self.get_controller_data()
+114 |         controller_config = json.loads(controllers_data[controllers_data["id"] == controller_id]["config"].values[0])
+    |                                        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ PD011
+115 |         return ControllerPerformance(executors, controller_config, self.root_path, self.load_cache_data)
+    |
+
+core/data_sources/solana.py:40:13: B904 Within an `except` clause, raise exceptions with `raise ... from err` or `raise ... from None` to distinguish them from errors in exception handling
+   |
+38 |             }
+39 |         except Exception as e:
+40 |             raise Exception(f"Error fetching token info: {e}")
+   |             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ B904
+41 |
+42 |     async def get_account_info(self, account_address: str) -> dict:
+   |
+
+core/data_sources/solana.py:59:13: B904 Within an `except` clause, raise exceptions with `raise ... from err` or `raise ... from None` to distinguish them from errors in exception handling
+   |
+57 |             }
+58 |         except Exception as e:
+59 |             raise Exception(f"Error fetching account info: {e}")
+   |             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ B904
+60 |
+61 |     async def close(self):
+   |
+
+core/data_sources/trades_feed/connectors/binance_perpetual.py:63:9: PD901 Avoid using the generic variable name `df` for DataFrames
+   |
+61 |                 all_trades_collected = True
+62 |
+63 |         df = pd.DataFrame(all_trades)
+   |         ^^ PD901
+64 |         df.rename(columns={"T": "timestamp", "p": "price", "q": "volume", "m": "sell_taker", "a": "id"}, inplace=True)
+65 |         df.drop(columns=["f", "l"], inplace=True)
+   |
+
+core/data_sources/trades_feed/connectors/binance_perpetual.py:64:106: PD002 `inplace=True` should be avoided; it has inconsistent behavior
+   |
+63 |         df = pd.DataFrame(all_trades)
+64 |         df.rename(columns={"T": "timestamp", "p": "price", "q": "volume", "m": "sell_taker", "a": "id"}, inplace=True)
+   |                                                                                                          ^^^^^^^^^^^^ PD002
+65 |         df.drop(columns=["f", "l"], inplace=True)
+66 |         df["timestamp"] = df["timestamp"] / 1000
+   |
+   = help: Assign to variable; remove `inplace` arg
+
+core/data_sources/trades_feed/connectors/binance_perpetual.py:65:37: PD002 `inplace=True` should be avoided; it has inconsistent behavior
+   |
+63 |         df = pd.DataFrame(all_trades)
+64 |         df.rename(columns={"T": "timestamp", "p": "price", "q": "volume", "m": "sell_taker", "a": "id"}, inplace=True)
+65 |         df.drop(columns=["f", "l"], inplace=True)
+   |                                     ^^^^^^^^^^^^ PD002
+66 |         df["timestamp"] = df["timestamp"] / 1000
+67 |         df.index = pd.to_datetime(df["timestamp"], unit="s")
+   |
+   = help: Assign to variable; remove `inplace` arg
+
+core/data_structures/backtesting_result.py:59:18: C408 Unnecessary `dict()` call (rewrite as a literal)
+   |
+57 |             y=self.processed_data["close"],
+58 |             mode="lines",
+59 |             line=dict(color="blue"),
+   |                  ^^^^^^^^^^^^^^^^^^ C408
+60 |         )
+   |
+   = help: Rewrite as a literal
+
+core/data_structures/backtesting_result.py:70:18: C408 Unnecessary `dict()` call (rewrite as a literal)
+   |
+68 |             y=cum_pnl,
+69 |             mode="lines",
+70 |             line=dict(color="gold", width=2, dash=line_style if line_style == "dash" else None),
+   |                  ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ C408
+71 |             name="Cumulative PNL",
+72 |         )
+   |
+   = help: Rewrite as a literal
+
+core/data_structures/backtesting_result.py:108:30: C408 Unnecessary `dict()` call (rewrite as a literal)
+    |
+106 |                         mode="lines",
+107 |                         showlegend=False,
+108 |                         line=dict(color="grey", width=2, dash=line_style if line_style == "dash" else None),
+    |                              ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ C408
+109 |                         name=name,
+110 |                     ),
+    |
+    = help: Rewrite as a literal
+
+core/data_structures/backtesting_result.py:122:34: C408 Unnecessary `dict()` call (rewrite as a literal)
+    |
+120 |                             mode="lines",
+121 |                             showlegend=False,
+122 |                             line=dict(color="green", width=2, dash=line_style if line_style == "dash" else None),
+    |                                  ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ C408
+123 |                             name=name,
+124 |                         ),
+    |
+    = help: Rewrite as a literal
+
+core/data_structures/backtesting_result.py:135:34: C408 Unnecessary `dict()` call (rewrite as a literal)
+    |
+133 |                             mode="lines",
+134 |                             showlegend=False,
+135 |                             line=dict(color="red", width=2, dash=line_style if line_style == "dash" else None),
+    |                                  ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ C408
+136 |                             name=name,
+137 |                         ),
+    |
+    = help: Rewrite as a literal
+
+core/data_structures/trading_rules.py:13:21: C403 Unnecessary list comprehension (rewrite as a set comprehension)
+   |
+12 |     def get_all_trading_pairs(self):
+13 |         return list(set([tr.trading_pair for tr in self.data]))
+   |                     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ C403
+14 |
+15 |     def filter_by_base_asset(self, base_asset: str):
+   |
+   = help: Rewrite as a set comprehension
+
+core/features/candles/peak_analyzer.py:31:13: PD901 Avoid using the generic variable name `df` for DataFrames
+   |
+29 |             end_idx = (i + 1) * calculation_interval
+30 |             start_idx = end_idx - window_size if end_idx - window_size >= 0 else 0
+31 |             df = self.candles.iloc[start_idx:end_idx].copy()
+   |             ^^ PD901
+32 |             start_time = df.index.min()
+33 |             end_time = df.index.max()
+   |
+
+core/features/candles/peak_analyzer.py:110:9: N806 Variable `Z` in function should be lowercase
+    |
+108 |             return peaks.tolist(), np.arange(len(peaks))
+109 |
+110 |         Z = linkage(peaks.values.reshape(-1, 1), method="ward")
+    |         ^ N806
+111 |         labels = fcluster(Z, num_clusters, criterion="maxclust")
+112 |         centroids = [peaks[labels == k].mean() for k in range(1, num_clusters + 1)]
+    |
+
+core/features/candles/peak_analyzer.py:110:21: PD011 Use `.to_numpy()` instead of `.values`
+    |
+108 |             return peaks.tolist(), np.arange(len(peaks))
+109 |
+110 |         Z = linkage(peaks.values.reshape(-1, 1), method="ward")
+    |                     ^^^^^^^^^^^^ PD011
+111 |         labels = fcluster(Z, num_clusters, criterion="maxclust")
+112 |         centroids = [peaks[labels == k].mean() for k in range(1, num_clusters + 1)]
+    |
+
+core/features/candles/peak_analyzer.py:123:28: C408 Unnecessary `dict()` call (rewrite as a literal)
+    |
+121 |                     y=self.candles["high"].loc[cluster["high_peaks_index"]],
+122 |                     mode="markers",
+123 |                     marker=dict(size=7, color="yellow"),
+    |                            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^ C408
+124 |                     name=f"High Peaks {cluster['start_time']}",
+125 |                     showlegend=False,
+    |
+    = help: Rewrite as a literal
+
+core/features/candles/peak_analyzer.py:135:28: C408 Unnecessary `dict()` call (rewrite as a literal)
+    |
+133 |                     y=self.candles["low"].loc[cluster["low_peaks_index"]],
+134 |                     mode="markers",
+135 |                     marker=dict(size=7, color="yellow"),
+    |                            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^ C408
+136 |                     name=f"Low Peaks {cluster['start_time']}",
+137 |                     showlegend=False,
+    |
+    = help: Rewrite as a literal
+
+core/features/candles/peak_analyzer.py:151:26: C408 Unnecessary `dict()` call (rewrite as a literal)
+    |
+149 |                     x1=x_end,
+150 |                     y1=level,
+151 |                     line=dict(color="orange", width=2),
+    |                          ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ C408
+152 |                 )
+153 |                 # fig.add_annotation(
+    |
+    = help: Rewrite as a literal
+
+core/features/candles/peak_analyzer.py:171:26: C408 Unnecessary `dict()` call (rewrite as a literal)
+    |
+169 |                     x1=x_end,
+170 |                     y1=level,
+171 |                     line=dict(color="blue", width=2, dash="dash"),
+    |                          ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ C408
+172 |                 )
+173 |                 # fig.add_annotation(
+    |
+    = help: Rewrite as a literal
+
+core/features/candles/trend.py:46:9: N806 Variable `X` in function should be lowercase
+   |
+44 |         if len(values) < 2:
+45 |             return 0.0
+46 |         X = np.arange(len(values)).reshape(-1, 1)
+   |         ^ N806
+47 |         y = values.reshape(-1, 1)
+48 |         model = LinearRegression().fit(X, y)
+   |
+
+core/features/candles/trend_fury.py:137:9: N806 Variable `X` in function should be lowercase
+    |
+136 |         # Prepare the data for regression
+137 |         X = np.arange(len(values)).reshape(-1, 1)
+    |         ^ N806
+138 |         y = values.values.reshape(-1, 1)
+    |
+
+core/features/candles/trend_fury.py:138:13: PD011 Use `.to_numpy()` instead of `.values`
+    |
+136 |         # Prepare the data for regression
+137 |         X = np.arange(len(values)).reshape(-1, 1)
+138 |         y = values.values.reshape(-1, 1)
+    |             ^^^^^^^^^^^^^ PD011
+139 |
+140 |         if weights is not None:
+    |
+
+core/features/candles/trend_fury.py:141:23: PD011 Use `.to_numpy()` instead of `.values`
+    |
+140 |         if weights is not None:
+141 |             weights = weights.values.flatten()
+    |                       ^^^^^^^^^^^^^^ PD011
+142 |             # Fit weighted linear regression
+143 |             model = LinearRegression().fit(X, y, sample_weight=weights)
+    |
+
+core/features/feature_base.py:14:24: UP046 Generic class `FeatureBase` uses `Generic` subclass instead of type parameters
+   |
+14 | class FeatureBase(ABC, Generic[T]):
+   |                        ^^^^^^^^^^ UP046
+15 |     def __init__(self, feature_config: T):
+16 |         self.config = feature_config
+   |
+   = help: Use type parameters
+
+core/performance/performance_report.py:156:49: PD002 `inplace=True` should be avoided; it has inconsistent behavior
+    |
+154 |         if controller_id is not None:
+155 |             performance_df = performance_df[performance_df["controller_id"] == controller_id]
+156 |         performance_df.sort_values("timestamp", inplace=True)
+    |                                                 ^^^^^^^^^^^^ PD002
+157 |         performance_df = performance_df[performance_df["side"] == side]
+158 |         performance_df["datetime"] = pd.to_datetime(performance_df["timestamp"], unit="s")
+    |
+    = help: Assign to variable; remove `inplace` arg
+
+core/performance/performance_report.py:269:24: C408 Unnecessary `dict()` call (rewrite as a literal)
+    |
+267 |                   y=df["price"],
+268 |                   mode="markers",
+269 |                   marker=dict(
+    |  ________________________^
+270 | |                     symbol=df["position_multiplier"].apply(lambda x: "triangle-up" if x > 0 else "triangle-down"),
+271 | |                     size=8,
+272 | |                     color="white",
+273 | |                 ),
+    | |_________________^ C408
+274 |                   showlegend=False,
+275 |               ),
+    |
+    = help: Rewrite as a literal
+
+core/performance/performance_report.py:305:20: C408 Unnecessary `dict()` call (rewrite as a literal)
+    |
+303 |             showlegend=True,
+304 |             title_text="Trading Performance Overview",
+305 |             xaxis2=dict(title="Time"),  # Label x-axis only for second row
+    |                    ^^^^^^^^^^^^^^^^^^ C408
+306 |         )
+307 |         return fig
+    |
+    = help: Rewrite as a literal
+
+core/performance/performance_report.py:321:61: PD002 `inplace=True` should be avoided; it has inconsistent behavior
+    |
+320 |         # Crear Gantt chart dataframe format
+321 |         global_performance.sort_values(by="start_datetime", inplace=True)
+    |                                                             ^^^^^^^^^^^^ PD002
+322 |         gantt_data = [
+323 |             dict(Task=row["db_name"], Start=row["start_datetime"], Finish=row["end_datetime"])
+    |
+    = help: Assign to variable; remove `inplace` arg
+
+core/performance/performance_report.py:323:13: C408 Unnecessary `dict()` call (rewrite as a literal)
+    |
+321 |         global_performance.sort_values(by="start_datetime", inplace=True)
+322 |         gantt_data = [
+323 |             dict(Task=row["db_name"], Start=row["start_datetime"], Finish=row["end_datetime"])
+    |             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ C408
+324 |             for _, row in global_performance.iterrows()
+325 |         ]
+    |
+    = help: Rewrite as a literal
+
+core/performance/performance_report.py:328:29: C401 Unnecessary generator (rewrite as a set comprehension)
+    |
+327 |         # Extraer valores únicos para definir colores
+328 |         unique_tasks = list(set(row["db_name"] for _, row in global_performance.iterrows()))
+    |                             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ C401
+329 |
+330 |         # Generar una lista de colores lo suficientemente grande
+    |
+    = help: Rewrite as a set comprehension
+
+core/performance/performance_report.py:363:59: PD002 `inplace=True` should be avoided; it has inconsistent behavior
+    |
+361 |             fig.add_trace(trace, row=1, col=1)
+362 |
+363 |         global_performance.sort_values(by="end_datetime", inplace=True)
+    |                                                           ^^^^^^^^^^^^ PD002
+364 |         # Add cumulative PNL scatter plot
+365 |         fig.add_trace(
+    |
+    = help: Assign to variable; remove `inplace` arg
+
+core/performance/performance_report.py:371:22: C408 Unnecessary `dict()` call (rewrite as a literal)
+    |
+369 |                 mode="lines+markers",
+370 |                 name="Cumulative PNL",
+371 |                 line=dict(color="purple"),
+    |                      ^^^^^^^^^^^^^^^^^^^^ C408
+372 |             ),
+373 |             row=2,
+    |
+    = help: Rewrite as a literal
+
+core/performance/performance_report.py:384:22: C408 Unnecessary `dict()` call (rewrite as a literal)
+    |
+382 |                 mode="lines+markers",
+383 |                 name="Cumulative Volume",
+384 |                 line=dict(color="orange"),
+    |                      ^^^^^^^^^^^^^^^^^^^^ C408
+385 |             ),
+386 |             row=3,
+    |
+    = help: Rewrite as a literal
+
+core/performance/performance_report.py:401:9: PD901 Avoid using the generic variable name `df` for DataFrames
+    |
+399 |     def plot_volume_treemap(self):
+400 |         # Filter data
+401 |         df = self.all_trades_df.copy()
+    |         ^^ PD901
+402 |
+403 |         # Round the volume column to integers
+    |
+
+core/performance/performance_report.py:420:20: C408 Unnecessary `dict()` call (rewrite as a literal)
+    |
+418 |         # Optimize layout to reduce empty space
+419 |         fig.update_layout(
+420 |             margin=dict(l=0, r=0, t=0, b=0),  # Remove extra margins
+    |                    ^^^^^^^^^^^^^^^^^^^^^^^^ C408
+421 |             autosize=True,
+422 |             height=600,  # Adjust height
+    |
+    = help: Rewrite as a literal
+
+core/services/backend_api_client.py:177:9: SIM108 Use ternary operator `data = None if "processed_data" not in backtesting_results else pd.DataFrame(backtesting_results["processed_data"])` instead of `if`-`else`-block
+    |
+175 |           if "error" in backtesting_results:
+176 |               raise Exception(backtesting_results["error"])
+177 | /         if "processed_data" not in backtesting_results:
+178 | |             data = None
+179 | |         else:
+180 | |             data = pd.DataFrame(backtesting_results["processed_data"])
+    | |______________________________________________________________________^ SIM108
+181 |           if "executors" not in backtesting_results:
+182 |               executors = []
+    |
+    = help: Replace `if`-`else`-block with `data = None if "processed_data" not in backtesting_results else pd.DataFrame(backtesting_results["processed_data"])`
+
+core/services/gateway_client.py:4:1: N816 Variable `firstWalletAddress` in global scope should not be mixedCase
+  |
+2 | from core.services.client_base import ClientBase
+3 |
+4 | firstWalletAddress = "82SggYRE2Vo4jN4a2pk3aQ4SET4ctafZJGbowmCqyHx5"
+  | ^^^^^^^^^^^^^^^^^^ N816
+  |
+
+core/services/gateway_client.py:33:9: N803 Argument name `tokenSymbols` should be lowercase
+   |
+31 |         chain: str = "solana",
+32 |         network: str = "mainnet-beta",
+33 |         tokenSymbols: list[str] | None = None,
+   |         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ N803
+34 |     ):
+35 |         """List all tokens available in the Solana token list."""
+   |
+
+core/services/gateway_client.py:47:9: N803 Argument name `tokenSymbols` should be lowercase
+   |
+45 |         network: str = "mainnet-beta",
+46 |         address: str | None = None,
+47 |         tokenSymbols: list[str] | None = None,
+   |         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ N803
+48 |     ):
+49 |         """Get token balances for the specified wallet address or the user's wallet if not provided."""
+   |
+
+core/services/gateway_client.py:58:9: N803 Argument name `txHash` should be lowercase
+   |
+56 |     async def post_chain_poll(
+57 |         self,
+58 |         txHash: str,
+   |         ^^^^^^^^^^^ N803
+59 |         chain: str = "solana",
+60 |         network: str = "mainnet-beta",
+   |
+
+core/services/larp_client.py:10:82: B006 Do not use mutable data structures for argument defaults
+   |
+ 9 |     # Solana endpoints
+10 |     async def get_balance(self, address: str | None = None, symbols: list[str] = ["SOL"]):
+   |                                                                                  ^^^^^^^ B006
+11 |         """Get token balances for the specified wallet address or the user's wallet if not provided."""
+12 |         endpoint = "solana/balance"
+   |
+   = help: Replace with `None`; initialize within function
+
+core/services/mongodb_client.py:65:28: B006 Do not use mutable data structures for argument defaults
+   |
+63 |         documents: dict[str, Any] | list[dict[str, Any]],
+64 |         db_name: str | None = None,
+65 |         index: list[str] = [],
+   |                            ^^ B006
+66 |     ):
+67 |         """Insert one or multiple documents into a specified collection."""
+   |
+   = help: Replace with `None`; initialize within function
+
+core/services/okx_dex_api.py:575:13: B904 Within an `except` clause, raise exceptions with `raise ... from err` or `raise ... from None` to distinguish them from errors in exception handling
+    |
+574 |         except Exception as e:
+575 |             raise ValueError(f"Transaction failed: {e}")
+    |             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ B904
+576 |
+577 |     async def poll_for_confirmation(self, tx_sig: str, sleep_seconds: float = 0.5):
+    |
+
+core/services/okx_dex_api.py:711:13: B904 Within an `except` clause, raise exceptions with `raise ... from err` or `raise ... from None` to distinguish them from errors in exception handling
+    |
+710 |         except Exception as e:
+711 |             raise ValueError(f"Transaction failed: {e}")
+    |             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ B904
+    |
+
+core/services/timescale_client.py:193:131: E501 Line too long (142 > 130)
+    |
+191 | …
+192 | …
+193 | …tor_name"]}' AND trading_pair = '{screener_metrics["trading_pair"]}';
+    |                                                           ^^^^^^^^^^^^ E501
+194 | …
+195 | …
+    |
+
+core/services/timescale_client.py:307:13: PD901 Avoid using the generic variable name `df` for DataFrames
+    |
+305 |                 )
+306 |
+307 |             df = pd.DataFrame(rows, columns=["trade_id", "timestamp", "price", "volume", "sell_taker"])
+    |             ^^ PD901
+308 |             df["timestamp"] = pd.to_datetime(df["timestamp"], unit="s")
+309 |             df["price"] = df["price"].astype(float)
+    |
+
+core/services/timescale_client.py:322:9: PD901 Avoid using the generic variable name `df` for DataFrames
+    |
+320 |         results = await asyncio.gather(*chunks)
+321 |
+322 |         df = pd.concat(results, ignore_index=True)
+    |         ^^ PD901
+323 |         df.set_index("timestamp", inplace=True)
+324 |         return df
+    |
+
+core/services/timescale_client.py:323:35: PD002 `inplace=True` should be avoided; it has inconsistent behavior
+    |
+322 |         df = pd.concat(results, ignore_index=True)
+323 |         df.set_index("timestamp", inplace=True)
+    |                                   ^^^^^^^^^^^^ PD002
+324 |         return df
+    |
+    = help: Assign to variable; remove `inplace` arg
+
+core/services/timescale_client.py:394:9: PD901 Avoid using the generic variable name `df` for DataFrames
+    |
+392 |             "end_time",
+393 |         ]
+394 |         df = pd.DataFrame(rows, columns=df_cols)
+    |         ^^ PD901
+395 |         return df
+    |
+
+core/services/timescale_client.py:414:9: PD901 Avoid using the generic variable name `df` for DataFrames
+    |
+412 |             "volume_usd",
+413 |         ]
+414 |         df = pd.DataFrame(rows, columns=df_cols)
+    |         ^^ PD901
+415 |         return df
+    |
+
+lab/local_pmm_simple_backtest.py:89:1: E402 Module level import not at top of file
+   |
+89 | from core.backtesting.position_executor_patch import patch_position_executor_simulator
+   | ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ E402
+90 |
+91 | patch_position_executor_simulator()
+   |
+
+tasks/backtesting/smugplug_backtesting_task.py:30:9: PD901 Avoid using the generic variable name `df` for DataFrames
+   |
+29 |     def generate_top_markets_report(self, status_db_df: pd.DataFrame):
+30 |         df = status_db_df.copy()
+   |         ^^ PD901
+31 |         df.sort_values("volume_usd", ascending=False, inplace=True)
+32 |         screener_top_markets = df.head(self.screener_config["max_top_markets"])
+   |
+
+tasks/backtesting/smugplug_backtesting_task.py:31:55: PD002 `inplace=True` should be avoided; it has inconsistent behavior
+   |
+29 |     def generate_top_markets_report(self, status_db_df: pd.DataFrame):
+30 |         df = status_db_df.copy()
+31 |         df.sort_values("volume_usd", ascending=False, inplace=True)
+   |                                                       ^^^^^^^^^^^^ PD002
+32 |         screener_top_markets = df.head(self.screener_config["max_top_markets"])
+33 |         return screener_top_markets[["connector_name", "trading_pair", "from_timestamp", "to_timestamp"]]
+   |
+   = help: Assign to variable; remove `inplace` arg
+
+tasks/backtesting/smugplug_backtesting_task.py:58:13: B007 Loop control variable `index` not used within loop body
+   |
+56 |         )
+57 |         logger.info(f"Optimizing strategy for top markets: {top_markets_df.shape[0]}")
+58 |         for index, row in top_markets_df.iterrows():
+   |             ^^^^^ B007
+59 |             connector_name = row["connector_name"]
+60 |             trading_pair = row["trading_pair"]
+   |
+   = help: Rename unused `index` to `_index`
+
+tasks/data_collection/candles_downloader_task.py:74:90: PD011 Use `.to_numpy()` instead of `.values`
+   |
+72 |                         continue
+73 |
+74 |                     await timescale_client.append_candles(table_name=table_name, candles=candles.data.values.tolist())
+   |                                                                                          ^^^^^^^^^^^^^^^^^^^ PD011
+75 |                     today_start = datetime.utcnow().replace(hour=0, minute=0, second=0, microsecond=0)
+76 |                     cutoff_timestamp = (today_start - timedelta(days=self.days_data_retention)).timestamp()
+   |
+
+tasks/data_collection/funding_rates_task.py:62:17: PD901 Avoid using the generic variable name `df` for DataFrames
+   |
+60 |                 )
+61 |
+62 |                 df = pd.DataFrame(funding_rates)
+   |                 ^^ PD901
+63 |                 # Generate all possible combinations of trading pairs
+64 |                 combinations_list = list(combinations(df["trading_pair"], 2))
+   |
+
+tasks/data_collection/funding_rates_task.py:70:29: PD011 Use `.to_numpy()` instead of `.values`
+   |
+69 |                 for pair1, pair2 in combinations_list:
+70 |                     rate1 = df.loc[df["trading_pair"] == pair1, "rate"].values[0]
+   |                             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ PD011
+71 |                     rate2 = df.loc[df["trading_pair"] == pair2, "rate"].values[0]
+72 |                     rate_difference = rate1 - rate2
+   |
+
+tasks/data_collection/funding_rates_task.py:71:29: PD011 Use `.to_numpy()` instead of `.values`
+   |
+69 |                 for pair1, pair2 in combinations_list:
+70 |                     rate1 = df.loc[df["trading_pair"] == pair1, "rate"].values[0]
+71 |                     rate2 = df.loc[df["trading_pair"] == pair2, "rate"].values[0]
+   |                             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ PD011
+72 |                     rate_difference = rate1 - rate2
+73 |                     results.append(
+   |
+
+tasks/data_collection/local_cache_update_task.py:49:53: PD002 `inplace=True` should be avoided; it has inconsistent behavior
+   |
+47 |                 candles_df: pd.DataFrame = candles.data
+48 |                 candles_df["timestamp"] = candles_df["timestamp"].apply(lambda x: x.timestamp())
+49 |                 candles_df.sort_values("timestamp", inplace=True)
+   |                                                     ^^^^^^^^^^^^ PD002
+50 |                 if candles_df.empty:
+51 |                     logging.info(f"{now} - No data found for {trading_pair} - {interval}")
+   |
+   = help: Assign to variable; remove `inplace` arg
+
+tasks/data_collection/screener_task.py:74:9: PD901 Avoid using the generic variable name `df` for DataFrames
+   |
+73 |     def calculate_global_screener_metrics(self, candles_df: pd.DataFrame, connector_name: str, trading_pair: str):
+74 |         df = candles_df.copy()
+   |         ^^ PD901
+75 |         df["timestamp"] = pd.to_datetime(df["timestamp"], unit="s")
+76 |         df = df.set_index("timestamp")
+   |
+
+tasks/data_collection/screener_task.py:76:9: PD901 Avoid using the generic variable name `df` for DataFrames
+   |
+74 |         df = candles_df.copy()
+75 |         df["timestamp"] = pd.to_datetime(df["timestamp"], unit="s")
+76 |         df = df.set_index("timestamp")
+   |         ^^ PD901
+77 |
+78 |         # 1. Price Analysis
+   |
+
+tasks/data_collection/screener_task.py:114:9: PD901 Avoid using the generic variable name `df` for DataFrames
+    |
+112 |         interval_metrics = {}
+113 |
+114 |         df = candles_df.copy()
+    |         ^^ PD901
+115 |         df["atr_24h"] = ta.atr(df["high"], df["low"], df["close"], length=24)
+116 |         df["atr_1w"] = ta.atr(df["high"], df["low"], df["close"], length=7 * 24)
+    |
+
+tasks/data_collection/simple_candles_downloader.py:74:95: PD011 Use `.to_numpy()` instead of `.values`
+   |
+72 |                         continue
+73 |
+74 |                     await self.timescale_client.append_candles(table_name=table_name, candles=candles.data.values.tolist())
+   |                                                                                               ^^^^^^^^^^^^^^^^^^^ PD011
+75 |                     today_start = datetime.utcnow().replace(hour=0, minute=0, second=0, microsecond=0)
+76 |                     cutoff_timestamp = (today_start - timedelta(days=self.days_data_retention)).timestamp()
+   |
+
+tasks/data_collection/trades_downloader_task.py:71:31: PD011 Use `.to_numpy()` instead of `.values`
+   |
+69 |                   trades["trading_pair"] = trading_pair
+70 |
+71 |                   trades_data = trades[
+   |  _______________________________^
+72 | |                     ["id", "connector_name", "trading_pair", "timestamp", "price", "volume", "sell_taker"]
+73 | |                 ].values.tolist()
+   | |________________________^ PD011
+74 |
+75 |                   await timescale_client.append_trades(table_name=table_name, trades=trades_data)
+   |
+
+tasks/data_reporting/data_reporting_task.py:121:24: PD010 `.pivot_table` is preferred to `.pivot` or `.unstack`; provides same functionality
+    |
+120 |         # Pivot data for heatmap-ready format with trade_amount as percentage
+121 |         heatmap_data = base_metrics.pivot(index="trading_pair", columns="day", values="trade_amount_pct")
+    |                        ^^^^^^^^^^^^^^^^^^ PD010
+122 |
+123 |         # Create the heatmap using Plotly
+    |
+
+tasks/data_reporting/data_reporting_task.py:209:131: E501 Line too long (139 > 130)
+    |
+207 | …
+208 | …
+209 | …n 2 days):\nToo many pairs, printing missing_pairs.csv file instead"
+    |                                                             ^^^^^^^^^ E501
+210 | …
+211 | …n 2 days):\n" + "\n".join(
+    |
+
+tasks/data_reporting/data_reporting_task.py:216:131: E501 Line too long (147 > 130)
+    |
+214 | …
+215 | …
+216 | …e yesterday):\nToo many pairs, printing outdated_pairs.csv file instead"
+    |                                                         ^^^^^^^^^^^^^^^^^ E501
+217 | …
+218 | …e yesterday):\n" + "\n".join(
+    |
+
+tasks/data_reporting/data_reporting_task.py:233:131: E501 Line too long (150 > 130)
+    |
+231 | …
+232 | …
+233 | …out of total pairs:{(len(missing_pairs_list) / len(table_names)):.2f}%\n"
+    |                                                       ^^^^^^^^^^^^^^^^^^^^ E501
+234 | … pairs: {(len(outdated_pairs_list) / len(table_names)):.2f}%\n"
+235 | …n(correct_pairs_list) / len(table_names)):.2f}%\n"
+    |
+
+tasks/data_reporting/data_reporting_task.py:234:131: E501 Line too long (140 > 130)
+    |
+233 | …ays) out of total pairs:{(len(missing_pairs_list) / len(table_names)):.2f}%\n"
+234 | …total pairs: {(len(outdated_pairs_list) / len(table_names)):.2f}%\n"
+    |                                                            ^^^^^^^^^^ E501
+235 | … {(len(correct_pairs_list) / len(table_names)):.2f}%\n"
+236 | …ist) / len(table_names)):.2f}%\n\n"
+    |
+
+tasks/data_reporting/data_reporting_task.py:238:131: E501 Line too long (231 > 130)
+    |
+236 | …
+237 | …
+238 | …about current databases\n++ trade_amount_heatmap.pdf: Per trading pair - % of total trades downloaded per day\n\n"
+    |               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ E501
+239 | …
+    |
+
+tasks/data_reporting/screener_task_sikor.py:56:13: PD901 Avoid using the generic variable name `df` for DataFrames
+   |
+54 |         for candle in candles:
+55 |             trading_pair = candle.trading_pair
+56 |             df = candle.data
+   |             ^^ PD901
+57 |             df["close"] = df["close"].astype(float)
+58 |             df["volume"] = df["volume"].astype(float)
+   |
+
+tasks/deployment/deployment_base_task.py:152:84: SIM118 Use `key in dict` instead of `key in dict.keys()`
+    |
+150 |             running_bots_data = await self.backend_api_client.get_active_bots_status()
+151 |             active_bots_resp = running_bots_data.get("data", {})
+152 |             active_bots = [bot_name for bot_name, _ in active_bots_resp.items() if bot_name in self.active_bots.keys()]
+    |                                                                                    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ SIM118
+153 |             n_active_bots = len(active_bots)
+154 |             max_bots = self.config["deploy_params"].get("max_bots", 1)
+    |
+    = help: Remove `.keys()`
+
+tasks/ml_pipelines/bitcoinenaitor.py:68:9: PD901 Avoid using the generic variable name `df` for DataFrames
+   |
+66 |             self.connector_name, self.trading_pair, self.interval, self.days_for_training
+67 |         )
+68 |         df = candles.data
+   |         ^^ PD901
+69 |         df["side"] = 1
+70 |         logging.info("Starting meta labeling")
+   |
+
+tasks/ml_pipelines/bitcoinenaitor.py:94:9: SIM108 Use ternary operator `experiment_id = mlflow.create_experiment(self.experiment_name) if experiment is None else experiment.experiment_id` instead of `if`-`else`-block
+   |
+92 |           # Create or get the experiment
+93 |           experiment = mlflow.get_experiment_by_name(self.experiment_name)
+94 | /         if experiment is None:
+95 | |             experiment_id = mlflow.create_experiment(self.experiment_name)
+96 | |         else:
+97 | |             experiment_id = experiment.experiment_id
+   | |____________________________________________________^ SIM108
+98 |
+99 |           # Start an MLflow run
+   |
+   = help: Replace `if`-`else`-block with `experiment_id = mlflow.create_experiment(self.experiment_name) if experiment is None else experiment.experiment_id`
+
+tasks/ml_pipelines/bitcoinenaitor.py:123:13: N806 Variable `X` in function should be lowercase
+    |
+121 |             # Prepare features and target
+122 |             feature_columns = [col for col in df_processed.columns if col != "close_type"]
+123 |             X = df_processed[feature_columns]
+    |             ^ N806
+124 |             y = df_processed["close_type"]
+    |
+
+tasks/ml_pipelines/bitcoinenaitor.py:123:13: F841 Local variable `X` is assigned to but never used
+    |
+121 |             # Prepare features and target
+122 |             feature_columns = [col for col in df_processed.columns if col != "close_type"]
+123 |             X = df_processed[feature_columns]
+    |             ^ F841
+124 |             y = df_processed["close_type"]
+    |
+    = help: Remove assignment to unused variable `X`
+
+tasks/ml_pipelines/bitcoinenaitor.py:141:13: N806 Variable `X_balanced` in function should be lowercase
+    |
+139 |             balanced_df = pd.concat([df_neg, df_mid, df_pos])
+140 |
+141 |             X_balanced = balanced_df[feature_columns]
+    |             ^^^^^^^^^^ N806
+142 |             y_balanced = balanced_df["close_type"]
+    |
+
+tasks/ml_pipelines/bitcoinenaitor.py:183:13: N806 Variable `X_train` in function should be lowercase
+    |
+182 |             # Make a train/test split for final evaluation
+183 |             X_train, X_test, y_train, y_test = train_test_split(
+    |             ^^^^^^^ N806
+184 |                 X_balanced, y_balanced, test_size=0.3, random_state=42, stratify=y_balanced
+185 |             )
+    |
+
+tasks/ml_pipelines/bitcoinenaitor.py:183:22: N806 Variable `X_test` in function should be lowercase
+    |
+182 |             # Make a train/test split for final evaluation
+183 |             X_train, X_test, y_train, y_test = train_test_split(
+    |                      ^^^^^^ N806
+184 |                 X_balanced, y_balanced, test_size=0.3, random_state=42, stratify=y_balanced
+185 |             )
+    |
+
+tasks/ml_pipelines/bitcoinenaitor.py:200:57: C414 Unnecessary `list()` call within `sorted()`
+    |
+198 |             # Log confusion matrix as a figure
+199 |             cm = confusion_matrix(y_test, y_pred)
+200 |             cm_dict = {"matrix": cm.tolist(), "labels": sorted(list(set(y_test)))}
+    |                                                         ^^^^^^^^^^^^^^^^^^^^^^^^^ C414
+201 |             with open("confusion_matrix.json", "w") as f:
+202 |                 json.dump(cm_dict, f)
+    |
+    = help: Remove the inner `list()` call
+
+tasks/ml_pipelines/bitcoinenaitor.py:212:34: C416 Unnecessary dict comprehension (rewrite using `dict()`)
+    |
+211 | … importances
+212 | …tance = {feature: importance for feature, importance in zip(feature_columns, model.feature_importances_, strict=False)}
+    |          ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ C416
+213 | …e_importance = dict(sorted(feature_importance.items(), key=lambda item: item[1], reverse=True))
+214 | …ature_importance.json", "w") as f:
+    |
+    = help: Rewrite using `dict()`
+
+tasks/ml_pipelines/bitcoinenaitor.py:212:131: E501 Line too long (144 > 130)
+    |
+211 | …
+212 | …nce in zip(feature_columns, model.feature_importances_, strict=False)}
+    |                                                          ^^^^^^^^^^^^^^ E501
+213 | …ms(), key=lambda item: item[1], reverse=True))
+214 | …
+    |
+
+tasks/ml_pipelines/bitcoinenaitor.py:223:13: F841 Local variable `model_info` is assigned to but never used
+    |
+222 |             # Create model signature with input and output schema for future inference
+223 |             model_info = mlflow.sklearn.log_model(model, "model")
+    |             ^^^^^^^^^^ F841
+224 |
+225 |             logging.info(f"Model and artifacts logged in MLflow run: {mlflow.active_run().info.run_id}")
+    |
+    = help: Remove assignment to unused variable `model_info`
+
+tasks/quantitative_methods/cointegration/cointegration_task.py:77:13: PD901 Avoid using the generic variable name `df` for DataFrames
+   |
+75 |         all_candles = pd.DataFrame()
+76 |         for candle in candles:
+77 |             df = candle.data.copy()
+   |             ^^ PD901
+78 |             df["trading_pair"] = candle.trading_pair
+79 |             all_candles = pd.concat([all_candles, df])
+   |
+
+tasks/quantitative_methods/cointegration/cointegration_task.py:83:94: PD011 Use `.to_numpy()` instead of `.values`
+   |
+81 |         volume_filter_quantile = grouped_candles["quote_asset_volume"].quantile(self.config.get("volume_quantile", 0.75))
+82 |         selected_candles = grouped_candles[grouped_candles["quote_asset_volume"] >= volume_filter_quantile]
+83 |         trading_pairs = [candle.trading_pair for candle in candles if candle.trading_pair in selected_candles.trading_pair.values]
+   |                                                                                              ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ PD011
+84 |         return trading_pairs
+   |
+
+tasks/quantitative_methods/cointegration/cointegration_task.py:287:9: PD901 Avoid using the generic variable name `df` for DataFrames
+    |
+286 |         # Create DataFrame
+287 |         df = pd.DataFrame(results)
+    |         ^^ PD901
+288 |
+289 |         # Add derived columns
+    |
+
+tasks/quantitative_methods/cointegration/cointegration_task.py:297:9: PD901 Avoid using the generic variable name `df` for DataFrames
+    |
+296 |         # Sort by signal strength and potential profit
+297 |         df = df.sort_values(["signal_strength", "potential_profit"], ascending=[False, False])
+    |         ^^ PD901
+298 |
+299 |         return df
+    |
+
+tasks/quantitative_methods/cointegration/cointegration_task.py:401:9: PD901 Avoid using the generic variable name `df` for DataFrames
+    |
+400 |         # Prepare for Granger test
+401 |         df = pd.concat([y, x], axis=1)
+    |         ^^ PD901
+402 |         df.columns = ["Y", "X"]
+    |
+
+tasks/quantitative_methods/cointegration/cointegration_task.py:665:16: PD011 Use `.to_numpy()` instead of `.values`
+    |
+663 |         x_col = x_col[-min_len:]
+664 |
+665 |         y, x = y_col.values, x_col.values
+    |                ^^^^^^^^^^^^ PD011
+666 |
+667 |         # Run Engle-Granger test
+    |
+
+tasks/quantitative_methods/cointegration/cointegration_task.py:665:30: PD011 Use `.to_numpy()` instead of `.values`
+    |
+663 |         x_col = x_col[-min_len:]
+664 |
+665 |         y, x = y_col.values, x_col.values
+    |                              ^^^^^^^^^^^^ PD011
+666 |
+667 |         # Run Engle-Granger test
+    |
+
+tasks/quantitative_methods/cointegration/cointegration_task.py:740:22: C408 Unnecessary `dict()` call (rewrite as a literal)
+    |
+738 | async def main():
+739 |     days_of_data = 10
+740 |     candles_config = dict(connector_name="binance_perpetual", interval="5m", days=days_of_data, batch_size=20, sleep_time=5.0)
+    |                      ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ C408
+741 |     task_config = {
+742 |         "connector_names": ["binance_perpetual"],
+    |
+    = help: Rewrite as a literal
+
+tasks/quantitative_methods/cointegration/cointegration_task_v2.py:153:13: PD901 Avoid using the generic variable name `df` for DataFrames
+    |
+151 |         all_candles = pd.DataFrame()
+152 |         for candle in candles:
+153 |             df = candle.data.copy()
+    |             ^^ PD901
+154 |             df["trading_pair"] = candle.trading_pair
+155 |             all_candles = pd.concat([all_candles, df])
+    |
+
+tasks/quantitative_methods/cointegration/cointegration_task_v2.py:159:94: PD011 Use `.to_numpy()` instead of `.values`
+    |
+157 |         volume_filter_quantile = grouped_candles["quote_asset_volume"].quantile(self.config.get("volume_quantile", 0.75))
+158 |         selected_candles = grouped_candles[grouped_candles["quote_asset_volume"] >= volume_filter_quantile]
+159 |         trading_pairs = [candle.trading_pair for candle in candles if candle.trading_pair in selected_candles.trading_pair.values]
+    |                                                                                              ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ PD011
+160 |         return trading_pairs
+    |
+
+tasks/quantitative_methods/cointegration/cointegration_task_v2.py:303:9: PD901 Avoid using the generic variable name `df` for DataFrames
+    |
+302 |         # Prepare for Granger test
+303 |         df = pd.concat([y, x], axis=1)
+    |         ^^ PD901
+304 |         df.columns = ["Y", "X"]
+    |
+
+tasks/quantitative_methods/cointegration/cointegration_task_v2.py:482:16: PD011 Use `.to_numpy()` instead of `.values`
+    |
+480 |         x_col = x_col[-min_len:]
+481 |
+482 |         y, x = y_col.values, x_col.values
+    |                ^^^^^^^^^^^^ PD011
+483 |
+484 |         # Run Engle-Granger test
+    |
+
+tasks/quantitative_methods/cointegration/cointegration_task_v2.py:482:30: PD011 Use `.to_numpy()` instead of `.values`
+    |
+480 |         x_col = x_col[-min_len:]
+481 |
+482 |         y, x = y_col.values, x_col.values
+    |                              ^^^^^^^^^^^^ PD011
+483 |
+484 |         # Run Engle-Granger test
+    |
+
+tasks/quantitative_methods/cointegration/cointegration_task_v2.py:496:22: C408 Unnecessary `dict()` call (rewrite as a literal)
+    |
+494 | async def main():
+495 |     days_of_data = 15
+496 |     candles_config = dict(connector_name="binance_perpetual", interval="15m", days=days_of_data, batch_size=20, sleep_time=5.0)
+    |                      ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ C408
+497 |     task_config = {
+498 |         "connector_name": "binance_perpetual",
+    |
+    = help: Rewrite as a literal
+
+tasks/quantitative_methods/cointegration/stat_arb_config_generator_task.py:127:13: PD901 Avoid using the generic variable name `df` for DataFrames
+    |
+125 |                 funding_rates_df, left_on=["base", "quote"], right_on=["pair1", "pair2"], how="inner"
+126 |             )
+127 |             df = pd.concat([results_df_1, results_df_2])
+    |             ^^ PD901
+128 |
+129 |             # Explode the grid_base columns
+    |
+
+tasks/quantitative_methods/cointegration/stat_arb_config_generator_task.py:130:13: PD901 Avoid using the generic variable name `df` for DataFrames
+    |
+129 |             # Explode the grid_base columns
+130 |             df = pd.concat(
+    |             ^^ PD901
+131 |                 [
+132 |                     df.drop(["grid_base", "grid_quote"], axis=1),
+    |
+
+Found 154 errors.
+No fixes available (65 hidden fixes can be enabled with the `--unsafe-fixes` option).

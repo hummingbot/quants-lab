@@ -3,6 +3,7 @@ import logging
 import os
 import time
 from datetime import timedelta
+
 import pandas as pd
 from dotenv import load_dotenv
 
@@ -13,8 +14,7 @@ from core.task_base import BaseTask
 class StatArbConfigGeneratorTask(BaseTask):
     def __init__(self, name: str, frequency: str, config: dict):
         super().__init__(name, frequency, config)
-        self.mongo_client = MongoClient(uri=self.config.get("mongo_uri", ""),
-                                        database="quants_lab")
+        self.mongo_client = MongoClient(uri=self.config.get("mongo_uri", ""), database="quants_lab")
 
     async def initialize(self):
         await self.mongo_client.connect()
@@ -39,21 +39,21 @@ class StatArbConfigGeneratorTask(BaseTask):
             "time_limit": 259200,
             "time_limit_order_type": 1,
             "activation_price": 0.03,
-            "trailing_delta": 0.005
+            "trailing_delta": 0.005,
         }
 
     def get_config_dict(
-            self,
-            base: str,
-            quote: str,
-            base_start_price: float,
-            base_end_price: float,
-            base_limit_price: float,
-            base_beta: float,
-            quote_start_price: float,
-            quote_end_price: float,
-            quote_limit_price: float,
-            quote_beta: float,
+        self,
+        base: str,
+        quote: str,
+        base_start_price: float,
+        base_end_price: float,
+        base_limit_price: float,
+        base_beta: float,
+        quote_start_price: float,
+        quote_end_price: float,
+        quote_limit_price: float,
+        quote_beta: float,
     ):
         config_dict = {
             "id": f"{base.replace('-', '')}_{quote.replace('-', '')}_coint_config",
@@ -71,7 +71,7 @@ class StatArbConfigGeneratorTask(BaseTask):
                 "start_price": base_start_price if base_start_price < base_end_price else base_end_price,
                 # "beta": base_beta,
                 "order_frequency": self.base_config.get("order_frequency", 5),
-                "min_order_amount_quote": self.base_config.get("min_order_amount_quote", 25)
+                "min_order_amount_quote": self.base_config.get("min_order_amount_quote", 25),
             },
             "grid_config_quote": {
                 "end_price": quote_end_price if quote_end_price > quote_start_price else quote_start_price,
@@ -79,7 +79,7 @@ class StatArbConfigGeneratorTask(BaseTask):
                 "start_price": quote_start_price if quote_start_price < quote_end_price else quote_end_price,
                 # "beta": quote_beta,
                 "order_frequency": self.base_config.get("order_frequency", 5),
-                "min_order_amount_quote": self.base_config.get("min_order_amount_quote", 25)
+                "min_order_amount_quote": self.base_config.get("min_order_amount_quote", 25),
             },
             "leverage": self.base_config.get("leverage", 50),
             "position_mode": "HEDGE",
@@ -100,8 +100,8 @@ class StatArbConfigGeneratorTask(BaseTask):
                 "trailing_stop": {
                     "activation_price": self.base_config.get("activation_price", 0.03),
                     "trailing_delta": self.base_config.get("trailing_delta", 0.005),
-                }
-            }
+                },
+            },
         }
         return config_dict
 
@@ -118,16 +118,23 @@ class StatArbConfigGeneratorTask(BaseTask):
             funding_rates_df = funding_rates_df[funding_rates_df["timestamp"] == funding_rates_df["timestamp"].max()]
             coint_results = await self.mongo_client.get_documents("cointegration_results")
             coint_results_df = pd.DataFrame(coint_results)
-            results_df_1 = coint_results_df.merge(funding_rates_df, left_on=["quote", "base"], right_on=["pair1", "pair2"], how="inner")
-            results_df_2 = coint_results_df.merge(funding_rates_df, left_on=["base", "quote"], right_on=["pair1", "pair2"], how="inner")
+            results_df_1 = coint_results_df.merge(
+                funding_rates_df, left_on=["quote", "base"], right_on=["pair1", "pair2"], how="inner"
+            )
+            results_df_2 = coint_results_df.merge(
+                funding_rates_df, left_on=["base", "quote"], right_on=["pair1", "pair2"], how="inner"
+            )
             df = pd.concat([results_df_1, results_df_2])
 
             # Explode the grid_base columns
-            df = pd.concat([
-                df.drop(['grid_base', 'grid_quote'], axis=1),
-                df['grid_base'].apply(pd.Series).add_prefix('base_'),
-                df['grid_quote'].apply(pd.Series).add_prefix('quote_')
-            ], axis=1)
+            df = pd.concat(
+                [
+                    df.drop(["grid_base", "grid_quote"], axis=1),
+                    df["grid_base"].apply(pd.Series).add_prefix("base_"),
+                    df["grid_quote"].apply(pd.Series).add_prefix("quote_"),
+                ],
+                axis=1,
+            )
 
             # Generate configs
             all_configs = []
@@ -143,7 +150,7 @@ class StatArbConfigGeneratorTask(BaseTask):
                         quote_start_price=row["quote_start_price"],
                         quote_end_price=row["quote_end_price"],
                         quote_limit_price=row["quote_limit_price"],
-                        quote_beta=row["quote_beta"]
+                        quote_beta=row["quote_beta"],
                     ),
                     "extra_info": {
                         "coint_value": row["coint_value"],
@@ -163,16 +170,16 @@ class StatArbConfigGeneratorTask(BaseTask):
                         "quote_signal_strength": row["quote_signal_strength"],
                         "quote_mean_reversion_prob": row["quote_mean_reversion_prob"],
                     },
-                    "timestamp": time.time()
+                    "timestamp": time.time(),
                 }
                 all_configs.append(record)
 
             # Store configs in MongoDB
-            await self.mongo_client.insert_documents(collection_name="controller_configs",
-                                                     documents=all_configs,
-                                                     index=[("controller_name", 1),
-                                                            ("controller_type", 1),
-                                                            ("connector_name", 1)])
+            await self.mongo_client.insert_documents(
+                collection_name="controller_configs",
+                documents=all_configs,
+                index=[("controller_name", 1), ("controller_type", 1), ("connector_name", 1)],
+            )
             logging.info(f"Successfully stored {len(all_configs)} trading configs")
 
         except Exception as e:
@@ -183,11 +190,10 @@ class StatArbConfigGeneratorTask(BaseTask):
 async def main():
     load_dotenv()
     mongo_uri = os.getenv("MONGO_URI", "")
-    config = {
-        "mongo_uri": mongo_uri
-    }
+    config = {"mongo_uri": mongo_uri}
     task = StatArbConfigGeneratorTask(name="golden_task", frequency=timedelta(hours=12), config=config)
     await task.execute()
+
 
 if __name__ == "__main__":
     asyncio.run(main())

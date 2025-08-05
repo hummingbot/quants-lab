@@ -1,17 +1,17 @@
+import asyncio
 import logging
 import os
-import asyncio
 import re
 import time
-from datetime import datetime, timedelta, timezone
-from typing import Dict, Any, List, Set
+from datetime import UTC, datetime, timedelta
+from typing import Any
 
 from dotenv import load_dotenv
 
-from core.task_base import BaseTask
 from core.data_sources.clob import CLOBDataSource
-from core.services.mongodb_client import MongoClient
 from core.services.backend_api_client import BackendAPIClient
+from core.services.mongodb_client import MongoClient
+from core.task_base import BaseTask
 from tasks.deployment.models import ConfigCandidate
 
 logging.getLogger("asyncio").setLevel(logging.CRITICAL)
@@ -21,10 +21,7 @@ load_dotenv()
 
 class DeploymentBaseTask(BaseTask):
     rate_limit_config = {
-        "okx_perpetual": {
-            "batch_size": 3,
-            "sleep_time": 10
-        },
+        "okx_perpetual": {"batch_size": 3, "sleep_time": 10},
         "binance_perpetual": {
             "batch_size": 60,
             "sleep_time": 10,
@@ -34,7 +31,7 @@ class DeploymentBaseTask(BaseTask):
     control_task_interval = 3.0
     controller_stop_delay = 30.0
 
-    def __init__(self, name: str, frequency: timedelta, config: Dict[str, Any]):
+    def __init__(self, name: str, frequency: timedelta, config: dict[str, Any]):
         super().__init__(name=name, frequency=frequency, config=config)
         self.backend_api_client = BackendAPIClient(self.config["backend_api_server"])
         self.mongo_client = MongoClient(self.config["mongo_uri"], database="quants_lab")
@@ -44,13 +41,13 @@ class DeploymentBaseTask(BaseTask):
         self.connector_instance = None
         self.trading_rules = None
         self.trading_pairs = []
-        self.config_candidates: List[ConfigCandidate] = []
+        self.config_candidates: list[ConfigCandidate] = []
         self.min_notionals_dict = {}
-        self.last_prices: Dict[str, Any] = {}
+        self.last_prices: dict[str, Any] = {}
         self.running = False
-        self.active_bots: Dict[str, Any] = {}
-        self.archived_configs: List[str] = []
-        self.archived_bots: Dict[str, Any] = {}
+        self.active_bots: dict[str, Any] = {}
+        self.archived_configs: list[str] = []
+        self.archived_bots: dict[str, Any] = {}
 
     async def initialize(self):
         """Initialize connections and resources."""
@@ -90,7 +87,7 @@ class DeploymentBaseTask(BaseTask):
         config_candidates = self._filter_configs_by_trading_pair(all_config_candidates, filtered_trading_pairs)
         return config_candidates
 
-    async def _fetch_controller_configs(self) -> List[ConfigCandidate]:
+    async def _fetch_controller_configs(self) -> list[ConfigCandidate]:
         """
         Fetches a list of configuration candidates from an external source (e.g., a database or an API).
 
@@ -103,7 +100,7 @@ class DeploymentBaseTask(BaseTask):
         """
         raise NotImplementedError
 
-    def _extract_trading_pairs(self, config_candidates: List[ConfigCandidate]) -> Set[str]:
+    def _extract_trading_pairs(self, config_candidates: list[ConfigCandidate]) -> set[str]:
         """
         Extracts the set of trading pairs associated with the given configuration candidates.
 
@@ -114,8 +111,9 @@ class DeploymentBaseTask(BaseTask):
         """
         raise NotImplementedError
 
-    def _filter_configs_by_trading_pair(self, all_config_candidates: List[ConfigCandidate],
-                                        trading_pairs: List[str]) -> List[ConfigCandidate]:
+    def _filter_configs_by_trading_pair(
+        self, all_config_candidates: list[ConfigCandidate], trading_pairs: list[str]
+    ) -> list[ConfigCandidate]:
         """
         Filters the provided configuration candidates, keeping only those that match the specified trading pairs.
 
@@ -140,7 +138,7 @@ class DeploymentBaseTask(BaseTask):
                             await asyncio.sleep(self.deploy_task_interval)
                             continue
                         adjusted_candidates = self._adjust_config_candidates(selected_candidates)
-                        logging.info(f"Config candidates found, preparing and launching bot...")
+                        logging.info("Config candidates found, preparing and launching bot...")
                         await self._prepare_and_launch_bots(adjusted_candidates)
             except Exception as e:
                 logging.error(f"Error during deploy task: {e}")
@@ -170,15 +168,17 @@ class DeploymentBaseTask(BaseTask):
     def _update_min_notional_size_dict(self):
         if self.connector_name in ["okx_perpetual"]:
             self.min_notionals_dict = {
-                trading_rule.trading_pair: float(trading_rule.min_base_amount_increment) *
-                self.last_prices[trading_rule.trading_pair] for trading_rule in self.trading_rules.data
-                if self.last_prices.get(trading_rule.trading_pair) is not None}
+                trading_rule.trading_pair: float(trading_rule.min_base_amount_increment)
+                * self.last_prices[trading_rule.trading_pair]
+                for trading_rule in self.trading_rules.data
+                if self.last_prices.get(trading_rule.trading_pair) is not None
+            }
         else:
             self.min_notionals_dict = {
                 trading_rule.trading_pair: trading_rule.min_notional_size for trading_rule in self.trading_rules.data
             }
 
-    async def _filter_config_candidates(self, config_candidates: List[ConfigCandidate]):
+    async def _filter_config_candidates(self, config_candidates: list[ConfigCandidate]):
         filter_candidate_params = self.config.get("filter_candidate_params", {})
         if filter_candidate_params:
             selected_candidates = []
@@ -198,7 +198,7 @@ class DeploymentBaseTask(BaseTask):
         else:
             return config_candidates
 
-    async def _is_candidate_valid(self, candidate: ConfigCandidate, filter_candidate_params: Dict[str, Any]) -> bool:
+    async def _is_candidate_valid(self, candidate: ConfigCandidate, filter_candidate_params: dict[str, Any]) -> bool:
         """
         Determines whether a given configuration candidate is valid based on various filtering criteria.
 
@@ -218,7 +218,7 @@ class DeploymentBaseTask(BaseTask):
         """
         raise NotImplementedError
 
-    def _adjust_config_candidates(self, config_candidates: List[ConfigCandidate]):
+    def _adjust_config_candidates(self, config_candidates: list[ConfigCandidate]):
         """
         Adjusts configuration parameters for a list of configuration candidates.
 
@@ -241,7 +241,7 @@ class DeploymentBaseTask(BaseTask):
         """
         raise NotImplementedError
 
-    async def _prepare_and_launch_bots(self, selected_candidates: List[ConfigCandidate]):
+    async def _prepare_and_launch_bots(self, selected_candidates: list[ConfigCandidate]):
         script_name = self.config["deploy_params"].get("script_name", "v2_with_controllers.py")
         image_name = self.config["deploy_params"].get("image_name", "hummingbot/hummingbot:latest")
         credentials = self.config["deploy_params"].get("credentials", "master_account")
@@ -257,12 +257,14 @@ class DeploymentBaseTask(BaseTask):
         controller_configs = [candidate.config["id"] + ".yml" for candidate in final_candidates]
         year, iso_week = self.get_year_and_isoweek()
         bot_name = f"{self.config['connector_name']}-{year}-{iso_week}-{self.get_rounded_time()}"
-        deploy_resp = await self.backend_api_client.deploy_script_with_controllers(bot_name=bot_name,
-                                                                                   controller_configs=controller_configs,
-                                                                                   script_name=script_name,
-                                                                                   image_name=image_name,
-                                                                                   credentials=credentials,
-                                                                                   time_to_cash_out=time_to_cash_out)
+        deploy_resp = await self.backend_api_client.deploy_script_with_controllers(
+            bot_name=bot_name,
+            controller_configs=controller_configs,
+            script_name=script_name,
+            image_name=image_name,
+            credentials=credentials,
+            time_to_cash_out=time_to_cash_out,
+        )
 
         if deploy_resp["success"]:
             instance_name = self.extract_instance_name(deploy_resp)
@@ -270,7 +272,7 @@ class DeploymentBaseTask(BaseTask):
             started_configs = [controller_id[:-4] for controller_id in controller_configs]
             self.active_bots[instance_name] = {
                 "start_timestamp": time.time(),
-                "controller_status": {controller_id: "running" for controller_id in started_configs}
+                "controller_status": dict.fromkeys(started_configs, "running"),
             }
             self.archived_configs.extend([candidate.id for candidate in final_candidates])
         else:
@@ -281,8 +283,7 @@ class DeploymentBaseTask(BaseTask):
             try:
                 active_bots_data = await self.backend_api_client.get_active_bots_status()
                 active_bots_resp = active_bots_data["data"] or {}
-                active_bots = {bot_name: data for bot_name, data in active_bots_resp.items()
-                               if bot_name in self.active_bots}
+                active_bots = {bot_name: data for bot_name, data in active_bots_resp.items() if bot_name in self.active_bots}
                 if len(active_bots) == 0:
                     continue
                 for bot_name, data in active_bots.items():
@@ -298,16 +299,16 @@ class DeploymentBaseTask(BaseTask):
                 logging.error(f"Error during control task: {e}")
             await asyncio.sleep(self.control_task_interval)
 
-    def _control_error_logs(self, bot: Dict[str, Any]):
+    def _control_error_logs(self, bot: dict[str, Any]):
         pass  # TODO
 
-    def _control_pnl(self, controller_info: Dict[str, Any]):
+    def _control_pnl(self, controller_info: dict[str, Any]):
         global_pnl_pct = controller_info["global_pnl_pct"] / 100
         bot_name = controller_info["bot_name"]
         controller_id = controller_info["controller_id"]
         controller_max_drawdown = self.config["control_params"].get("controller_max_drawdown", 1.0)
         controller_max_pnl = self.config["control_params"].get("controller_max_pnl", 99.0)
-        sl_condition = global_pnl_pct <= - controller_max_drawdown
+        sl_condition = global_pnl_pct <= -controller_max_drawdown
         tp_condition = global_pnl_pct >= controller_max_pnl
 
         bot_duration = time.time() - controller_info["start_timestamp"]
@@ -329,8 +330,7 @@ class DeploymentBaseTask(BaseTask):
         await asyncio.sleep(self.controller_stop_delay)
         self.active_bots[bot_name]["controller_status"][controller_id] = "stopped"
         running_controllers = [
-            status for controller, status in self.active_bots[bot_name]["controller_status"].items()
-            if status == "running"
+            status for controller, status in self.active_bots[bot_name]["controller_status"].items() if status == "running"
         ]
         if not running_controllers:
             await self._gracefully_stop_bot_and_archive(bot_name)
@@ -343,13 +343,13 @@ class DeploymentBaseTask(BaseTask):
             logging.info(f"Stopped container: {bot_name}")
             await asyncio.sleep(5.0)
             await self.backend_api_client.remove_container(bot_name, archive_locally=True)
-            logging.info(f"Successfully archived bot!")
+            logging.info("Successfully archived bot!")
             self.archived_bots[bot_name] = self.active_bots[bot_name].copy()
             del self.active_bots[bot_name]
 
     @staticmethod
     def now():
-        return datetime.now(timezone.utc).strftime('%Y-%m-%d %H:%M:%S.%f UTC')
+        return datetime.now(UTC).strftime("%Y-%m-%d %H:%M:%S.%f UTC")
 
     @staticmethod
     def get_rounded_time():
@@ -378,7 +378,7 @@ class DeploymentBaseTask(BaseTask):
         Returns:
             str: The extracted instance name or an empty string if not found.
         """
-        match = re.search(r'Instance (\S+) created successfully\.', response.get('message', ''))
+        match = re.search(r"Instance (\S+) created successfully\.", response.get("message", ""))
         return match.group(1) if match else ""
 
 
@@ -402,7 +402,7 @@ async def main():
             "min_grid_range_ratio": 0.5,
             "max_grid_range_ratio": 2.0,
             "max_entry_price_distance": 0.5,
-            "max_notional_size": 100.0
+            "max_notional_size": 100.0,
         },
         "config_adjustment_params": {
             "total_amount_quote": 1000.0,
@@ -430,12 +430,10 @@ async def main():
             "partial_drawdown": 0.1,
             "partial_profit": 0.1,
             "min_early_stop_time": 6 * 60 * 60,
-            "max_early_stop_time": 24 * 60 * 60
-        }
+            "max_early_stop_time": 24 * 60 * 60,
+        },
     }
-    task = DeploymentBaseTask(name="deployment_task",
-                              frequency=timedelta(minutes=20),
-                              config=task_config)
+    task = DeploymentBaseTask(name="deployment_task", frequency=timedelta(minutes=20), config=task_config)
     await task.execute()
 
 

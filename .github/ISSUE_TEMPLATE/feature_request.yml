@@ -26,8 +26,6 @@ body:
      placeholder: The desired behavior will allow me to..
    validations:
      required: true
-     validations:
-     required: true
  - type: textarea
    id: feature-additional-context
    attributes:

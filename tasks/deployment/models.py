@@ -1,11 +1,11 @@
-from typing import Any, Dict
+from typing import Any
 
 from pydantic import BaseModel
 
 
 class ConfigCandidate(BaseModel):
-    config: Dict[str, Any]
-    extra_info: Dict[str, Any]
+    config: dict[str, Any]
+    extra_info: dict[str, Any]
     id: str
 
     @classmethod
@@ -13,4 +13,3 @@ class ConfigCandidate(BaseModel):
         """Convert MongoDB document to Pydantic model."""
         data["id"] = str(data["_id"])  # Convert ObjectId to string
         return cls(**data)
-

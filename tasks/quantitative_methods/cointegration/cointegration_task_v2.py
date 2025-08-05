@@ -1,19 +1,18 @@
+import asyncio
+import logging
+import os
 import time
 import warnings
 from datetime import timedelta
 from itertools import combinations
+from typing import Any
 
 import numpy as np
 import pandas as pd
 from dotenv import load_dotenv
-import logging
-import asyncio
-import os
-from typing import List, Dict, Any, Tuple
-
-from statsmodels.tsa.stattools import coint, grangercausalitytests
-from pyinform.transferentropy import transfer_entropy
 from dtaidistance import dtw
+from pyinform.transferentropy import transfer_entropy
+from statsmodels.tsa.stattools import coint, grangercausalitytests
 
 from core.data_sources import CLOBDataSource
 from core.data_structures.candles import Candles
@@ -22,12 +21,12 @@ from core.task_base import BaseTask
 
 logging.getLogger("asyncio").setLevel(logging.CRITICAL)
 logging.getLogger("core.data_sources.clob").setLevel(logging.CRITICAL)
-warnings.simplefilter(action='ignore', category=FutureWarning)
+warnings.simplefilter(action="ignore", category=FutureWarning)
 load_dotenv()
 
 
 class CointegrationV2Task(BaseTask):
-    def __init__(self, name: str, frequency: timedelta, config: Dict[str, Any]):
+    def __init__(self, name: str, frequency: timedelta, config: dict[str, Any]):
         super().__init__(name=name, frequency=frequency, config=config)
         self.mongo_client = MongoClient(self.config.get("mongo_uri"))
         self.root_path = "../../.."
@@ -49,13 +48,11 @@ class CointegrationV2Task(BaseTask):
             self.clob = CLOBDataSource()  # we need to refresh because it breaks on the second iteration
             candles = await self.get_candles()
             trading_pairs = self.get_trading_pairs_filtered_by_volume(candles)
-            self.logs.append(f"{self.now()} - Filtered {len(trading_pairs)} trading pairs out of {len(candles)}, "
-                             f"starting {len(trading_pairs) ** 2 - len(trading_pairs)} cointegration analysis...")
-            candles_dict = {
-                candle.trading_pair: candle
-                for candle in candles
-                if candle.trading_pair in trading_pairs
-            }
+            self.logs.append(
+                f"{self.now()} - Filtered {len(trading_pairs)} trading pairs out of {len(candles)}, "
+                f"starting {len(trading_pairs) ** 2 - len(trading_pairs)} cointegration analysis..."
+            )
+            candles_dict = {candle.trading_pair: candle for candle in candles if candle.trading_pair in trading_pairs}
             results = self.analyze_all_pairs(trading_pairs, candles_dict)
             results_df = pd.DataFrame(results)
 
@@ -63,7 +60,7 @@ class CointegrationV2Task(BaseTask):
             processed_pairs = set()
             now = time.time()
             for _, row in results_df.iterrows():
-                pair_key = tuple(sorted([row['base'], row['quote']]))
+                pair_key = tuple(sorted([row["base"], row["quote"]]))
 
                 # Skip if we've already processed this pair
                 if pair_key in processed_pairs:
@@ -71,42 +68,42 @@ class CointegrationV2Task(BaseTask):
 
                 # Get both directions for this pair (2-rows df)
                 pair_analysis = results_df[
-                    ((results_df['base'] == row['base']) & (results_df['quote'] == row['quote'])) |
-                    ((results_df['base'] == row['quote']) & (results_df['quote'] == row['base']))
-                    ]
+                    ((results_df["base"] == row["base"]) & (results_df["quote"] == row["quote"]))
+                    | ((results_df["base"] == row["quote"]) & (results_df["quote"] == row["base"]))
+                ]
 
                 # Check if both directions are cointegrated
-                if not (pair_analysis['p_value'] < self.config.get("p_value_threshold", 0.05)).all():
+                if not (pair_analysis["p_value"] < self.config.get("p_value_threshold", 0.05)).all():
                     continue
 
                 # Calculate average cointegration value
-                coint_value = pair_analysis['p_value'].mean()
-                lookback_days_timestamp = pair_analysis['lookback_days_timestamp'].min()
+                coint_value = pair_analysis["p_value"].mean()
+                lookback_days_timestamp = pair_analysis["lookback_days_timestamp"].min()
 
                 pair_analysis_a = pair_analysis.iloc[0]
                 pair_analysis_b = pair_analysis.iloc[1]
 
                 # Create a result dictionary for this pair
                 result = {
-                    'direction_a': {
+                    "direction_a": {
                         "dominant": pair_analysis_a["base"],
                         "hedge": pair_analysis_a["quote"],
                         "p_value": pair_analysis_a["p_value"],
-                        "dominance": pair_analysis_a["dominance"]
+                        "dominance": pair_analysis_a["dominance"],
                     },
-                    'direction_b': {
+                    "direction_b": {
                         "dominant": pair_analysis_b["base"],
                         "hedge": pair_analysis_b["quote"],
                         "p_value": pair_analysis_b["p_value"],
                         "dominance": pair_analysis_b["dominance"],
                     },
-                    'coint_value': coint_value,
-                    'connector_name': self.config["candles_config"]["connector_name"],
-                    'interval': self.config["candles_config"]["interval"],
-                    'lookback_days': self.config["lookback_days"],
-                    'lookback_days_timestamp': lookback_days_timestamp,
-                    'timestamp': now,
-                    'metadata': self.metadata
+                    "coint_value": coint_value,
+                    "connector_name": self.config["candles_config"]["connector_name"],
+                    "interval": self.config["candles_config"]["interval"],
+                    "lookback_days": self.config["lookback_days"],
+                    "lookback_days_timestamp": lookback_days_timestamp,
+                    "timestamp": now,
+                    "metadata": self.metadata,
                 }
 
                 cointegration_results.append(result)
@@ -115,16 +112,18 @@ class CointegrationV2Task(BaseTask):
                 processed_pairs.add(pair_key)
 
             # Sort results by cointegration value
-            cointegration_results.sort(key=lambda x: x['coint_value'])
+            cointegration_results.sort(key=lambda x: x["coint_value"])
 
             # Print summary
             self.logs.append(f"{self.now()} - Found {len(cointegration_results)} cointegrated pairs.")
 
             if len(cointegration_results) > 0:
-                await self.mongo_client.insert_documents(collection_name="cointegration_results_v2",
-                                                         db_name="quants_lab",
-                                                         documents=cointegration_results,
-                                                         index=[("base", 1), ("quote", 1)])
+                await self.mongo_client.insert_documents(
+                    collection_name="cointegration_results_v2",
+                    db_name="quants_lab",
+                    documents=cointegration_results,
+                    index=[("base", 1), ("quote", 1)],
+                )
                 logging_msg = f"{self.now()} - Successfully added {len(cointegration_results)} cointegration records"
                 logging.info(logging_msg)
                 self.logs.append(logging_msg)
@@ -148,20 +147,16 @@ class CointegrationV2Task(BaseTask):
             candles = [self.clob.get_candles_from_cache(*key) for key, _ in self.clob.candles_cache.items()]
         return candles
 
-    def get_trading_pairs_filtered_by_volume(self, candles: List[Candles]):
+    def get_trading_pairs_filtered_by_volume(self, candles: list[Candles]):
         all_candles = pd.DataFrame()
         for candle in candles:
             df = candle.data.copy()
             df["trading_pair"] = candle.trading_pair
             all_candles = pd.concat([all_candles, df])
         grouped_candles = all_candles.groupby("trading_pair")["quote_asset_volume"].sum().reset_index()
-        volume_filter_quantile = grouped_candles["quote_asset_volume"].quantile(
-            self.config.get("volume_quantile", 0.75))
+        volume_filter_quantile = grouped_candles["quote_asset_volume"].quantile(self.config.get("volume_quantile", 0.75))
         selected_candles = grouped_candles[grouped_candles["quote_asset_volume"] >= volume_filter_quantile]
-        trading_pairs = [
-            candle.trading_pair for candle in candles
-            if candle.trading_pair in selected_candles.trading_pair.values
-        ]
+        trading_pairs = [candle.trading_pair for candle in candles if candle.trading_pair in selected_candles.trading_pair.values]
         return trading_pairs
 
     def analyze_all_pairs(self, trading_pairs, candles_dict):
@@ -197,16 +192,16 @@ class CointegrationV2Task(BaseTask):
             cointegration = self.analyze_pair_cointegration(close1, close2, interval)
 
             return {
-                'base': pair1,
-                'quote': pair2,
-                'p_value': cointegration['p_value'],
-                'lookback_days_timestamp': cointegration['lookback_days_timestamp'],
-                'dominance': {
-                    'cross_correlation': cross_corr,
-                    'granger_causality': granger,
-                    'dtw_distance': dtw_dist,
-                    'entropy_transfer': entropy,
-                }
+                "base": pair1,
+                "quote": pair2,
+                "p_value": cointegration["p_value"],
+                "lookback_days_timestamp": cointegration["lookback_days_timestamp"],
+                "dominance": {
+                    "cross_correlation": cross_corr,
+                    "granger_causality": granger,
+                    "dtw_distance": dtw_dist,
+                    "entropy_transfer": entropy,
+                },
             }
         except Exception:
             raise
@@ -242,10 +237,7 @@ class CointegrationV2Task(BaseTask):
         - A negative lag means `candles2` leads `candles1`.
         - If the best lag is 0, both series are considered synchronous and no leader is assigned.
         """
-        results = {
-            "dominant": None,
-            "follower": None
-        }
+        results = {"dominant": None, "follower": None}
 
         # Align
         min_len = min(len(close1), len(close2))
@@ -309,37 +301,34 @@ class CointegrationV2Task(BaseTask):
 
         # Prepare for Granger test
         df = pd.concat([y, x], axis=1)
-        df.columns = ['Y', 'X']
+        df.columns = ["Y", "X"]
 
         # Run test
         test_result = grangercausalitytests(df, maxlag=max_lag, verbose=False)
 
         # Extract p-values
-        p_values = {
-            lag: round(stat[0]['ssr_ftest'][1], 4)
-            for lag, stat in test_result.items()
-        }
+        p_values = {lag: round(stat[0]["ssr_ftest"][1], 4) for lag, stat in test_result.items()}
 
         # Filter significant
         significant = {str(lag): p for lag, p in p_values.items() if p < 0.05}
 
         # Initialize result
         result = {
-            'predictor': pair1,
-            'response': pair2,
-            'p_values': {str(key): value for key, value in p_values.items()},
-            'significant_lags': significant,
-            'causal': bool(significant),
-            'dominant': None,
-            'follower': None,
+            "predictor": pair1,
+            "response": pair2,
+            "p_values": {str(key): value for key, value in p_values.items()},
+            "significant_lags": significant,
+            "causal": bool(significant),
+            "dominant": None,
+            "follower": None,
         }
 
         if significant:
             best_lag = min(significant, key=significant.get)
-            result['best_lag'] = int(best_lag)
-            result['best_p_value'] = float(significant[best_lag])
-            result['dominant'] = pair1
-            result['follower'] = pair2
+            result["best_lag"] = int(best_lag)
+            result["best_p_value"] = float(significant[best_lag])
+            result["dominant"] = pair1
+            result["follower"] = pair2
 
         return result
 
@@ -392,11 +381,7 @@ class CointegrationV2Task(BaseTask):
         else:
             dominant = follower = None  # equal volatility → unclear
 
-        return {
-            'dtw_distance': round(distance, 6),
-            'dominant': dominant,
-            'follower': follower
-        }
+        return {"dtw_distance": round(distance, 6), "dominant": dominant, "follower": follower}
 
     @staticmethod
     def transfer_entropy_analysis(pair1, pair2, close1, close2, k=1, bins=3):
@@ -448,17 +433,17 @@ class CointegrationV2Task(BaseTask):
         # Compute TE from X → Y
         try:
             te = round(transfer_entropy(x, y, k), 6)
-        except Exception as e:
+        except Exception:
             te = None
 
         return {
-            'predictor': pair1,
-            'response': pair2,
-            'transfer_entropy': float(te),
-            'dominant': pair1 if te and te > 0 else None,
-            'follower': pair2 if te and te > 0 else None,
-            'symbolic_bins': bins,
-            'history_k': k
+            "predictor": pair1,
+            "response": pair2,
+            "transfer_entropy": float(te),
+            "dominant": pair1 if te and te > 0 else None,
+            "follower": pair2 if te and te > 0 else None,
+            "symbolic_bins": bins,
+            "history_k": k,
         }
 
     def analyze_pair_cointegration(self, y_col, x_col, interval: str = "15m"):
@@ -470,7 +455,7 @@ class CointegrationV2Task(BaseTask):
             "15m": (60 / 15) * 24,
             "30m": (60 / 15) * 24,
             "1h": 24,
-            "4h": 24 / 4
+            "4h": 24 / 4,
         }
         lookback_days = self.config.get("lookback_days", 14)
 
@@ -497,22 +482,18 @@ class CointegrationV2Task(BaseTask):
         y, x = y_col.values, x_col.values
 
         # Run Engle-Granger test
-        coint_res: Tuple = coint(y, x)
+        coint_res: tuple = coint(y, x)
         p_value = coint_res[1]
 
         return {
-            'p_value': p_value,
-            'lookback_days_timestamp': y_col.index.min().timestamp(),
+            "p_value": p_value,
+            "lookback_days_timestamp": y_col.index.min().timestamp(),
         }
 
 
 async def main():
     days_of_data = 15
-    candles_config = dict(connector_name='binance_perpetual',
-                          interval='15m',
-                          days=days_of_data,
-                          batch_size=20,
-                          sleep_time=5.0)
+    candles_config = dict(connector_name="binance_perpetual", interval="15m", days=days_of_data, batch_size=20, sleep_time=5.0)
     task_config = {
         "connector_name": "binance_perpetual",
         "quote_asset": "USDT",
@@ -525,9 +506,7 @@ async def main():
         "lookback_step": 4 * 24 * 5,
         "p_value_threshold": 0.05,
     }
-    task = CointegrationV2Task(name="cointegration_task_v2",
-                               frequency=timedelta(hours=1),
-                               config=task_config)
+    task = CointegrationV2Task(name="cointegration_task_v2", frequency=timedelta(hours=1), config=task_config)
     await task.execute()
 
 

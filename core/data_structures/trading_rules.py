@@ -1,12 +1,12 @@
 from decimal import Decimal
-from typing import List
+
+from hummingbot.connector.trading_rule import TradingRule
 
 from core.data_structures.data_structure_base import DataStructureBase
-from hummingbot.connector.trading_rule import TradingRule
 
 
 class TradingRules(DataStructureBase):
-    def __init__(self, trading_rules: List[TradingRule]):
+    def __init__(self, trading_rules: list[TradingRule]):
         super().__init__(trading_rules)
 
     def get_all_trading_pairs(self):

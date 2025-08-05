@@ -1,5 +1,3 @@
-from typing import Optional
-
 import numpy as np
 import pandas as pd
 from sklearn.linear_model import LinearRegression
@@ -41,7 +39,7 @@ class TrendFury(FeatureBase[TrendFuryConfig]):
         slope_quantile_threshold = self.config.slope_quantile_threshold
 
         # Ensure necessary columns exist
-        required_columns = ['close', 'quote_asset_volume', 'taker_buy_quote_volume']
+        required_columns = ["close", "quote_asset_volume", "taker_buy_quote_volume"]
         for col in required_columns:
             if col not in candles.columns:
                 raise ValueError(f"Data does not contain '{col}' column required for trend calculation.")
@@ -52,75 +50,81 @@ class TrendFury(FeatureBase[TrendFuryConfig]):
         # Prepare the price series
         if use_returns:
             # Compute returns (log returns)
-            candles['price_series'] = np.log(candles['close'] / candles['close'].shift(1))
+            candles["price_series"] = np.log(candles["close"] / candles["close"].shift(1))
         elif use_ema:
             # Use exponential moving average
-            candles['price_series'] = candles['close'].ewm(span=window, adjust=False).mean()
+            candles["price_series"] = candles["close"].ewm(span=window, adjust=False).mean()
         else:
-            candles['price_series'] = candles['close']
+            candles["price_series"] = candles["close"]
 
         # Calculate taker sell quote volume
-        candles['taker_sell_quote_volume'] = candles['quote_asset_volume'] - candles['taker_buy_quote_volume']
+        candles["taker_sell_quote_volume"] = candles["quote_asset_volume"] - candles["taker_buy_quote_volume"]
 
         # Compute volume weights
         if use_volume_weighting:
             # Use total quote asset volume as weights
             # Normalize the volumes using a rolling window to prevent extreme values
-            average_rolling_volume = candles['quote_asset_volume'].rolling(
-                volume_normalization_window, min_periods=1
-            ).mean()
-            candles['volume_weight'] = candles['quote_asset_volume'] / average_rolling_volume
+            average_rolling_volume = candles["quote_asset_volume"].rolling(volume_normalization_window, min_periods=1).mean()
+            candles["volume_weight"] = candles["quote_asset_volume"] / average_rolling_volume
         else:
-            candles['volume_weight'] = 1.0  # Equal weighting
+            candles["volume_weight"] = 1.0  # Equal weighting
 
         # Calculate rolling regression slopes
-        candles['slope'] = candles['price_series'].rolling(
-            window=window, min_periods=window
-        ).apply(
-            lambda x: self.calculate_slope(
-                x,
-                weights=candles['volume_weight'].loc[x.index] if use_volume_weighting else None
-            ),
-            raw=False
+        candles["slope"] = (
+            candles["price_series"]
+            .rolling(window=window, min_periods=window)
+            .apply(
+                lambda x: self.calculate_slope(
+                    x, weights=candles["volume_weight"].loc[x.index] if use_volume_weighting else None
+                ),
+                raw=False,
+            )
         )
 
         # Calculate slope differences (rate of change of the slope)
-        candles['slope_diff'] = candles['slope'].diff()
-        candles['cumulative_slope_diff'] = self.cumsum_reset_on_reversal(
-            candles['slope_diff'], reversal_threshold=reversal_sensitivity)
+        candles["slope_diff"] = candles["slope"].diff()
+        candles["cumulative_slope_diff"] = self.cumsum_reset_on_reversal(
+            candles["slope_diff"], reversal_threshold=reversal_sensitivity
+        )
         # Add additional computed columns
         # Calculate the ratio of taker buy volume to total volume
-        candles['taker_buy_volume_ratio'] = candles['taker_buy_quote_volume'] / candles['quote_asset_volume']
+        candles["taker_buy_volume_ratio"] = candles["taker_buy_quote_volume"] / candles["quote_asset_volume"]
         # Calculate the cumulative volume-weighted price
-        candles['cum_volume'] = candles['quote_asset_volume'].cumsum()
-        candles['cum_volume_price'] = (candles['close'] * candles['quote_asset_volume']).cumsum()
-        candles['vwap'] = candles['cum_volume_price'] / candles['cum_volume']
+        candles["cum_volume"] = candles["quote_asset_volume"].cumsum()
+        candles["cum_volume_price"] = (candles["close"] * candles["quote_asset_volume"]).cumsum()
+        candles["vwap"] = candles["cum_volume_price"] / candles["cum_volume"]
         candles["rolling_cum_volume"] = candles["quote_asset_volume"].rolling(window=vwap_window).sum()
-        candles["rolling_cum_volume_price"] = (candles['close'] * candles['quote_asset_volume']).rolling(window=vwap_window).sum()
+        candles["rolling_cum_volume_price"] = (candles["close"] * candles["quote_asset_volume"]).rolling(window=vwap_window).sum()
         candles["rolling_vwap"] = candles["rolling_cum_volume_price"] / candles["rolling_cum_volume"]
         positive_slope_quantile_threshold = candles[candles["slope"] > 0]["slope"].quantile(slope_quantile_threshold)
         negative_slope_quantile_threshold = candles[candles["slope"] < 0]["slope"].quantile(slope_quantile_threshold)
-        pos_cum_slope_diff_thresh = candles[
-            candles["cumulative_slope_diff"] > 0]["cumulative_slope_diff"].quantile(cum_diff_quantile_threshold)
-        neg_cum_slope_diff_thresh = candles[
-            candles["cumulative_slope_diff"] < 0]["cumulative_slope_diff"].quantile(1 - cum_diff_quantile_threshold)
+        pos_cum_slope_diff_thresh = candles[candles["cumulative_slope_diff"] > 0]["cumulative_slope_diff"].quantile(
+            cum_diff_quantile_threshold
+        )
+        neg_cum_slope_diff_thresh = candles[candles["cumulative_slope_diff"] < 0]["cumulative_slope_diff"].quantile(
+            1 - cum_diff_quantile_threshold
+        )
         # Conditional VWAP calculation and signal generation
-        candles['signal'] = 0
+        candles["signal"] = 0
         candles.loc[
-            (candles["cumulative_slope_diff"] == 0) &
-            (candles['cumulative_slope_diff'] - candles["cumulative_slope_diff"].shift(1) > pos_cum_slope_diff_thresh) &
-            (candles['close'] < candles['rolling_vwap'] if use_vwap_filter else True) &
-            (candles['slope'] < negative_slope_quantile_threshold if use_slope_filter else True), 'signal'] = 1
+            (candles["cumulative_slope_diff"] == 0)
+            & (candles["cumulative_slope_diff"] - candles["cumulative_slope_diff"].shift(1) > pos_cum_slope_diff_thresh)
+            & (candles["close"] < candles["rolling_vwap"] if use_vwap_filter else True)
+            & (candles["slope"] < negative_slope_quantile_threshold if use_slope_filter else True),
+            "signal",
+        ] = 1
         candles.loc[
-            (candles["cumulative_slope_diff"] == 0) &
-            (candles['cumulative_slope_diff'] - candles["cumulative_slope_diff"].shift(1) < neg_cum_slope_diff_thresh) &
-            (candles['close'] > candles['rolling_vwap']) &
-            (candles['slope'] > positive_slope_quantile_threshold if use_slope_filter else True), 'signal'] = -1
+            (candles["cumulative_slope_diff"] == 0)
+            & (candles["cumulative_slope_diff"] - candles["cumulative_slope_diff"].shift(1) < neg_cum_slope_diff_thresh)
+            & (candles["close"] > candles["rolling_vwap"])
+            & (candles["slope"] > positive_slope_quantile_threshold if use_slope_filter else True),
+            "signal",
+        ] = -1
 
         return candles
 
     @staticmethod
-    def calculate_slope(values: pd.Series, weights: Optional[pd.Series] = None) -> float:
+    def calculate_slope(values: pd.Series, weights: pd.Series | None = None) -> float:
         """
         Calculate the slope (trend) of a time series using linear regression.
         If weights are provided, perform a weighted regression.

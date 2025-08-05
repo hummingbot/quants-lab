@@ -1,5 +1,3 @@
-from typing import List
-
 from core.features.feature_base import FeatureBase
 
 
@@ -11,7 +9,7 @@ class DataStructureBase:
         self.data = feature.calculate(self.data)
         return self
 
-    def add_features(self, features: List[FeatureBase]):
+    def add_features(self, features: list[FeatureBase]):
         for feature in features:
             self.data = feature.calculate(self.data)
         return self

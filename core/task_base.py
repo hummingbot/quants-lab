@@ -1,18 +1,18 @@
 import asyncio
+import logging
 import time
 from abc import ABC, abstractmethod
 from datetime import datetime, timedelta
-from typing import Any, Dict
-import logging
-import pandas as pd
+from typing import Any
 
+import pandas as pd
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 
 class BaseTask(ABC):
-    def __init__(self, name: str, frequency: timedelta, config: Dict[str, Any]):
+    def __init__(self, name: str, frequency: timedelta, config: dict[str, Any]):
         self.name = name
         self.frequency = frequency
         self.config = config

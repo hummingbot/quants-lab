@@ -4,16 +4,13 @@ import logging
 import os
 import time
 from datetime import timedelta
-from typing import Any, Dict
 from decimal import Decimal
 
 import pandas as pd
 from dotenv import load_dotenv
-from hummingbot.strategy_v2.executors.position_executor.data_types import TrailingStop
-from hummingbot.strategy_v2.utils.distributions import Distributions
 
 from controllers.directional_trading.xgridt import XGridTControllerConfig
-from core.backtesting.optimizer import StrategyOptimizer, BacktestingConfig, BaseStrategyConfigGenerator
+from core.backtesting.optimizer import BacktestingConfig, BaseStrategyConfigGenerator, StrategyOptimizer
 from core.task_base import BaseTask
 
 logging.basicConfig(level=logging.INFO)
@@ -25,6 +22,7 @@ class XGridTConfigGenerator(BaseStrategyConfigGenerator):
     """
     Strategy configuration generator for XGridT optimization.
     """
+
     async def generate_config(self, trial) -> BacktestingConfig:
         # Controller configuration
         connector_name = self.config.get("connector_name", "binance_perpetual")
@@ -62,7 +60,7 @@ class XGridTConfigGenerator(BaseStrategyConfigGenerator):
             donchian_channel_length=donchian_channel_length,
             natr_length=natr_length,
             natr_multiplier=natr_multiplier,
-            tp_default=tp_default
+            tp_default=tp_default,
         )
 
         # Return the configuration encapsulated in BacktestingConfig
@@ -79,18 +77,22 @@ class XGridTBacktestingTask(BaseTask):
             end_date = time.time() - self.config["end_time_buffer_hours"]
             start_date = end_date - self.config["lookback_days"] * 24 * 60 * 60
             logger.info(f"Optimizing strategy for {connector_name} {trading_pair} {start_date} {end_date}")
-            config_generator = XGridTConfigGenerator(start_date=pd.to_datetime(start_date, unit="s"), end_date=pd.to_datetime(end_date, unit="s"),
-                                                     config={"connector_name": self.config["connector_name"], "trading_pair": trading_pair})
+            config_generator = XGridTConfigGenerator(
+                start_date=pd.to_datetime(start_date, unit="s"),
+                end_date=pd.to_datetime(end_date, unit="s"),
+                config={"connector_name": self.config["connector_name"], "trading_pair": trading_pair},
+            )
             logger.info(f"Fetching candles for {connector_name} {trading_pair} {start_date} {end_date}")
             today_str = datetime.datetime.now().strftime("%Y-%m-%d")
             optimizer.load_candles_cache_by_connector_pair(connector_name=connector_name, trading_pair=trading_pair)
-            await optimizer.optimize(study_name=f"xgridt_{today_str}",
-                                     config_generator=config_generator, n_trials=self.config["n_trials"])
+            await optimizer.optimize(
+                study_name=f"xgridt_{today_str}", config_generator=config_generator, n_trials=self.config["n_trials"]
+            )
 
 
 async def main():
     config = {
-        "root_path": os.path.abspath(os.path.join(os.path.dirname(__file__), '../..')),
+        "root_path": os.path.abspath(os.path.join(os.path.dirname(__file__), "../..")),
         "connector_name": "binance_perpetual",
         "total_amount": 100,
         "lookback_days": 20,
@@ -101,7 +103,7 @@ async def main():
         #                   'SUI-USDT', '1000SATS-USDT', 'MOODENG-USDT', 'NEIRO-USDT', 'HBAR-USDT', 'ENA-USDT',
         #                   'HMSTR-USDT', 'TROY-USDT', '1000X-USDT', 'SOL-USDT', 'ACT-USDT',
         #                   'XRP-USDT', 'SWELL-USDT', 'AGLD-USDT']
-        "selected_pairs": ['1000BONK-USDT']
+        "selected_pairs": ["1000BONK-USDT"],
     }
 
     task = XGridTBacktestingTask("Backtesting", timedelta(hours=12), config)

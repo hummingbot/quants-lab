@@ -4,7 +4,6 @@ import os.path
 import subprocess
 import traceback
 from abc import ABC, abstractmethod
-from typing import List, Optional, Type, Dict
 
 import optuna
 from dotenv import load_dotenv
@@ -25,6 +24,7 @@ class BacktestingConfig(BaseModel):
     """
     A simple data structure to hold the backtesting configuration.
     """
+
     config: ControllerConfigBase
     start: int
     end: int
@@ -36,9 +36,7 @@ class BaseStrategyConfigGenerator(ABC):
     Subclasses should implement the method to provide specific strategy configurations.
     """
 
-
-    def __init__(self, start_date: datetime.datetime, end_date: datetime.datetime,
-                 config: Optional[Dict] = None):
+    def __init__(self, start_date: datetime.datetime, end_date: datetime.datetime, config: dict | None = None):
         """
         Initialize with common parameters for backtesting.
 
@@ -70,7 +68,7 @@ class BaseStrategyConfigGenerator(ABC):
         """
         pass
 
-    async def generate_custom_configs(self) -> List[BacktestingConfig]:
+    async def generate_custom_configs(self) -> list[BacktestingConfig]:
         """
         Generate custom configurations for optimization.
         This method must be implemented by subclasses.
@@ -86,9 +84,15 @@ class StrategyOptimizer:
     Class for optimizing trading strategies using Optuna and a backtesting engine.
     """
 
-    def __init__(self, storage_name: Optional[str] = None, root_path: str = "",
-                 load_cached_data: bool = False, resolution: str = "1m", db_client: Optional[TimescaleClient] = None,
-                 custom_backtester: Optional[BacktestingEngineBase] = None):
+    def __init__(
+        self,
+        storage_name: str | None = None,
+        root_path: str = "",
+        load_cached_data: bool = False,
+        resolution: str = "1m",
+        db_client: TimescaleClient | None = None,
+        custom_backtester: BacktestingEngineBase | None = None,
+    ):
         """
         Initialize the optimizer with a backtesting engine and database configuration.
 
@@ -103,8 +107,9 @@ class StrategyOptimizer:
             db_user (str): Database User
             db_pass (str): Database Password
         """
-        self._backtesting_engine = BacktestingEngine(load_cached_data=load_cached_data, root_path=root_path,
-                                                     custom_backtester=custom_backtester)
+        self._backtesting_engine = BacktestingEngine(
+            load_cached_data=load_cached_data, root_path=root_path, custom_backtester=custom_backtester
+        )
         self._db_client = db_client
         self.resolution = resolution
         self.root_path = root_path
@@ -171,9 +176,12 @@ class StrategyOptimizer:
         df = study.trials_dataframe()
         df.dropna(inplace=True)
         # Renaming the columns that start with 'user_attrs_'
-        df.rename(columns={col: col.replace('user_attrs_', '') for col in df.columns if col.startswith('user_attrs_')},
-                  inplace=True)
-        df.rename(columns={col: col.replace('params_', '') for col in df.columns if col.startswith('params_')}, )
+        df.rename(
+            columns={col: col.replace("user_attrs_", "") for col in df.columns if col.startswith("user_attrs_")}, inplace=True
+        )
+        df.rename(
+            columns={col: col.replace("params_", "") for col in df.columns if col.startswith("params_")},
+        )
         return df
 
     def get_study_best_params(self, study_name: str):
@@ -207,11 +215,16 @@ class StrategyOptimizer:
             study_name=study_name,
             storage=self._storage_name,
             sampler=optuna.samplers.TPESampler(),
-            load_if_exists=load_if_exists
+            load_if_exists=load_if_exists,
         )
 
-    async def optimize(self, study_name: str, config_generator: Type[BaseStrategyConfigGenerator], n_trials: int = 100,
-                       load_if_exists: bool = True):
+    async def optimize(
+        self,
+        study_name: str,
+        config_generator: type[BaseStrategyConfigGenerator],
+        n_trials: int = 100,
+        load_if_exists: bool = True,
+    ):
         """
         Run the optimization process asynchronously.
 
@@ -225,8 +238,9 @@ class StrategyOptimizer:
         logger.info("About to start optimizing...")
         await self._optimize_async(study, config_generator, n_trials=n_trials)
 
-    async def optimize_custom_configs(self, study_name: str, config_generator: Type[BaseStrategyConfigGenerator],
-                                      load_if_exists: bool = True):
+    async def optimize_custom_configs(
+        self, study_name: str, config_generator: type[BaseStrategyConfigGenerator], load_if_exists: bool = True
+    ):
         """
         Run the optimization process asynchronously using custom configurations.
 
@@ -238,8 +252,7 @@ class StrategyOptimizer:
         study = self._create_study(study_name, load_if_exists=load_if_exists)
         await self._optimize_async_custom_configs(study, config_generator)
 
-    async def _optimize_async(self, study: optuna.Study, config_generator: Type[BaseStrategyConfigGenerator],
-                              n_trials: int):
+    async def _optimize_async(self, study: optuna.Study, config_generator: type[BaseStrategyConfigGenerator], n_trials: int):
         """
         Asynchronously optimize using the provided study and configuration generator.
 
@@ -262,8 +275,7 @@ class StrategyOptimizer:
                 print(f"Error in _optimize_async: {str(e)}")
                 study.tell(trial, state=optuna.trial.TrialState.FAIL)
 
-    async def _optimize_async_custom_configs(self, study: optuna.Study,
-                                             config_generator: Type[BaseStrategyConfigGenerator]):
+    async def _optimize_async_custom_configs(self, study: optuna.Study, config_generator: type[BaseStrategyConfigGenerator]):
         """
         Asynchronously optimize using the provided study and configuration generator.
 
@@ -285,15 +297,16 @@ class StrategyOptimizer:
                 trial.set_user_attr("config", bt_config.config.json())
                 trial.set_user_attr("start_bt", start)
                 trial.set_user_attr("end_bt", end)
-                candles = await self._db_client.get_candles(connector_name,
-                                                            trading_pair,
-                                                            self.resolution, start, end)
+                candles = await self._db_client.get_candles(connector_name, trading_pair, self.resolution, start, end)
                 self._backtesting_engine._dt_bt.backtesting_data_provider.candles_feeds[
-                    f"{connector_name}_{trading_pair}_{self.resolution}"] = candles.data
+                    f"{connector_name}_{trading_pair}_{self.resolution}"
+                ] = candles.data
                 self._backtesting_engine._mm_bt.backtesting_data_provider.candles_feeds[
-                    f"{connector_name}_{trading_pair}_{self.resolution}"] = candles.data
+                    f"{connector_name}_{trading_pair}_{self.resolution}"
+                ] = candles.data
                 config_generator.backtester.backtesting_data_provider.candles_feeds[
-                    f"{connector_name}_{trading_pair}_{self.resolution}"] = candles.data
+                    f"{connector_name}_{trading_pair}_{self.resolution}"
+                ] = candles.data
                 start = candles.data["timestamp"].min()
                 end = candles.data["timestamp"].max()
                 # Generate configuration using the config generator
@@ -317,12 +330,12 @@ class StrategyOptimizer:
             except Exception as e:
                 print(f"An error occurred during optimization: {str(e)}")
                 traceback.print_exc()
-                value = float('-inf')  # Return a very low value to indicate failure
+                value = float("-inf")  # Return a very low value to indicate failure
 
             # Report the result back to the study
             study.tell(trial, value)
 
-    async def _async_objective(self, trial: optuna.Trial, config_generator: Type[BaseStrategyConfigGenerator]) -> float:
+    async def _async_objective(self, trial: optuna.Trial, config_generator: type[BaseStrategyConfigGenerator]) -> float:
         """
         The asynchronous objective function for a given trial.
 
@@ -360,7 +373,7 @@ class StrategyOptimizer:
         except Exception as e:
             print(f"An error occurred during optimization: {str(e)}")
             traceback.print_exc()
-            return float('-inf')  # Return a very low value to indicate failure
+            return float("-inf")  # Return a very low value to indicate failure
 
     def launch_optuna_dashboard(self):
         """

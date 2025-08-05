@@ -1,33 +1,42 @@
 repos:
--   repo: https://github.com/pre-commit/pre-commit-hooks
-    rev: v2.3.0
+  # General sanity checks (updated repo + tag)
+  - repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v5.0.0
     hooks:
-    - id: detect-private-key
+      - id: detect-private-key
+      - id: check-yaml
+        args: ["--unsafe"]
+      - id: end-of-file-fixer
 
--   repo: https://github.com/pre-commit/mirrors-eslint
-    rev: v8.10.0
+  # Python: Ruff replaces isort + flake8 + black (lint → format; order matters)
+  - repo: https://github.com/astral-sh/ruff-pre-commit
+    rev: v0.12.7
     hooks:
-    -   id: eslint
-        files: \.[jt]sx?$  # *.js, *.jsx, *.ts and *.tsx
+      - id: ruff-check
+        args: [--fix]
+        # If you DON'T want to scan notebooks, uncomment:
+        # types_or: [python, pyi]
+      - id: ruff-format
+        # If you DON'T want to format notebooks, uncomment:
+        # types_or: [python, pyi]
+
+  # JavaScript/TypeScript: keep ESLint mirror (bump only if your ESLint config supports it)
+  - repo: https://github.com/pre-commit/mirrors-eslint
+    rev: v9.32.0
+    hooks:
+      - id: eslint
+        files: \.[jt]sx?$
         types: [file]
+        # If you use plugins/configs, declare them here:
+        # additional_dependencies:
+        #   - eslint@8.57.0
+        #   - eslint-config-...@x.y.z
+        #   - eslint-plugin-...@x.y.z
 
--   repo: https://github.com/CoinAlpha/git-hooks
+  # Your existing wallet key detector (leave as-is; update if your org changes the ref)
+  - repo: https://github.com/CoinAlpha/git-hooks
     rev: 78f0683233a09c68a072fd52740d32c0376d4f0f
     hooks:
-    -   id: detect-wallet-private-key
+      - id: detect-wallet-private-key
         types: [file]
         exclude: .json
-
--   repo: https://github.com/pycqa/isort
-    rev: 5.12.0
-    hooks:
-      - id: isort
-        files: "\\.(py)$"
-        args: [--settings-path=pyproject.toml]
-
--   repo: https://github.com/pycqa/flake8
-    rev: 3.9.2
-    hooks:
-      - id: flake8
-        additional_dependencies: ['flake8']
-        args: [--max-line-length=130]

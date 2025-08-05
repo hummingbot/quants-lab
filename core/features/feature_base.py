@@ -4,7 +4,7 @@ from typing import Generic, TypeVar
 from pydantic import BaseModel
 
 # Define a type variable that can be any subclass of FeatureConfig
-T = TypeVar('T', bound='FeatureConfig')
+T = TypeVar("T", bound="FeatureConfig")
 
 
 class FeatureConfig(BaseModel):

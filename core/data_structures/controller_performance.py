@@ -1,16 +1,15 @@
-from typing import Dict, List, Optional
-
 import pandas as pd
-
-from core.backtesting import BacktestingEngine
-from core.data_structures.data_structure_base import DataStructureBase
 from hummingbot.strategy_v2.backtesting.backtesting_engine_base import BacktestingEngineBase
 from hummingbot.strategy_v2.models.executors_info import ExecutorInfo
 
+from core.backtesting import BacktestingEngine
+from core.data_structures.data_structure_base import DataStructureBase
+
 
 class ControllerPerformance(DataStructureBase):
-    def __init__(self, data: pd.DataFrame, controller_config: Dict, root_path: str = "",
-                 load_cache_data: bool = False, *args, **kwargs):
+    def __init__(
+        self, data: pd.DataFrame, controller_config: dict, root_path: str = "", load_cache_data: bool = False, *args, **kwargs
+    ):
         super().__init__(data, *args, **kwargs)
         self.backtesting_engine = BacktestingEngine(root_path=root_path, load_cached_data=load_cache_data)
         self.controller_config = self.backtesting_engine.get_controller_config_instance_from_dict(controller_config)
@@ -18,14 +17,16 @@ class ControllerPerformance(DataStructureBase):
         self.end_time = data["timestamp"].max()
         self.backtesting_result = None
 
-    def get_executor_info(self) -> List[ExecutorInfo]:
+    def get_executor_info(self) -> list[ExecutorInfo]:
         return [ExecutorInfo(**controller) for controller in self.data.to_dict(orient="records")]
 
-    async def get_backtesting_result_same_period(self,
-                                                 buffer_time: int = 60,
-                                                 backtesting_resolution: str = "1m",
-                                                 backtester: Optional[BacktestingEngineBase] = None,
-                                                 trade_cost: float = 0.0007):
+    async def get_backtesting_result_same_period(
+        self,
+        buffer_time: int = 60,
+        backtesting_resolution: str = "1m",
+        backtester: BacktestingEngineBase | None = None,
+        trade_cost: float = 0.0007,
+    ):
         start_time = int(self.start_time - buffer_time)
         end_time = int(self.end_time + buffer_time)
         backtesting_result = await self.backtesting_engine.run_backtesting(
@@ -52,7 +53,7 @@ class ControllerPerformance(DataStructureBase):
             raise Exception("Backtesting result not available. Run get_backtesting_result_same_period first.")
         bt_summary = self.backtesting_result.get_results_summary()
         live_results = self.backtesting_engine._dt_bt.summarize_results(
-            self.get_executor_info(),
-            total_amount_quote=self.controller_config.total_amount_quote)
+            self.get_executor_info(), total_amount_quote=self.controller_config.total_amount_quote
+        )
         live_summary = self.backtesting_result.get_results_summary(live_results)
         return f"Backtesting Results: {bt_summary} | Live Results: {live_summary}"

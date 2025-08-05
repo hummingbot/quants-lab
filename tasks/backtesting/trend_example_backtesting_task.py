@@ -3,19 +3,20 @@ import datetime
 import logging
 import os
 from datetime import timedelta
-from dotenv import load_dotenv
 from decimal import Decimal
 
+from dotenv import load_dotenv
 from hummingbot.strategy_v2.backtesting import DirectionalTradingBacktesting
 from hummingbot.strategy_v2.executors.position_executor.data_types import TrailingStop
 
 from controllers.directional_trading.trend_example import TrendExampleControllerConfig
-from core.backtesting.optimizer import StrategyOptimizer, BaseStrategyConfigGenerator, BacktestingConfig
+from core.backtesting.optimizer import BacktestingConfig, BaseStrategyConfigGenerator, StrategyOptimizer
 from core.task_base import BaseTask
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 load_dotenv()
+
 
 class TrendExampleConfigGenerator(BaseStrategyConfigGenerator):
     """
@@ -61,6 +62,7 @@ class TrendExampleConfigGenerator(BaseStrategyConfigGenerator):
         # Return the configuration encapsulated in BacktestingConfig
         return BacktestingConfig(config=config, start=self.start, end=self.end)
 
+
 class TrendExampleBacktestingTask(BaseTask):
     async def execute(self):
         resolution = self.config["resolution"]
@@ -72,16 +74,14 @@ class TrendExampleBacktestingTask(BaseTask):
             "db_pass": self.config["optuna_config"]["password"],
             "database_name": self.config["optuna_config"]["database"],
         }
-        storage_name = StrategyOptimizer.get_storage_name(
-            engine=self.config.get("engine", "sqlite"),
-            **kwargs)
+        storage_name = StrategyOptimizer.get_storage_name(engine=self.config.get("engine", "sqlite"), **kwargs)
         for trading_pair in self.config.get("selected_pairs"):
             connector_name = self.config.get("connector_name")
             optimizer = StrategyOptimizer(
                 storage_name=storage_name,
                 resolution=resolution,
                 root_path=self.config["root_path"],
-                custom_backtester=DirectionalTradingBacktesting()
+                custom_backtester=DirectionalTradingBacktesting(),
             )
 
             optimizer.load_candles_cache_by_connector_pair(connector_name, trading_pair, self.config["root_path"])
@@ -92,8 +92,9 @@ class TrendExampleBacktestingTask(BaseTask):
             config_generator = TrendExampleConfigGenerator(start_date=start_date, end_date=end_date)
             config_generator.trading_pair = trading_pair
             today_str = datetime.datetime.now().strftime("%Y-%m-%d")
-            await optimizer.optimize(study_name=f"{self.config['study_name']}_{today_str}",
-                                     config_generator=config_generator, n_trials=50)
+            await optimizer.optimize(
+                study_name=f"{self.config['study_name']}_{today_str}", config_generator=config_generator, n_trials=50
+            )
 
 
 async def main():
@@ -102,10 +103,10 @@ async def main():
         "port": os.getenv("OPTUNA_PORT", 5433),
         "user": os.getenv("OPTUNA_USER", "admin"),
         "password": os.getenv("OPTUNA_PASSWORD", "admin"),
-        "database": os.getenv("OPTUNA_DB", "optimization_database")
+        "database": os.getenv("OPTUNA_DB", "optimization_database"),
     }
     config = {
-        "root_path": os.path.abspath(os.path.join(os.path.dirname(__file__), '../..')),
+        "root_path": os.path.abspath(os.path.join(os.path.dirname(__file__), "../..")),
         "resolution": "1m",
         "optuna_config": optuna_config,
         "connector_name": "binance_perpetual",

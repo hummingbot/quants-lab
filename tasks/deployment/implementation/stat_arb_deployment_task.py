@@ -2,34 +2,34 @@ import asyncio
 import os
 import time
 from datetime import timedelta
-from typing import List, Dict, Any
+from typing import Any
+
 from research_notebooks.statarb_v2.stat_arb_performance_utils import get_executor_prices
-from tasks.deployment.deployment_base_task import DeploymentBaseTask, ConfigCandidate
+from tasks.deployment.deployment_base_task import ConfigCandidate, DeploymentBaseTask
 
 
 class StatArbDeploymentTask(DeploymentBaseTask):
-
-    async def _fetch_controller_configs(self) -> List[ConfigCandidate]:
+    async def _fetch_controller_configs(self) -> list[ConfigCandidate]:
         min_timestamp = time.time() - self.config.get("min_config_timestamp", 24 * 60 * 60)
         controller_configs_query = {"timestamp": {"$gt": min_timestamp}}
-        controller_configs_data = await self.mongo_client.get_documents(collection_name="controller_configs",
-                                                                        query=controller_configs_query)
+        controller_configs_data = await self.mongo_client.get_documents(
+            collection_name="controller_configs", query=controller_configs_query
+        )
         return [ConfigCandidate.from_mongo(config_data) for config_data in controller_configs_data]
 
-    def _extract_trading_pairs(self, config_candidates: List[ConfigCandidate]):
-        return {
-            candidate.config["base_trading_pair"] for candidate in config_candidates} | {
+    def _extract_trading_pairs(self, config_candidates: list[ConfigCandidate]):
+        return {candidate.config["base_trading_pair"] for candidate in config_candidates} | {
             candidate.config["quote_trading_pair"] for candidate in config_candidates
         }
 
-    def _filter_configs_by_trading_pair(self, all_config_candidates: List[ConfigCandidate], trading_pairs: List[str]):
+    def _filter_configs_by_trading_pair(self, all_config_candidates: list[ConfigCandidate], trading_pairs: list[str]):
         return [
-            candidate for candidate in all_config_candidates
-            if candidate.config["base_trading_pair"] in trading_pairs
-            or candidate.config["quote_trading_pair"] in trading_pairs
+            candidate
+            for candidate in all_config_candidates
+            if candidate.config["base_trading_pair"] in trading_pairs or candidate.config["quote_trading_pair"] in trading_pairs
         ]
 
-    async def _is_candidate_valid(self, candidate: ConfigCandidate, filter_params: Dict[str, Any]):
+    async def _is_candidate_valid(self, candidate: ConfigCandidate, filter_params: dict[str, Any]):
         # Step 1: extract config params from task config
         base_entry_price = self.last_prices.get(candidate.config["base_trading_pair"])
         quote_entry_price = self.last_prices.get(candidate.config["quote_trading_pair"])
@@ -57,35 +57,50 @@ class StatArbDeploymentTask(DeploymentBaseTask):
 
         quote_start_price = config["grid_config_quote"]["start_price"]
         quote_end_price = config["grid_config_quote"]["end_price"]
-        quote_executor_prices, quote_step = await get_executor_prices(config, side="short",
-                                                                      connector_instance=self.connector_instance)
+        quote_executor_prices, quote_step = await get_executor_prices(
+            config, side="short", connector_instance=self.connector_instance
+        )
         quote_level_amount_quote = config["total_amount_quote"] / len(quote_executor_prices)
 
         quote_grid_range_pct = quote_end_price / quote_start_price - 1
-        quote_entry_price_distance_from_start = 1 - (
-                    quote_entry_price / quote_start_price - 1) / quote_grid_range_pct
+        quote_entry_price_distance_from_start = 1 - (quote_entry_price / quote_start_price - 1) / quote_grid_range_pct
 
         # Conditions using the input values
         base_step_condition = base_step <= max_base_step
         quote_step_condition = quote_step <= max_quote_step
         grid_range_gt_zero_condition = base_grid_range_pct > 0 and quote_grid_range_pct > 0
-        grid_range_pct_condition = min_grid_range_ratio <= (
-                base_grid_range_pct / quote_grid_range_pct) <= max_grid_range_ratio
+        grid_range_pct_condition = min_grid_range_ratio <= (base_grid_range_pct / quote_grid_range_pct) <= max_grid_range_ratio
         base_entry_price_condition = base_entry_price_distance_from_start < max_entry_price_distance
         quote_entry_price_condition = quote_entry_price_distance_from_start < max_entry_price_distance
-        inside_grid_condition = ((base_start_price < base_entry_price < base_end_price) and
-                                 (quote_start_price < quote_entry_price < quote_end_price))
-        price_non_zero_condition = (base_end_price > 0 and quote_end_price > 0 and base_start_price > 0
-                                    and quote_start_price > 0 and base_end_price > 0 and quote_end_price > 0)
+        inside_grid_condition = (base_start_price < base_entry_price < base_end_price) and (
+            quote_start_price < quote_entry_price < quote_end_price
+        )
+        price_non_zero_condition = (
+            base_end_price > 0
+            and quote_end_price > 0
+            and base_start_price > 0
+            and quote_start_price > 0
+            and base_end_price > 0
+            and quote_end_price > 0
+        )
         # TODO: this should be applied after adjusting config proposals
-        notional_size_condition = ((base_level_amount_quote <= max_notional_size) and
-                                   (quote_level_amount_quote <= max_notional_size))
+        notional_size_condition = (base_level_amount_quote <= max_notional_size) and (
+            quote_level_amount_quote <= max_notional_size
+        )
         # Step 4: Return boolean value
-        return (base_step_condition and quote_step_condition and grid_range_pct_condition and
-                base_entry_price_condition and inside_grid_condition and price_non_zero_condition and
-                grid_range_gt_zero_condition and quote_entry_price_condition and notional_size_condition)
+        return (
+            base_step_condition
+            and quote_step_condition
+            and grid_range_pct_condition
+            and base_entry_price_condition
+            and inside_grid_condition
+            and price_non_zero_condition
+            and grid_range_gt_zero_condition
+            and quote_entry_price_condition
+            and notional_size_condition
+        )
 
-    def _adjust_config_candidates(self, config_candidates: List[ConfigCandidate]):
+    def _adjust_config_candidates(self, config_candidates: list[ConfigCandidate]):
         params = self.config["config_adjustment_params"]
         for candidate in config_candidates:
             year, iso_week = self.get_year_and_isoweek()
@@ -110,13 +125,10 @@ class StatArbDeploymentTask(DeploymentBaseTask):
             candidate.config["connector_name"] = self.config["connector_name"]
             candidate.config["min_spread_between_orders"] = params["min_spread_between_orders"]
             candidate.config["triple_barrier_config"] = {
-                'stop_loss': params["stop_loss"],
-                'take_profit': params["take_profit"],
-                'time_limit': params["time_limit"],
-                'trailing_stop': {
-                    'activation_price': params["activation_price"],
-                    'trailing_delta': params["trailing_delta"]
-                }
+                "stop_loss": params["stop_loss"],
+                "take_profit": params["take_profit"],
+                "time_limit": params["time_limit"],
+                "trailing_stop": {"activation_price": params["activation_price"], "trailing_delta": params["trailing_delta"]},
             }
         return config_candidates
 
@@ -140,7 +152,7 @@ async def main():
             "min_grid_range_ratio": 0.5,
             "max_grid_range_ratio": 2.0,
             "max_entry_price_distance": 0.5,
-            "max_notional_size": 100.0
+            "max_notional_size": 100.0,
         },
         "config_adjustment_params": {
             "total_amount_quote": 1000.0,
@@ -168,12 +180,10 @@ async def main():
             "partial_drawdown": 0.1,
             "partial_profit": 0.1,
             "min_early_stop_time": 6 * 60 * 60,
-            "max_early_stop_time": 24 * 60 * 60
-        }
+            "max_early_stop_time": 24 * 60 * 60,
+        },
     }
-    task = StatArbDeploymentTask(name="deployment_task",
-                                 frequency=timedelta(minutes=20),
-                                 config=task_config)
+    task = StatArbDeploymentTask(name="deployment_task", frequency=timedelta(minutes=20), config=task_config)
     await task.execute()
 
 

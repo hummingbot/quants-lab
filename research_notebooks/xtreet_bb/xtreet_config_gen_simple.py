@@ -28,15 +28,15 @@ class XtreetConfigGenerator(BaseStrategyConfigGenerator):
         trailing_stop_activation = trial.suggest_float("trailing_stop_activation", 0.2, 0.6, step=0.2)
         trailing_stop_delta = trial.suggest_float("trailing_stop_delta", 0.3, 0.6, step=0.3)
         trailing_stop = TrailingStop(
-            activation_price=Decimal(trailing_stop_activation),
-            trailing_delta=Decimal(trailing_stop_delta)
+            activation_price=Decimal(trailing_stop_activation), trailing_delta=Decimal(trailing_stop_delta)
         )
         # Id Generation
-        controller_id = f"xtreet_bb_{connector_name}_{interval}_{trading_pair}_" \
-                        f"bb{bb_length}_{bb_std}_sl{round(100 * stop_loss, 1)}_" \
-                        f"ts{round(100 * trailing_stop_activation, 1)}-" \
-                        f"{round(100 * trailing_stop_delta, 1)}" \
-
+        controller_id = (
+            f"xtreet_bb_{connector_name}_{interval}_{trading_pair}_"
+            f"bb{bb_length}_{bb_std}_sl{round(100 * stop_loss, 1)}_"
+            f"ts{round(100 * trailing_stop_activation, 1)}-"
+            f"{round(100 * trailing_stop_delta, 1)}"
+        )
         config = XtreetBBControllerConfig(
             id=controller_id,
             total_amount_quote=Decimal("1000"),
@@ -61,6 +61,6 @@ class XtreetConfigGenerator(BaseStrategyConfigGenerator):
             min_distance_between_orders=Decimal("0.004"),
             time_limit=None,
             max_executors_per_side=max_executors_per_side,
-            cooldown_time=0
+            cooldown_time=0,
         )
         return BacktestingConfig(config=config, start=self.start, end=self.end)

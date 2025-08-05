@@ -1,5 +1,3 @@
-from typing import List
-
 import pandas_ta as ta  # noqa: F401
 from hummingbot.data_feed.candles_feed.data_types import CandlesConfig
 from hummingbot.strategy_v2.controllers.directional_trading_controller_base import (
@@ -11,7 +9,7 @@ from pydantic import Field, field_validator
 
 class TrendExampleControllerConfig(DirectionalTradingControllerConfigBase):
     controller_name = "trend_example"
-    candles_config: List[CandlesConfig] = []
+    candles_config: list[CandlesConfig] = []
     candles_connector: str = Field(default=None)
     candles_trading_pair: str = Field(default=None)
     interval: str = Field(default="3m")
@@ -36,24 +34,27 @@ class TrendExampleControllerConfig(DirectionalTradingControllerConfigBase):
 
 
 class TrendExampleController(DirectionalTradingControllerBase):
-
     def __init__(self, config: TrendExampleControllerConfig, *args, **kwargs):
         self.config = config
         self.max_records = max(config.ema_short, config.ema_medium, config.ema_long) + 20
         if len(self.config.candles_config) == 0:
-            self.config.candles_config = [CandlesConfig(
-                connector=config.candles_connector,
-                trading_pair=config.candles_trading_pair,
-                interval=config.interval,
-                max_records=self.max_records
-            )]
+            self.config.candles_config = [
+                CandlesConfig(
+                    connector=config.candles_connector,
+                    trading_pair=config.candles_trading_pair,
+                    interval=config.interval,
+                    max_records=self.max_records,
+                )
+            ]
         super().__init__(config, *args, **kwargs)
 
     async def update_processed_data(self):
-        df = self.market_data_provider.get_candles_df(connector_name=self.config.candles_connector,
-                                                      trading_pair=self.config.candles_trading_pair,
-                                                      interval=self.config.interval,
-                                                      max_records=self.max_records)
+        df = self.market_data_provider.get_candles_df(
+            connector_name=self.config.candles_connector,
+            trading_pair=self.config.candles_trading_pair,
+            interval=self.config.interval,
+            max_records=self.max_records,
+        )
         # Add indicators
         df.ta.ema(length=self.config.ema_short, append=True)
         df.ta.ema(length=self.config.ema_medium, append=True)
@@ -72,4 +73,3 @@ class TrendExampleController(DirectionalTradingControllerBase):
 
         self.processed_data.update(df.iloc[-1].to_dict())
         self.processed_data["features"] = df
-

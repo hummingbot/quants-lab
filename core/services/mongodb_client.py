@@ -1,16 +1,14 @@
-import math
-from typing import List, Optional, Dict, Any, Union
-import pandas as pd
 import logging
+from typing import Any
+
 from motor.motor_asyncio import AsyncIOMotorClient
-from datetime import datetime, timedelta
 
 
 class MongoClient:
     def __init__(
-            self,
-            uri: str = None,
-            database: str = "mongodb",
+        self,
+        uri: str = None,
+        database: str = "mongodb",
     ):
         self.client = None
         self.db = None
@@ -22,13 +20,10 @@ class MongoClient:
     async def connect(self):
         """Connect to MongoDB using provided or environment variables."""
         try:
-            self.client = AsyncIOMotorClient(
-                self.uri,
-                serverSelectionTimeoutMS=5000
-            )
+            self.client = AsyncIOMotorClient(self.uri, serverSelectionTimeoutMS=5000)
             self.db = self.client[self.database]
-            await self.db.command('ping')
-            logging.info(f"Successfully connected to MongoDB")
+            await self.db.command("ping")
+            logging.info("Successfully connected to MongoDB")
 
         except Exception as e:
             print(f"Failed to connect to MongoDB: {str(e)}")
@@ -50,20 +45,25 @@ class MongoClient:
         self.client.drop_database(db_name)
         logging.info(f"Database {db_name} deleted.")
 
-    async def create_collection(self, collection_name: str, db_name: Optional[str] = None):
+    async def create_collection(self, collection_name: str, db_name: str | None = None):
         """Create a collection in a given database."""
         db = self.client[db_name] if db_name else self.db
         await db.create_collection(collection_name)
         logging.info(f"Collection {collection_name} created in {db_name or self.db.name}.")
 
-    async def delete_collection(self, collection_name: str, db_name: Optional[str] = None):
+    async def delete_collection(self, collection_name: str, db_name: str | None = None):
         """Delete a collection from a given database."""
         db = self.client[db_name] if db_name else self.db
         await db[collection_name].drop()
         logging.info(f"Collection {collection_name} deleted from {db_name or self.db.name}.")
 
-    async def insert_documents(self, collection_name: str, documents: Union[Dict[str, Any], List[Dict[str, Any]]],
-                               db_name: Optional[str] = None, index: List[str] = []):
+    async def insert_documents(
+        self,
+        collection_name: str,
+        documents: dict[str, Any] | list[dict[str, Any]],
+        db_name: str | None = None,
+        index: list[str] = [],
+    ):
         """Insert one or multiple documents into a specified collection."""
         db = self.client[db_name] if db_name else self.db
         collection = db[collection_name]
@@ -80,8 +80,9 @@ class MongoClient:
             logging.error(f"Error inserting documents into {collection_name}: {str(e)}")
             raise
 
-    async def get_documents(self, collection_name: str, query: Dict[str, Any] = None, db_name: Optional[str] = None,
-                            limit: Optional[int] = None) -> List[Dict[str, Any]]:
+    async def get_documents(
+        self, collection_name: str, query: dict[str, Any] = None, db_name: str | None = None, limit: int | None = None
+    ) -> list[dict[str, Any]]:
         """Retrieve documents from a collection with an optional query."""
         db = self.client[db_name] if db_name else self.db
         collection = db[collection_name]
@@ -98,7 +99,7 @@ class MongoClient:
             logging.error(f"Error retrieving documents from {collection_name}: {str(e)}")
             raise
 
-    async def delete_documents(self, collection_name: str, query: Dict[str, Any], db_name: Optional[str] = None):
+    async def delete_documents(self, collection_name: str, query: dict[str, Any], db_name: str | None = None):
         """Delete documents matching a query from a collection."""
         db = self.client[db_name] if db_name else self.db
         collection = db[collection_name]

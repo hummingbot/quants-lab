@@ -12,7 +12,7 @@ class VolumeConfig(FeatureConfig):
 class Volume(FeatureBase[VolumeConfig]):
     def calculate(self, candles: pd.DataFrame):
         # Ensure the required columns are present
-        required_columns = ['volume', 'close', 'taker_buy_base_volume']
+        required_columns = ["volume", "close", "taker_buy_base_volume"]
         for col in required_columns:
             if col not in candles.columns:
                 raise ValueError(f"Candles DataFrame does not contain '{col}' column required for volume calculation.")
@@ -36,14 +36,17 @@ class Volume(FeatureBase[VolumeConfig]):
         rolling_total_volume_usd = df["volume_usd"].rolling(window=window, min_periods=1).sum()
 
         # Calculate rolling buy/sell imbalance
-        df[f"rolling_buy_sell_imbalance_{suffix}"] = df["buy_sell_imbalance"].rolling(
-            window=window, min_periods=1).sum() / rolling_total_volume_usd
+        df[f"rolling_buy_sell_imbalance_{suffix}"] = (
+            df["buy_sell_imbalance"].rolling(window=window, min_periods=1).sum() / rolling_total_volume_usd
+        )
 
         # Calculate rolling buy/sell pressure
-        df[f"rolling_buy_sell_pressure_{suffix}"] = df["buy_taker_volume_usd"].rolling(
-            window=window, min_periods=1).sum() / df["sell_taker_volume_usd"].rolling(
-            window=window, min_periods=1).sum()
+        df[f"rolling_buy_sell_pressure_{suffix}"] = (
+            df["buy_taker_volume_usd"].rolling(window=window, min_periods=1).sum()
+            / df["sell_taker_volume_usd"].rolling(window=window, min_periods=1).sum()
+        )
 
         # Handle potential division by zero
         df[f"rolling_buy_sell_pressure_{suffix}"] = df[f"rolling_buy_sell_pressure_{suffix}"].replace(
-            [float('inf'), -float('inf')], 0)
+            [float("inf"), -float("inf")], 0
+        )

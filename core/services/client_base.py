@@ -1,5 +1,3 @@
-from typing import Dict, Optional
-
 import aiohttp
 from aiohttp import ClientResponse
 
@@ -17,8 +15,13 @@ class ClientBase:
         if self.session is None or self.session.closed:
             self.session = aiohttp.ClientSession()
 
-    async def post(self, endpoint: str, payload: Optional[Dict] = None, params: Optional[Dict] = None,
-                   auth: Optional[aiohttp.BasicAuth] = None):
+    async def post(
+        self,
+        endpoint: str,
+        payload: dict | None = None,
+        params: dict | None = None,
+        auth: aiohttp.BasicAuth | None = None,
+    ):
         """
         Post request to the backend API.
         :param endpoint:
@@ -33,7 +36,7 @@ class ClientBase:
         response: ClientResponse = await self.session.post(url, json=payload, params=params, headers=headers, auth=auth)
         return await self._process_response(response)
 
-    async def get(self, endpoint: str, params: Optional[Dict] = None, auth: Optional[aiohttp.BasicAuth] = None):
+    async def get(self, endpoint: str, params: dict | None = None, auth: aiohttp.BasicAuth | None = None):
         """
         Get request to the backend API.
         :param endpoint:
@@ -52,8 +55,8 @@ class ClientBase:
             text = await response.text()
             print(f"Error: {response.status} - {text}")
             return {"error": text, "status": response.status}
-        content_type = response.headers.get('Content-Type', '')
-        if 'application/json' in content_type:
+        content_type = response.headers.get("Content-Type", "")
+        if "application/json" in content_type:
             return await response.json()
         else:
             text = await response.text()
@@ -69,4 +72,5 @@ class ClientBase:
     def __del__(self):
         if self.session and not self.session.closed:
             import asyncio
+
             asyncio.create_task(self.close())

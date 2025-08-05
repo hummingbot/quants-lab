@@ -3,9 +3,9 @@ import os
 import sqlite3
 
 import pandas as pd
+from hummingbot.connector.connector_base import TradeType
 
 from core.data_structures.controller_performance import ControllerPerformance
-from hummingbot.connector.connector_base import TradeType
 
 
 class HummingbotDatabase:
@@ -34,17 +34,19 @@ class HummingbotDatabase:
         orders_status = self._get_table_status(self.get_orders)
         order_status_status = self._get_table_status(self.get_order_status)
         executors_status = self._get_table_status(self.get_executors_data)
-        general_status = all(status == "Correct" for status in
-                             [trade_fill_status, orders_status, order_status_status, executors_status])
-        status = {"db_name": self.db_name,
-                  "db_path": self.db_path,
-                  "instance_name": self.instance_name,
-                  "trade_fill": trade_fill_status,
-                  "orders": orders_status,
-                  "order_status": order_status_status,
-                  "executors": executors_status,
-                  "general_status": general_status
-                  }
+        general_status = all(
+            status == "Correct" for status in [trade_fill_status, orders_status, order_status_status, executors_status]
+        )
+        status = {
+            "db_name": self.db_name,
+            "db_path": self.db_path,
+            "instance_name": self.instance_name,
+            "trade_fill": trade_fill_status,
+            "orders": orders_status,
+            "order_status": order_status_status,
+            "executors": executors_status,
+            "general_status": general_status,
+        }
         return status
 
     def get_orders(self, config_file_path=None, start_date=None, end_date=None):
@@ -53,8 +55,8 @@ class HummingbotDatabase:
         orders["market"] = orders["market"]
         orders["amount"] = orders["amount"] / 1e6
         orders["price"] = orders["price"] / 1e6
-        orders['creation_timestamp'] = pd.to_datetime(orders['creation_timestamp'], unit="ms")
-        orders['last_update_timestamp'] = pd.to_datetime(orders['last_update_timestamp'], unit="ms")
+        orders["creation_timestamp"] = pd.to_datetime(orders["creation_timestamp"], unit="ms")
+        orders["last_update_timestamp"] = pd.to_datetime(orders["last_update_timestamp"], unit="ms")
         return orders
 
     def get_trade_fills(self, config_file_path=None, start_date=None, end_date=None):
@@ -64,9 +66,8 @@ class HummingbotDatabase:
         trade_fills = pd.read_sql_query(query, self.connection)
         trade_fills[float_cols] = trade_fills[float_cols] / 1e6
         trade_fills["cum_fees_in_quote"] = trade_fills.groupby(groupers)["trade_fee_in_quote"].cumsum()
-        trade_fills["net_amount"] = trade_fills['amount'] * trade_fills['trade_type'].apply(
-            lambda x: 1 if x == 'BUY' else -1)
-        trade_fills["net_amount_quote"] = trade_fills['net_amount'] * trade_fills['price']
+        trade_fills["net_amount"] = trade_fills["amount"] * trade_fills["trade_type"].apply(lambda x: 1 if x == "BUY" else -1)
+        trade_fills["net_amount_quote"] = trade_fills["net_amount"] * trade_fills["price"]
         trade_fills["cum_net_amount"] = trade_fills.groupby(groupers)["net_amount"].cumsum()
         trade_fills["unrealized_trade_pnl"] = -1 * trade_fills.groupby(groupers)["net_amount_quote"].cumsum()
         trade_fills["inventory_cost"] = trade_fills["cum_net_amount"] * trade_fills["price"]

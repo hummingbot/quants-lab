@@ -2,13 +2,12 @@ import asyncio
 import logging
 import os
 import time
-from typing import Any, Dict
 from datetime import timedelta
-
-import pandas as pd
-from dotenv import load_dotenv
+from typing import Any
 
 import numpy as np
+import pandas as pd
+from dotenv import load_dotenv
 
 from core.services.timescale_client import TimescaleClient
 from core.task_base import BaseTask
@@ -19,15 +18,15 @@ logging.basicConfig(level=logging.INFO)
 
 # Base class for common functionalities like database connection and email sending
 class ScreenerSikorTask(BaseTask):
-    def __init__(self, name: str, frequency: timedelta, config: Dict[str, Any]):
+    def __init__(self, name: str, frequency: timedelta, config: dict[str, Any]):
         super().__init__(name, frequency, config)
         self.ts_client = TimescaleClient(host=self.config.get("host", "localhost"))
 
     @staticmethod
     def get_volatility(df, window):
-        df['log_return'] = np.log(df['close'] / df['close'].shift(1))
-        df['volatility'] = df['log_return'].rolling(window=window).std() * np.sqrt(window)
-        return df['volatility'].iloc[-1]
+        df["log_return"] = np.log(df["close"] / df["close"].shift(1))
+        df["volatility"] = df["log_return"].rolling(window=window).std() * np.sqrt(window)
+        return df["volatility"].iloc[-1]
 
     @staticmethod
     def get_volume_imbalance(df, window):
@@ -44,8 +43,11 @@ class ScreenerSikorTask(BaseTask):
     async def execute(self):
         await self.ts_client.connect()
         available_candles = await self.ts_client.get_available_candles()
-        filtered_candles = [candle for candle in available_candles
-                            if candle[2] == self.config["interval"] and candle[0] == self.config["connector_name"]]
+        filtered_candles = [
+            candle
+            for candle in available_candles
+            if candle[2] == self.config["interval"] and candle[0] == self.config["connector_name"]
+        ]
         candles_tasks = [self.ts_client.get_all_candles(candle[0], candle[1], candle[2]) for candle in filtered_candles]
         candles = await asyncio.gather(*candles_tasks)
         report = []
@@ -59,12 +61,9 @@ class ScreenerSikorTask(BaseTask):
             volatility = self.get_volatility(df, self.config.get("volatility_window", 50))
             volume_imbalance = self.get_volume_imbalance(df, self.config.get("volume_window", 50))
             # ADD METHOD FOR ORDER BOOK IMBALANCE
-            report.append({
-                "trading_pair": trading_pair,
-                "volatility": volatility,
-                "volume_imbalance": volume_imbalance
-            })
+            report.append({"trading_pair": trading_pair, "volatility": volatility, "volume_imbalance": volume_imbalance})
         logging.info(pd.DataFrame(report))
+
 
 async def main():
     config = {

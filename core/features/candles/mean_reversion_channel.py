@@ -61,7 +61,7 @@ class MeanReversionChannel(FeatureBase[MeanReversionChannelConfig]):
             ss.iloc[0] = x.iloc[0]
             ss.iloc[1] = x.iloc[1]
             for i in range(2, len(x)):
-                ss.iloc[i] = c1 * x.iloc[i] + c2 * ss.iloc[i-1] + c3 * ss.iloc[i-2]
+                ss.iloc[i] = c1 * x.iloc[i] + c2 * ss.iloc[i - 1] + c3 * ss.iloc[i - 2]
             return ss
 
         return src.to_frame().apply(smooth).squeeze()

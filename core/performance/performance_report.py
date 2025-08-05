@@ -2,16 +2,14 @@ import logging
 import os
 import subprocess
 import warnings
+from typing import Any
 
-from typing import Dict, Any, List
-
-from plotly.subplots import make_subplots
-import plotly.figure_factory as ff
-import plotly.express as px
-
-import plotly.graph_objects as go
 import numpy as np
 import pandas as pd
+import plotly.express as px
+import plotly.figure_factory as ff
+import plotly.graph_objects as go
+from plotly.subplots import make_subplots
 
 from core.data_sources import CLOBDataSource
 from core.data_sources.hummingbot_database import HummingbotDatabase
@@ -24,8 +22,18 @@ warnings.filterwarnings("ignore")
 
 
 class PerformanceReport:
-    def __init__(self, mongo_uri: str, database: str, from_timestamp: float, to_timestamp: float,
-                 root_path: str, backend_host: str, backend_user: str, backend_data_path: str, owner: str):
+    def __init__(
+        self,
+        mongo_uri: str,
+        database: str,
+        from_timestamp: float,
+        to_timestamp: float,
+        root_path: str,
+        backend_host: str,
+        backend_user: str,
+        backend_data_path: str,
+        owner: str,
+    ):
         self.mongo_client = MongoClient(uri=mongo_uri, database=database)
         self.clob = CLOBDataSource()
         self.from_timestamp = from_timestamp
@@ -46,15 +54,13 @@ class PerformanceReport:
     async def initialize(self, fetch_dbs: bool = False):
         await self.mongo_client.connect()
         if fetch_dbs:
-            self.fetch_dbs(root_path=self.root_path,
-                           host=self.backend_host,
-                           user=self.backend_user,
-                           data_path=self.backend_data_path)
+            self.fetch_dbs(
+                root_path=self.root_path, host=self.backend_host, user=self.backend_user, data_path=self.backend_data_path
+            )
 
     @property
     def summary(self):
-        return (f"Total instances: {len(self.dbs)}" + "\n"
-                f"Total configs: {len(self.all_configs)}")
+        return f"Total instances: {len(self.dbs)}" + f"\nTotal configs: {len(self.all_configs)}"
 
     @property
     def controller_name(self):
@@ -72,7 +78,8 @@ class PerformanceReport:
                 valid_controllers = self.get_all_controllers(db)
                 valid_controllers_ids = [controller["id"] for controller in valid_controllers]
                 all_executors = pd.concat(
-                    [all_executors, executors_df[executors_df["controller_id"].isin(valid_controllers_ids)]])
+                    [all_executors, executors_df[executors_df["controller_id"].isin(valid_controllers_ids)]]
+                )
                 all_controllers.extend(valid_controllers)
             except Exception as e:
                 print(e)
@@ -85,7 +92,7 @@ class PerformanceReport:
         self.all_trades_df = self.get_all_trades_df()
         self.trading_pairs = list(self.all_trades_df["trading_pair"].unique())
 
-    def get_all_controllers(self, db: HummingbotDatabase) -> List[Dict[str, Any]]:
+    def get_all_controllers(self, db: HummingbotDatabase) -> list[dict[str, Any]]:
         valid_controllers = []
         controllers = db.get_controller_data().to_dict(orient="records")
         for controller in controllers:
@@ -95,9 +102,12 @@ class PerformanceReport:
                 valid_controllers.append(controller)
         return valid_controllers
 
-    def list_dbs(self) -> List[str]:
-        return [db_path for db_path in os.listdir(os.path.join(self.root_path, "data", "live_bot_databases"))
-                if db_path != ".gitignore"]
+    def list_dbs(self) -> list[str]:
+        return [
+            db_path
+            for db_path in os.listdir(os.path.join(self.root_path, "data", "live_bot_databases"))
+            if db_path != ".gitignore"
+        ]
 
     def get_all_trades_df(self):
         all_trades = []
@@ -109,8 +119,12 @@ class PerformanceReport:
                     trade_type = order_filled["trade_type"]  # BUY or SELL
                     position_action = order_filled["position"]  # OPEN or CLOSE
 
-                    position_multiplier = 1 if (trade_type == "BUY" and position_action == "OPEN") or (
-                                trade_type == "SELL" and position_action == "CLOSE") else -1
+                    position_multiplier = (
+                        1
+                        if (trade_type == "BUY" and position_action == "OPEN")
+                        or (trade_type == "SELL" and position_action == "CLOSE")
+                        else -1
+                    )
                     fill_dict = {
                         "db_name": executor["db_name"],
                         "controller_id": executor["controller_id"],
@@ -118,21 +132,20 @@ class PerformanceReport:
                         "trading_pair": order_filled["trading_pair"],
                         "order_type": order_filled["order_type"],
                         "trade_type": trade_type,
-                        "cumulative_fee_paid_quote": sum(
-                            [float(flat_fee["amount"]) for flat_fee in fill["fee"]["flat_fees"]]),
+                        "cumulative_fee_paid_quote": sum([float(flat_fee["amount"]) for flat_fee in fill["fee"]["flat_fees"]]),
                         # this will be only valid when percent_token = USDT
                         "position_action": order_filled["position"],
                         "timestamp": self.ensure_timestamp_in_seconds(fill["fill_timestamp"]),
                         "price": float(fill["fill_price"]),
                         "base_amount": float(fill["fill_base_amount"]),
                         "quote_amount": float(fill["fill_quote_amount"]),
-                        "position_multiplier": position_multiplier
+                        "position_multiplier": position_multiplier,
                     }
                     all_trades.append(fill_dict)
         all_trades_df = pd.DataFrame(all_trades)
         return all_trades_df
 
-    async def build_trading_sessions(self) -> List[TradingSession]:
+    async def build_trading_sessions(self) -> list[TradingSession]:
         raise NotImplementedError
 
     @staticmethod
@@ -145,10 +158,12 @@ class PerformanceReport:
         performance_df["datetime"] = pd.to_datetime(performance_df["timestamp"], unit="s")
 
         # Initialize columns
-        performance_df["base_amount_open"] = np.where(performance_df["position_action"] == "OPEN",
-                                                      performance_df["base_amount"], 0)
-        performance_df["base_amount_close"] = np.where(performance_df["position_action"] == "CLOSE",
-                                                       performance_df["base_amount"], 0)
+        performance_df["base_amount_open"] = np.where(
+            performance_df["position_action"] == "OPEN", performance_df["base_amount"], 0
+        )
+        performance_df["base_amount_close"] = np.where(
+            performance_df["position_action"] == "CLOSE", performance_df["base_amount"], 0
+        )
         performance_df["cum_base_open"] = performance_df["base_amount_open"].cumsum()
         performance_df["cum_base_close"] = performance_df["base_amount_close"].cumsum()
 
@@ -161,23 +176,30 @@ class PerformanceReport:
 
         # PnL calculations
         if side == 1:  # Long
-            performance_df["realized_pnl"] = (performance_df["break_even_close"] - performance_df["break_even_open"]) * \
-                                             performance_df["cum_base_close"]
+            performance_df["realized_pnl"] = (
+                performance_df["break_even_close"] - performance_df["break_even_open"]
+            ) * performance_df["cum_base_close"]
             performance_df["unrealized_pnl"] = (performance_df["price"] - performance_df["break_even_open"]) * (
-                        performance_df["cum_base_open"] - performance_df["cum_base_close"])
+                performance_df["cum_base_open"] - performance_df["cum_base_close"]
+            )
         else:  # Short (side=2)
-            performance_df["realized_pnl"] = (performance_df["break_even_open"] - performance_df["break_even_close"]) * \
-                                             performance_df["cum_base_close"]
+            performance_df["realized_pnl"] = (
+                performance_df["break_even_open"] - performance_df["break_even_close"]
+            ) * performance_df["cum_base_close"]
             performance_df["unrealized_pnl"] = (performance_df["break_even_open"] - performance_df["price"]) * (
-                        performance_df["cum_base_open"] - performance_df["cum_base_close"])
+                performance_df["cum_base_open"] - performance_df["cum_base_close"]
+            )
 
         # Global PnL
-        performance_df["global_pnl"] = (performance_df["realized_pnl"] + performance_df["unrealized_pnl"] -
-                                        performance_df["cumulative_fee_paid_quote"].cumsum())
+        performance_df["global_pnl"] = (
+            performance_df["realized_pnl"]
+            + performance_df["unrealized_pnl"]
+            - performance_df["cumulative_fee_paid_quote"].cumsum()
+        )
         return performance_df
 
     @staticmethod
-    def summarize_performance_metrics(df: pd.DataFrame, controller_config: Dict[str, Any], side: int = 1):
+    def summarize_performance_metrics(df: pd.DataFrame, controller_config: dict[str, Any], side: int = 1):
         total_amount_quote = controller_config["total_amount_quote"]
         global_pnl = df["global_pnl"].iloc[-1]
         max_draw_down = df["global_pnl"].min() / total_amount_quote
@@ -201,76 +223,78 @@ class PerformanceReport:
     async def plot_candles_with_global_pnl_chart(candles: Candles, df: pd.DataFrame, side: int = 1):
         # Create a subplot with 2 rows
         side = "Long" if side == 1 else "Short"
-        fig = make_subplots(rows=2, cols=1, shared_xaxes=True, vertical_spacing=0.05,
-                            subplot_titles=(f"{side} OHLC Chart with Break-Even Levels", "PnL and Fees Over Time"))
+        fig = make_subplots(
+            rows=2,
+            cols=1,
+            shared_xaxes=True,
+            vertical_spacing=0.05,
+            subplot_titles=(f"{side} OHLC Chart with Break-Even Levels", "PnL and Fees Over Time"),
+        )
 
         # ---------------------- FIG 1: Candlestick Chart & Break Even ----------------------
         # OHLC Candlestick Chart
-        fig.add_trace(go.Candlestick(name="OHLC",
-                                     x=candles.data.index,
-                                     open=candles.data["open"],
-                                     high=candles.data["high"],
-                                     low=candles.data["low"],
-                                     close=candles.data["close"]),
-                      row=1, col=1)
+        fig.add_trace(
+            go.Candlestick(
+                name="OHLC",
+                x=candles.data.index,
+                open=candles.data["open"],
+                high=candles.data["high"],
+                low=candles.data["low"],
+                close=candles.data["close"],
+            ),
+            row=1,
+            col=1,
+        )
 
         # Break Even Open
-        fig.add_trace(go.Scatter(name="Break Even Open",
-                                 x=df["datetime"],
-                                 y=df["break_even_open"],
-                                 marker_color="olive",
-                                 line_shape="hv"),
-                      row=1, col=1)
+        fig.add_trace(
+            go.Scatter(name="Break Even Open", x=df["datetime"], y=df["break_even_open"], marker_color="olive", line_shape="hv"),
+            row=1,
+            col=1,
+        )
 
         # Break Even Close
-        fig.add_trace(go.Scatter(name="Break Even Close",
-                                 x=df["datetime"],
-                                 y=df["break_even_close"],
-                                 marker_color="red",
-                                 line_shape="hv"),
-                      row=1, col=1)
+        fig.add_trace(
+            go.Scatter(name="Break Even Close", x=df["datetime"], y=df["break_even_close"], marker_color="red", line_shape="hv"),
+            row=1,
+            col=1,
+        )
 
         # Markers for trade positions (buy/sell signals)
-        fig.add_trace(go.Scatter(
-            x=pd.to_datetime(df["timestamp"], unit="s"),
-            y=df["price"],
-            mode="markers",
-            marker=dict(
-                symbol=df["position_multiplier"].apply(lambda x: "triangle-up" if x > 0 else "triangle-down"),
-                size=8,
-                color="white"
+        fig.add_trace(
+            go.Scatter(
+                x=pd.to_datetime(df["timestamp"], unit="s"),
+                y=df["price"],
+                mode="markers",
+                marker=dict(
+                    symbol=df["position_multiplier"].apply(lambda x: "triangle-up" if x > 0 else "triangle-down"),
+                    size=8,
+                    color="white",
+                ),
+                showlegend=False,
             ),
-            showlegend=False),
-            row=1, col=1
+            row=1,
+            col=1,
         )
 
         # ---------------------- FIG 2: PnL and Fees ----------------------
         # Realized PnL
-        fig.add_trace(go.Scatter(x=df.datetime,
-                                 y=df.realized_pnl,
-                                 name="Realized PnL"),
-                      row=2, col=1)
+        fig.add_trace(go.Scatter(x=df.datetime, y=df.realized_pnl, name="Realized PnL"), row=2, col=1)
 
         # Unrealized PnL
-        fig.add_trace(go.Scatter(x=df.datetime,
-                                 y=df.unrealized_pnl,
-                                 name="Unrealized PnL"),
-                      row=2, col=1)
+        fig.add_trace(go.Scatter(x=df.datetime, y=df.unrealized_pnl, name="Unrealized PnL"), row=2, col=1)
 
         # Global PnL (filled area)
-        fig.add_trace(go.Scatter(x=df.datetime,
-                                 y=df.global_pnl,
-                                 line_shape="hv",
-                                 fill="tozeroy",
-                                 name="Global PnL"),
-                      row=2, col=1)
+        fig.add_trace(
+            go.Scatter(x=df.datetime, y=df.global_pnl, line_shape="hv", fill="tozeroy", name="Global PnL"), row=2, col=1
+        )
 
         # Cumulative Fee Paid
-        fig.add_trace(go.Scatter(x=df.datetime,
-                                 y=df.cumulative_fee_paid_quote.cumsum(),
-                                 line_shape="hv",
-                                 name="Cumulative Fee"),
-                      row=2, col=1)
+        fig.add_trace(
+            go.Scatter(x=df.datetime, y=df.cumulative_fee_paid_quote.cumsum(), line_shape="hv", name="Cumulative Fee"),
+            row=2,
+            col=1,
+        )
 
         # ---------------------- Layout Adjustments ----------------------
         fig.update_layout(
@@ -278,20 +302,16 @@ class PerformanceReport:
             xaxis_rangeslider_visible=False,  # Remove range slider from first plot
             showlegend=True,
             title_text="Trading Performance Overview",
-            xaxis2=dict(title="Time")  # Label x-axis only for second row
+            xaxis2=dict(title="Time"),  # Label x-axis only for second row
         )
         return fig
 
     def create_instances_gantt_chart(self):
-        agg_trades_df = (
-            self.all_trades_df
-            .groupby(["trading_pair", "db_name"], as_index=False)
-            .agg(min_timestamp=("timestamp", "min"), max_timestamp=("timestamp", "max"))
+        agg_trades_df = self.all_trades_df.groupby(["trading_pair", "db_name"], as_index=False).agg(
+            min_timestamp=("timestamp", "min"), max_timestamp=("timestamp", "max")
         )
-        agg_executors_df = (
-            self.all_executors_df
-            .groupby("db_name", as_index=False)
-            .agg(net_pnl_quote=("net_pnl_quote", "sum"), total_volume=("filled_amount_quote", "sum"))
+        agg_executors_df = self.all_executors_df.groupby("db_name", as_index=False).agg(
+            net_pnl_quote=("net_pnl_quote", "sum"), total_volume=("filled_amount_quote", "sum")
         )
         global_performance = agg_trades_df.merge(agg_executors_df, on="db_name")
         global_performance["start_datetime"] = pd.to_datetime(global_performance["min_timestamp"], unit="s")
@@ -323,20 +343,17 @@ class PerformanceReport:
             show_colorbar=False,
             group_tasks=True,
             showgrid_x=True,
-            showgrid_y=True
+            showgrid_y=True,
         )
 
         # Create subplots with 3 rows
         fig = make_subplots(
-            rows=3, cols=1,
+            rows=3,
+            cols=1,
             row_heights=[0.5, 0.25, 0.25],  # 50%-25%-25%
             shared_xaxes=True,
-            subplot_titles=[
-                "Bot History Gantt",
-                "Cumulative PNL Over Time",
-                "Cumulative Volume Over Time"
-            ],
-            vertical_spacing=0.1
+            subplot_titles=["Bot History Gantt", "Cumulative PNL Over Time", "Cumulative Volume Over Time"],
+            vertical_spacing=0.1,
         )
 
         # Add Gantt chart traces
@@ -351,9 +368,10 @@ class PerformanceReport:
                 y=global_performance["net_pnl_quote"].cumsum(),
                 mode="lines+markers",
                 name="Cumulative PNL",
-                line=dict(color="purple")
+                line=dict(color="purple"),
             ),
-            row=2, col=1
+            row=2,
+            col=1,
         )
 
         # Add cumulative Volume scatter plot
@@ -363,9 +381,10 @@ class PerformanceReport:
                 y=global_performance["total_volume"].cumsum(),
                 mode="lines+markers",
                 name="Cumulative Volume",
-                line=dict(color="orange")
+                line=dict(color="orange"),
             ),
-            row=3, col=1
+            row=3,
+            col=1,
         )
 
         # Update layout with annotations
@@ -390,20 +409,18 @@ class PerformanceReport:
             path=["trading_pair"],  # No hierarchy, just trading pairs
             values="quote_amount",
             color="quote_amount",
-            color_continuous_scale="viridis"
+            color_continuous_scale="viridis",
         )
 
         # Customize text to show volume without decimals
-        fig.update_traces(
-            texttemplate="<b>%{label}</b><br>Vol: %{value:,}"
-        )
+        fig.update_traces(texttemplate="<b>%{label}</b><br>Vol: %{value:,}")
 
         # Optimize layout to reduce empty space
         fig.update_layout(
             margin=dict(l=0, r=0, t=0, b=0),  # Remove extra margins
             autosize=True,
             height=600,  # Adjust height
-            width=800  # Adjust width
+            width=800,  # Adjust width
         )
         return fig
 
@@ -428,7 +445,9 @@ class PerformanceReport:
             data_folder = f"{sequence_dir}/data"
 
             # Find SQLite files, excluding "v2_with_controllers.sqlite"
-            find_files_cmd = f'ssh {user}@{host} "find {data_folder} -type f -name \'*.sqlite\' ! -name \'v2_with_controllers.sqlite\'"'
+            find_files_cmd = (
+                f"ssh {user}@{host} \"find {data_folder} -type f -name '*.sqlite' ! -name 'v2_with_controllers.sqlite'\""
+            )
 
             try:
                 file_result = subprocess.run(find_files_cmd, shell=True, capture_output=True, text=True, check=True)
@@ -460,4 +479,5 @@ class PerformanceReport:
             return timestamp_int
         else:
             raise ValueError(
-                "Timestamp is not in a recognized format. Must be in seconds, milliseconds, microseconds or nanoseconds.")
+                "Timestamp is not in a recognized format. Must be in seconds, milliseconds, microseconds or nanoseconds."
+            )

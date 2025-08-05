@@ -1,21 +1,20 @@
 import asyncio
-import numpy as np
-from sklearn.linear_model import LinearRegression
-from scipy import stats
-from plotly.subplots import make_subplots
-import plotly.graph_objects as go
-from pydantic import BaseModel
-from statsmodels.tsa.stattools import coint
-from typing import Tuple, List, Dict, Any
-import time
-import math
-from dotenv import load_dotenv
 import logging
+import math
 import os
+import time
+from typing import Dict, List, Tuple
+
+import numpy as np
 import pandas as pd
-from plotly.subplots import make_subplots
+import plotly.graph_objects as go
 import statsmodels.api as sm
-from statsmodels.tsa.stattools import adfuller
+from dotenv import load_dotenv
+from plotly.subplots import make_subplots
+from pydantic import BaseModel
+from scipy import stats
+from sklearn.linear_model import LinearRegression
+from statsmodels.tsa.stattools import adfuller, coint
 
 from core.data_sources import CLOBDataSource
 from core.data_structures.candles import Candles
@@ -54,35 +53,25 @@ class CointegrationV2Study(BaseModel):
         dominant_cum_returns = candles_dom[candles_dom.index >= lookback_datetime]["close"].pct_change().add(1).cumprod().dropna()
         hedge_cum_returns = candles_hed[candles_hed.index >= lookback_datetime]["close"].pct_change().add(1).cumprod().dropna()
 
-        row_1_title = (f"Initial Cointegration: {self.coint_value:.6f} - "
-                       f"Actual Cointegration: {self.current_coint_value:.6f} - ")
-        fig = make_subplots(rows=2, cols=1, shared_xaxes=True, subplot_titles=[row_1_title, "Z-score"], row_heights=[2, 1], x_title="Datetime")
-        fig.add_trace(go.Scatter(
-            name=f"{self.dominant}",
-            x=dominant_cum_returns.index,
-            y=dominant_cum_returns
-        ), row=1, col=1)
-        fig.add_trace(go.Scatter(
-            name=f"{self.hedge}",
-            x=hedge_cum_returns.index,
-            y=hedge_cum_returns
-        ), row=1, col=1)
-        fig.add_trace(go.Scatter(
-            name="y_pred",
-            x=self.y_pred.index,
-            y=self.y_pred,
-            mode='lines',
-            line=dict(
-                color='lightgreen',
-                dash='dash'
+        row_1_title = f"Initial Cointegration: {self.coint_value:.6f} - Actual Cointegration: {self.current_coint_value:.6f} - "
+        fig = make_subplots(
+            rows=2, cols=1, shared_xaxes=True, subplot_titles=[row_1_title, "Z-score"], row_heights=[2, 1], x_title="Datetime"
+        )
+        fig.add_trace(go.Scatter(name=f"{self.dominant}", x=dominant_cum_returns.index, y=dominant_cum_returns), row=1, col=1)
+        fig.add_trace(go.Scatter(name=f"{self.hedge}", x=hedge_cum_returns.index, y=hedge_cum_returns), row=1, col=1)
+        fig.add_trace(
+            go.Scatter(
+                name="y_pred",
+                x=self.y_pred.index,
+                y=self.y_pred,
+                mode="lines",
+                line=dict(color="lightgreen", dash="dash"),
             ),
-        ), row=1, col=1)
+            row=1,
+            col=1,
+        )
 
-        fig.add_trace(go.Scatter(
-            name="Z-score",
-            x=self.z_t.index,
-            y=self.z_t
-        ), row=2, col=1)
+        fig.add_trace(go.Scatter(name="Z-score", x=self.z_t.index, y=self.z_t), row=2, col=1)
 
         for i in [1.0, 1.5, 2.0]:
             fig.add_hline(y=i * self.z_std, row=2)
@@ -95,7 +84,7 @@ class CointegrationV2Study(BaseModel):
         return fig
 
     def count_crosses(self, seconds_ago: int = None):
-        s = (self.dominant_cum_returns - self.hedge_cum_returns)
+        s = self.dominant_cum_returns - self.hedge_cum_returns
         if seconds_ago is not None:
             s = s[s.index > pd.to_datetime(time.time() - seconds_ago, unit="s")]
         signs = np.sign(s)
@@ -116,7 +105,7 @@ class CointegrationV2Study(BaseModel):
         pvals = []
         pval_index = []
         for i in range(window, len(series)):
-            window_data = series[i - window:i]
+            window_data = series[i - window : i]
             pval = adfuller(window_data)[1]
             pvals.append(pval)
             pval_index.append(series.index[i])
@@ -139,12 +128,16 @@ class CointegrationV2Study(BaseModel):
     @staticmethod
     def plot_rolling_adf(cointegration_validation_df: pd.DataFrame, window: int = 100):
         fig = go.Figure()
-        fig.add_trace(go.Scatter(x=cointegration_validation_df.index,
-                                 y=cointegration_validation_df[f"rolling_adf_{window}"],
-                                 name="Rolling ADF (P-value)"))
-        fig.update_layout(title="Rolling ADF (P-value)",
-                          yaxis=dict(tickformat="%0.2f", title="p-value"),
-                          xaxis=dict(title="datetime"))
+        fig.add_trace(
+            go.Scatter(
+                x=cointegration_validation_df.index,
+                y=cointegration_validation_df[f"rolling_adf_{window}"],
+                name="Rolling ADF (P-value)",
+            )
+        )
+        fig.update_layout(
+            title="Rolling ADF (P-value)", yaxis=dict(tickformat="%0.2f", title="p-value"), xaxis=dict(title="datetime")
+        )
         return fig
 
     @staticmethod
@@ -152,20 +145,19 @@ class CointegrationV2Study(BaseModel):
         fig = go.Figure()
         for col in [f"rolling_mean_{window}", f"rolling_median_{window}", f"rolling_std_{window}"]:
             name = f"Rolling {col.split('_')[1].capitalize()} Z_t ({window} periods)"
-            fig.add_trace(go.Scatter(name=name,
-                                     x=cointegration_validation_df.index,
-                                     y=cointegration_validation_df[col]))
-        fig.update_layout(title="Mean and Variance Stability (z_t)",
-                          yaxis=dict(title="z_t"),
-                          xaxis=dict(title="datetime"),
-                          legend=dict(
-                              orientation="h",  # horizontal layout
-                              yanchor="bottom",  # anchor at bottom of the legend box
-                              y=1.02,  # position just above the plot area
-                              xanchor="left",
-                              x=0
-                          )
-                          )
+            fig.add_trace(go.Scatter(name=name, x=cointegration_validation_df.index, y=cointegration_validation_df[col]))
+        fig.update_layout(
+            title="Mean and Variance Stability (z_t)",
+            yaxis=dict(title="z_t"),
+            xaxis=dict(title="datetime"),
+            legend=dict(
+                orientation="h",  # horizontal layout
+                yanchor="bottom",  # anchor at bottom of the legend box
+                y=1.02,  # position just above the plot area
+                xanchor="left",
+                x=0,
+            ),
+        )
         return fig
 
 
@@ -181,16 +173,28 @@ class CointegrationAnalyzer:
         self.candles: List[Candles] = None
         self.candles_dict: Dict[str, Candles] = None
         self.z_score_threshold = 2.0
-        self.analysis_cols = ["current_coint_value", "alpha", "beta", "z_t", "z_mean", "z_std", "signal_strength",
-                              "mean_reversion_prob", "percentage_error", "median_error", "y_pred", "dominant_cum_returns",
-                              "hedge_cum_returns", "metadata"]
+        self.analysis_cols = [
+            "current_coint_value",
+            "alpha",
+            "beta",
+            "z_t",
+            "z_mean",
+            "z_std",
+            "signal_strength",
+            "mean_reversion_prob",
+            "percentage_error",
+            "median_error",
+            "y_pred",
+            "dominant_cum_returns",
+            "hedge_cum_returns",
+            "metadata",
+        ]
 
     async def initialize(self):
         await self.mongo_client.connect()
 
     async def get_cointegration_results_v2(self):
-        cointegration_docs = await self.mongo_client.get_documents("cointegration_results_v2",
-                                                                   db_name="quants_lab")
+        cointegration_docs = await self.mongo_client.get_documents("cointegration_results_v2", db_name="quants_lab")
         coint_docs_df = pd.DataFrame(cointegration_docs)
         last_timestamp = coint_docs_df["timestamp"].max()
         coint_docs_df = coint_docs_df[coint_docs_df["timestamp"] == last_timestamp].head(3)
@@ -211,19 +215,21 @@ class CointegrationAnalyzer:
             connector_name = row["connector_name"]
             lookback_days = row["lookback_days"]
             metadata = row["metadata"]
-            results.append({
-                "dominant": dominant,
-                "metadata": metadata,
-                "hedge": hedge,
-                "coint_value": coint_value,
-                "lookback_days_timestamp": lookback_days_timestamp,
-                "lookback_days_datetime": lookback_days_datetime,
-                "timestamp": timestamp,
-                "datetime": datetime,
-                "connector_name": connector_name,
-                "interval": interval,
-                "lookback_days": lookback_days,
-            })
+            results.append(
+                {
+                    "dominant": dominant,
+                    "metadata": metadata,
+                    "hedge": hedge,
+                    "coint_value": coint_value,
+                    "lookback_days_timestamp": lookback_days_timestamp,
+                    "lookback_days_datetime": lookback_days_datetime,
+                    "timestamp": timestamp,
+                    "datetime": datetime,
+                    "connector_name": connector_name,
+                    "interval": interval,
+                    "lookback_days": lookback_days,
+                }
+            )
         df = pd.DataFrame(results)
 
         self.dominants = list(df["dominant"].unique())
@@ -231,15 +237,14 @@ class CointegrationAnalyzer:
         self.trading_pairs = list(set(self.dominants) | set(self.hedges))
         self.interval = df["interval"].iloc[-1]
         self.connector_name = df["connector_name"].iloc[-1]
-        self.days = math.ceil((time.time() - df['lookback_days_timestamp'].min()) / (24 * 60 * 60))
+        self.days = math.ceil((time.time() - df["lookback_days_timestamp"].min()) / (24 * 60 * 60))
         return df
 
     async def update_candles(self):
         clob = CLOBDataSource()
-        candles = await clob.get_candles_batch_last_days(connector_name=self.connector_name,
-                                                         trading_pairs=self.trading_pairs,
-                                                         interval=self.interval,
-                                                         days=self.days)
+        candles = await clob.get_candles_batch_last_days(
+            connector_name=self.connector_name, trading_pairs=self.trading_pairs, interval=self.interval, days=self.days
+        )
         candles_dict = {candle.trading_pair: candle for candle in candles}
         self.candles = candles
         self.candles_dict = candles_dict
@@ -253,12 +258,20 @@ class CointegrationAnalyzer:
         for i, row in df.iterrows():
             candles_dominant = self.candles_dict[row["dominant"]].data
             candles_hedge = self.candles_dict[row["hedge"]].data
-            dominant_cum_returns = candles_dominant.loc[
-                candles_dominant["timestamp"] >= row["lookback_days_timestamp"], "close"].pct_change().add(
-                1).cumprod().dropna()
-            hedge_cum_returns = candles_hedge.loc[
-                candles_hedge["timestamp"] >= row["lookback_days_timestamp"], "close"].pct_change().add(
-                1).cumprod().dropna()
+            dominant_cum_returns = (
+                candles_dominant.loc[candles_dominant["timestamp"] >= row["lookback_days_timestamp"], "close"]
+                .pct_change()
+                .add(1)
+                .cumprod()
+                .dropna()
+            )
+            hedge_cum_returns = (
+                candles_hedge.loc[candles_hedge["timestamp"] >= row["lookback_days_timestamp"], "close"]
+                .pct_change()
+                .add(1)
+                .cumprod()
+                .dropna()
+            )
             min_len = min(len(dominant_cum_returns), len(hedge_cum_returns))
             y, x = hedge_cum_returns.values[:min_len], dominant_cum_returns.values[:min_len]
 
@@ -322,8 +335,9 @@ async def main():
     logging.basicConfig(level=logging.INFO)
     logging.getLogger("asyncio").setLevel(logging.CRITICAL)
     load_dotenv()
-    coint_analyzer = CointegrationAnalyzer(mongo_uri=os.getenv("MONGO_URI", "mongodb://admin:admin@localhost:27017/"),
-                                           database="cointegration_results_v2")
+    coint_analyzer = CointegrationAnalyzer(
+        mongo_uri=os.getenv("MONGO_URI", "mongodb://admin:admin@localhost:27017/"), database="cointegration_results_v2"
+    )
     await coint_analyzer.initialize()
     df = await coint_analyzer.get_cointegration_results_v2()
     await coint_analyzer.update_candles()
