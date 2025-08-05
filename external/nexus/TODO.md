@@ -1,1 +1,0 @@
-   ```uv run -m backtests.ma_cross_portfolio``` - Portfolio Equty Curve is flat
