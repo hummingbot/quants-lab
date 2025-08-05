@@ -11,7 +11,7 @@ requires-python = ">=3.12"
 dependencies = [
     "binance-futures-connector>=4.1.0",
     "cython>=3.1.2",
-    "numpy>=2.3.1",
+    "numpy>=1.26.4",
     "pandas>=2.3.1",
     "plotly>=6.2.0",
     "pyarrow>=20.0.0",
