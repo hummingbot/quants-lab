@@ -1,0 +1,7 @@
+# Walk Forward Optimization 
+
+Walk Forward Optimization (WFO) is a variant of cross-validation for time series and was first published by Robert Pardo as a backtest method for algorithmic trading strategies. It trains and tests the strategy in several cycles using a data frame that "walks" over the simulation period. This allows an out-of-sample backtest that still uses most of the historical data. WFO is not restricted to backtests, but can be continued In live trading and regularly adapt the strategy parameters to the current market situation. In this way, a WFO trained strategy is essentially a 'parameter-less' system.
+
+For greatly reducing the backtest time with WFO, Zorro separates test and training and stores all trained parameters, trading rules, or machine learning models separately for any WFO cycle. This way a backtest needs not perform all optimizations again. It automatically switches between sets of parameters or rules. To activate WFO in a strategy script, only the following variable needs to be set:
+NumWFOCycles
+Number of cycles in a Walk Forward Optimization / Analysis (default = 0 = no Walk Forward Optimization). If NumWFOCycles is set to a positive number at or above 2, rolling walk forward optimization is enabled with the given number of cycles; if it is set to a negative number at or below -2, anchored walk forward optimization is enabled. In Walk Forward Optimization, a data frame consisting of a training and test period is shifted over the simulation period in the given number of cycles
