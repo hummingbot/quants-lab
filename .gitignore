@@ -163,4 +163,4 @@ cython_debug/
 
 */*.DS_Store
 data/history/
-nexus/history/binance-futures/*.parquet
+history/binance-futures/*.parquet

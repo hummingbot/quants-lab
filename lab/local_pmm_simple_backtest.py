@@ -6,6 +6,55 @@ import os
 import sys
 from decimal import Decimal
 
+import plotly.graph_objects as go
+from plotly.subplots import make_subplots
+import pathlib
+import subprocess
+import uuid
+from enum import Enum
+
+def show_plotly_figure(fig, base_name: str = "plot"):
+    """
+    Save a Plotly figure to /tmp/<base_name>_<uid>.html inside WSL
+    and open it in the default Windows browser (WSL2-compatible).
+
+    Parameters
+    ----------
+    fig : plotly.graph_objects.Figure
+        The Plotly figure to display.
+    base_name : str, optional
+        Base part of the filename before the UID (default: 'plot').
+    # ── Example usage ─────────────────────────────────────────
+    if __name__ == "__main__":
+    fig = go.Figure(data=[go.Bar(y=[5, 3, 6])])
+    show_plotly_figure(fig, base_name="sales")
+    """
+    # 1️⃣  Ensure /tmp exists and build a unique filename
+    tmp_dir = pathlib.Path("/tmp")
+    tmp_dir.mkdir(exist_ok=True)  # /tmp normally exists, but safe to call
+    uid = uuid.uuid4().hex[:8]  # 8-char random tag
+    filename = f"{base_name}_{uid}.html"
+    html_path = (tmp_dir / filename).resolve()
+
+    # 2️⃣  Write the HTML
+    fig.write_html(str(html_path), auto_open=False)
+
+    try:
+        # 3️⃣  Convert to Windows path
+        windows_path = (
+            subprocess.check_output(["wslpath", "-w", str(html_path)]).decode().strip()
+        )
+
+        # 4️⃣  Launch in Windows (safe CWD to mute UNC warning)
+        subprocess.run(
+            ["cmd.exe", "/C", "start", "", windows_path],
+            cwd="/mnt/c",
+            check=False,
+        )
+    except Exception as e:
+        print(f"[Plotly] Could not open in browser: {e}")
+        print(f"[Plotly] You can still open the file manually: {html_path}")
+
 logging.basicConfig(
     level=logging.INFO,
     format="%(asctime)s %(levelname)s %(name)s %(message)s",
@@ -34,7 +83,7 @@ from core.data_sources.clob import CLOBDataSource  # noqa: E402
 # The original path pointed to `nexus/history`, which does not contain the
 # data file shipped with the repository, so we point directly to the
 # repository-level `history` folder instead.
-local_data_path = os.path.join(root_path, "nexus", "history", "binance-futures")
+local_data_path = os.path.join(root_path, "quants-lab", "history", "binance-futures")
 print(f"Using local data path: {local_data_path}")
 backtesting = BacktestingEngine(load_cached_data=False)
 
@@ -44,10 +93,8 @@ backtesting = BacktestingEngine(load_cached_data=False)
 # methods that would otherwise try to reach the exchange.
 provider = backtesting._bt_engine.backtesting_data_provider
 
-
 async def _noop_initialize_trading_rules(connector_name: str):
     return None
-
 
 from core.backtesting.position_executor_patch import patch_position_executor_simulator
 
@@ -70,11 +117,11 @@ config = PMMSimpleConfig(
     trailing_stop=TrailingStop(activation_price=Decimal("0.001"), trailing_delta=Decimal("0.0005")),
     time_limit=60 * 60,
     cooldown_time=60 * 60,
-    executor_refresh_time=60,
+    executor_refresh_time=60 *  10 ,
 )
 
 start = int(datetime.datetime(2024, 1, 1).timestamp())
-end = int(datetime.datetime(2024, 1, 2).timestamp())
+end = int(datetime.datetime(2024, 1, 5).timestamp())
 
 async def main():
     clob = CLOBDataSource(local_data_path=local_data_path)
@@ -89,6 +136,7 @@ async def main():
 
         result = await backtesting.run_backtesting(config, start, end, "1m")
         print(result.get_results_summary())
+        show_plotly_figure(result.get_backtesting_figure(), "backtets") 
     finally:
         await clob.trades_feeds["binance_perpetual"]._session.close()
 
