@@ -16,6 +16,7 @@ dependencies = [
     "hummingbot>=20250715",
     "jupyter>=1.1.1",
     "motor>=3.3.2",
+    "nexus",
     "numpy>=1.26.4",
     "optuna>=4.4.0",
     "optuna-dashboard>=0.19.0",
@@ -91,4 +92,8 @@ line-ending = "auto"
 [tool.uv.workspace]
 members = [
     "external/nexus",
+    "nexus",
 ]
+
+[tool.uv.sources]
+nexus = { workspace = true }
