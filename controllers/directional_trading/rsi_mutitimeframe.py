@@ -13,7 +13,7 @@ from hummingbot.strategy_v2.controllers.directional_trading_controller_base impo
 
 
 class RSIMultiTimeframeControllerConfig(DirectionalTradingControllerConfigBase):
-    controller_name = "rsi_multitimeframe"
+    controller_name: str = "rsi_multitimeframe"
     candles_config: List[CandlesConfig] = []
     candles_connector: str = Field(
         default=None,

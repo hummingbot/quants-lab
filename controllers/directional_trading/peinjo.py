@@ -14,7 +14,7 @@ from hummingbot.strategy_v2.controllers.directional_trading_controller_base impo
 
 
 class PeinjoControllerConfig(DirectionalTradingControllerConfigBase):
-    controller_name = "peinjo"
+    controller_name: str = "peinjo"
     candles_config: List[CandlesConfig] = []
     candles_connector: str = Field(
         default=None)

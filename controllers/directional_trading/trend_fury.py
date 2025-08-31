@@ -15,7 +15,7 @@ from core.features.candles.trend_fury import TrendFury, TrendFuryConfig
 
 
 class TrendFuryControllerConfig(DirectionalTradingControllerConfigBase):
-    controller_name = "trend_fury"
+    controller_name: str = "trend_fury"
     candles_config: List[CandlesConfig] = []
     candles_connector: str = None
     candles_trading_pair: str = None

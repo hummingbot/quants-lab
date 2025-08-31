@@ -19,7 +19,7 @@ from core.features.candles.peak_analyzer import PeakAnalyzer
 
 
 class XGridTControllerConfig(DirectionalTradingControllerConfigBase):
-    controller_name = "xgridt"
+    controller_name: str = "xgridt"
     candles_config: List[CandlesConfig] = []
     candles_connector: str = Field(
         default=None)

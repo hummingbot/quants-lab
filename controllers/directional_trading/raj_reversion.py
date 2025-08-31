@@ -14,7 +14,7 @@ import pandas as pd
 
 
 class RAJReversionControllerConfig(DirectionalTradingControllerConfigBase):
-    controller_name = "raj_reversion"
+    controller_name: str = "raj_reversion"
     candles_config: List[CandlesConfig] = []
     candles_connector: str = Field(
         default=None,

@@ -11,7 +11,7 @@ from pydantic import Field, validator
 
 
 class SmugPlugControllerConfig(DirectionalTradingControllerConfigBase):
-    controller_name = "smugplug"
+    controller_name: str = "smugplug"
     candles_config: List[CandlesConfig] = []
     candles_connector: str = Field(
         default=None)
