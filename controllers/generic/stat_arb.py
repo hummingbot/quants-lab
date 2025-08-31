@@ -29,7 +29,7 @@ class StatArbConfig(ControllerConfigBase):
     Configuration for the Statistical Arbitrage strategy controller.
     Creates paired grid positions - long on one market and short on another.
     """
-    controller_type = "generic"
+    controller_type: str = "generic"
     controller_name: str = "stat_arb"
     coerce_tp_to_step: bool = True
     candles_config: List[CandlesConfig] = []

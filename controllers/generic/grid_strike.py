@@ -30,7 +30,7 @@ class GridStrikeConfig(ControllerConfigBase):
     """
     controller_name: str = "grid_strike"
     candles_config: List[CandlesConfig] = []
-    controller_type = "generic"
+    controller_type: str = "generic"
     connector_name: str = "binance"
     trading_pair: str = "BTC-USDT"
     total_amount_quote: Decimal = Field(default=Decimal("1000"), client_data=ClientFieldData(is_updatable=True))
