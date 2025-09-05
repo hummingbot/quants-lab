@@ -13,6 +13,7 @@ from hummingbot.strategy_v2.controllers import ControllerConfigBase
 from pydantic import BaseModel
 
 from core.backtesting import BacktestingEngine
+from core.data_paths import data_paths
 from core.services.timescale_client import TimescaleClient
 
 load_dotenv()
@@ -114,9 +115,9 @@ class StrategyOptimizer:
     @classmethod
     def get_storage_name(cls, engine, **kwargs):
         if engine == "sqlite":
-            root_path = kwargs.get("root_path", "")
+            # Use centralized data paths, ignoring root_path for backward compatibility
             database_name = kwargs.get("database_name", "optimization_database")
-            path = os.path.join(root_path, "data", "backtesting", f"{database_name}.db")
+            path = data_paths.get_backtesting_db_path(f"{database_name}.db")
             return f"sqlite:///{path}"
         elif engine == "postgres":
             db_host = kwargs.get("db_host", "localhost")
@@ -134,7 +135,8 @@ class StrategyOptimizer:
             connector_name (str): The name of the connector.
             trading_pair (str): The trading pair.
         """
-        self._backtesting_engine.load_candles_cache_by_connector_pair(connector_name, trading_pair, root_path=self.root_path)
+        # root_path parameter is now ignored by the backtesting engine
+        self._backtesting_engine.load_candles_cache_by_connector_pair(connector_name, trading_pair, root_path="")
 
     def get_all_study_names(self):
         """

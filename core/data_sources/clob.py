@@ -15,6 +15,7 @@ from hummingbot.data_feed.candles_feed.data_types import CandlesConfig, Historic
 from core.data_sources.trades_feed.connectors.binance_perpetual import BinancePerpetualTradesFeed
 from core.data_structures.candles import Candles
 from core.data_structures.trading_rules import TradingRules
+from core.data_paths import data_paths
 
 # Set up logging
 logging.basicConfig(level=logging.INFO)
@@ -212,12 +213,10 @@ class CLOBDataSource:
         await connector._update_trading_rules()
         return TradingRules(list(connector.trading_rules.values()))
 
-    def dump_candles_cache(self, root_path: str = ""):
-        candles_path = os.path.join(root_path, "data", "candles")
-        os.makedirs(candles_path, exist_ok=True)
+    def dump_candles_cache(self):
+        # Use centralized data paths
         for key, df in self._candles_cache.items():
-            candles_path = os.path.join(root_path, "data", "candles")
-            filename = os.path.join(candles_path, f"{key[0]}|{key[1]}|{key[2]}.parquet")
+            filename = data_paths.get_candles_path(f"{key[0]}|{key[1]}|{key[2]}.parquet")
             df.to_parquet(
                 filename,
                 engine='pyarrow',
@@ -227,9 +226,10 @@ class CLOBDataSource:
 
         logger.info("Candles cache dumped")
 
-    def load_candles_cache(self, root_path: str = ""):
-        candles_path = os.path.join(root_path, "data", "candles")
-        if not os.path.exists(candles_path):
+    def load_candles_cache(self):
+        # Use centralized data paths
+        candles_path = data_paths.candles_dir
+        if not candles_path.exists():
             logger.warning(f"Path {candles_path} does not exist, skipping cache loading.")
             return
 
@@ -239,7 +239,7 @@ class CLOBDataSource:
                 continue
             try:
                 connector_name, trading_pair, interval = file.split(".")[0].split("|")
-                candles = pd.read_parquet(os.path.join(candles_path, file))
+                candles = pd.read_parquet(candles_path / file)
                 candles.index = pd.to_datetime(candles.timestamp, unit='s')
                 candles.index.name = None
                 columns = ['open', 'high', 'low', 'close', 'volume', 'quote_asset_volume',

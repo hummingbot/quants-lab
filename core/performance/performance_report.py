@@ -16,6 +16,7 @@ import pandas as pd
 from core.data_sources import CLOBDataSource
 from core.data_sources.hummingbot_database import HummingbotDatabase
 from core.data_structures.candles import Candles
+from core.data_paths import data_paths
 from core.performance.models import TradingSession
 from core.services.mongodb_client import MongoClient
 
@@ -96,7 +97,11 @@ class PerformanceReport:
         return valid_controllers
 
     def list_dbs(self) -> List[str]:
-        return [db_path for db_path in os.listdir(os.path.join(self.root_path, "data", "live_bot_databases"))
+        # Use centralized data paths
+        db_dir = data_paths.live_bot_databases_dir
+        if not db_dir.exists():
+            return []
+        return [db_path for db_path in os.listdir(db_dir)
                 if db_path != ".gitignore"]
 
     def get_all_trades_df(self):
@@ -409,7 +414,8 @@ class PerformanceReport:
 
     @staticmethod
     def fetch_dbs(root_path: str, host: str, user: str, data_path: str):
-        local_path = os.path.join(root_path, "data/live_bot_databases")
+        # Use centralized data paths
+        local_path = str(data_paths.live_bot_databases_dir)
 
         # Ensure local directory exists
         os.makedirs(local_path, exist_ok=True)
