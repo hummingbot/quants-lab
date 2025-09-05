@@ -34,3 +34,10 @@ dependencies:
       - psycopg2-binary
       - pyarrow
       - motor>=3.3.2
+      - fastapi
+      - uvicorn[standard]
+      - croniter
+      - pytz
+      - papermill
+      - nbformat
+      - nbclient
