@@ -1,177 +1,238 @@
-# QuantsLab
+# QuantsLab 🚀
 
-QuantsLab is a Python project designed for quantitative research with Hummingbot. It provides functionalities for fetching historical data, calculating metrics, backtesting, and generating trading configurations.
+QuantsLab is a comprehensive Python framework for quantitative research with Hummingbot. It provides a complete toolkit for data collection, backtesting, strategy development, and automated trading system deployment.
 
-## Installation
+## Quick Start
 
-### Prerequisites
-- Anaconda (or Miniconda) must be installed on your system. You can download it from [https://www.anaconda.com/products/distribution](https://www.anaconda.com/products/distribution)
+### 🔥 One-Command Installation
 
-### Steps
-1. Clone the repository:
-   ```
-   git clone https://github.com/hummingbot/quants-lab.git
-   cd quants-lab
-   ```
+```bash
+# Clone the repository
+git clone https://github.com/hummingbot/quants-lab.git
+cd quants-lab
 
-2. Create and activate the Conda environment:
-   ```
-   make install
-   ```
-   This command will create a new Conda environment and install all the necessary dependencies.
+# Run the automated installer
+./install.sh
+```
 
-3. Activate the environment:
-   ```
-   conda activate quants-lab
-   ```
+The installer will:
+- ✅ Check prerequisites (conda, docker, docker-compose)
+- ✅ Create conda environment from `environment.yml`
+- ✅ Install QuantsLab package in development mode
+- ✅ Setup databases (MongoDB + TimescaleDB)
+- ✅ Create `.env` file with defaults
+- ✅ Test the complete installation
 
-You're now ready to use QuantsLab!
+### Manual Installation
+
+If you prefer manual setup:
+
+```bash
+# 1. Create conda environment
+conda env create -f environment.yml
+conda activate quants-lab
+
+# 2. Install package in development mode
+pip install -e .
+
+# 3. Start databases (optional)
+docker-compose -f docker-compose-db.yml up -d
+
+# 4. Test installation
+python cli.py --help
+```
 
 ## Usage
-### 1. Research Notebooks
-   - Under the research notebooks folder you will find a folder for each strategy. The idea is that you can use them as an inspiration to do research on your own strategies.
-   - The main steps are:
-       - Exploratory Data Analysis
-       - Design the controller
-       - Backtest a simple controller
-       - Optimize and find the best parameters
 
-        
----     
+### 📊 Command Line Interface
 
-### 2. Task Orchestration
+```bash
+# List available tasks
+python cli.py list-tasks
 
-#### **Prerequisites**
-1. Ensure Docker and Docker Compose are installed. If not, you can install them with the following commands:
-    ```bash
-    curl -fsSL https://get.docker.com -o get-docker.sh
-    sh get-docker.sh
-    ```
+# Run tasks continuously from config
+python cli.py run-tasks --config config/tasks/data_collection_v2.yml
 
-2. Verify the Docker installation by running:
-    ```bash
-    docker --version
-    docker compose version
-    ```
+# Run single task
+python cli.py trigger-task --task pools_screener --config config/tasks/pools_screener_v2.yml
+
+# Run task directly (no config needed!)
+python cli.py run app.tasks.data_collection.pools_screener
+
+# Start API server with background tasks
+python cli.py serve --config config/tasks/data_collection_v2.yml --port 8000
+
+# Validate configuration
+python cli.py validate-config --config config/tasks/pools_screener_v2.yml
+```
+
+### 🔬 Research & Development
+
+```bash
+# Start Jupyter Lab for research
+jupyter lab
+
+# Research notebooks are located in:
+# app/research_notebooks/
+#   ├── ai_livestream/          # AI-powered trading strategies
+#   ├── backtesting_examples/   # Strategy backtesting examples
+#   ├── market_data_analysis/   # Data exploration and analysis
+#   ├── optimization_analysis/  # Parameter optimization studies
+#   └── strategy_specific/      # Individual strategy research
+```
+
+### 💾 Database Access
+
+**MongoDB UI**: http://localhost:28081/
+- Username: `admin`
+- Password: `changeme`
+
+**Direct Connections**:
+- MongoDB: `mongodb://admin:admin@localhost:27017/quants_lab`
+- TimescaleDB: `postgresql://admin:admin@localhost:5432/timescaledb`
+
+**Configuration**: All database settings are in `config/database.yml`
+
+## Architecture
+
+```
+quants-lab/
+├── 🏗️  core/                    # Core framework (reusable library)
+│   ├── backtesting/            # Backtesting engine with optimization
+│   ├── data_sources/           # Market data integrations
+│   ├── data_structures/        # Common data models
+│   ├── features/               # Feature engineering & signals
+│   └── tasks/                  # Task orchestration system
+├── 📱 app/                     # Application layer (implementations)
+│   ├── tasks/                  # Concrete task implementations
+│   ├── controllers/            # Trading strategy controllers
+│   ├── research_notebooks/     # Jupyter notebooks for research
+│   └── data/                   # Application-specific data
+├── ⚙️  config/                 # Configuration files
+│   ├── database.yml           # Database configurations
+│   └── tasks/                 # Task-specific configurations
+└── 🚀 cli.py                  # Command-line interface
+```
+
+## Key Features
+
+### 📈 Data Sources
+- **CLOB**: Order books, trades, candles, funding rates
+- **AMM**: Liquidity data, pool stats, DEX analytics
+- **GeckoTerminal**: Multi-network DEX data, OHLCV
+- **CoinGecko**: Market data, token & exchange stats
+
+### 🧠 Research Tools
+- **Triple Barrier Labeling**: Advanced ML labeling technique
+- **Backtesting Engine**: Comprehensive strategy testing
+- **Optimization**: Hyperparameter tuning with Optuna
+- **Visualization**: Interactive charts and reports
+
+### ⚡ Task System
+- **Cron Scheduling**: Automated data collection
+- **Dependency Management**: Task orchestration
+- **Error Handling**: Robust failure recovery
+- **API Integration**: RESTful task management
+
+## Quick Examples
+
+### Data Collection
+```python
+# Collect pool data from multiple DEXs
+python cli.py run app.tasks.data_collection.pools_screener --timeout 60
+
+# Download historical candles
+python cli.py run app.tasks.data_collection.candles_downloader_task
+```
+
+### Strategy Development
+```python
+# Import the framework
+from core.backtesting.engine import BacktestEngine
+from app.controllers.directional_trading.macd_bb_v1 import MACDBBV1Controller
+
+# Run backtest
+engine = BacktestEngine()
+controller = MACDBBV1Controller()
+results = engine.run(controller, start_date="2024-01-01")
+```
+
+### Research Workflow
+1. **📊 Data Analysis**: Use notebooks in `app/research_notebooks/market_data_analysis/`
+2. **🎯 Strategy Design**: Develop controllers in `app/controllers/`  
+3. **🧪 Backtesting**: Test strategies with the backtesting engine
+4. **⚡ Optimization**: Find best parameters using Optuna
+5. **🚀 Deployment**: Deploy via task system
+
+## Development
+
+### Project Structure
+- **Clean Architecture**: Separation between core framework and applications
+- **Modular Design**: Easily extensible components
+- **Type Safety**: Pydantic models with validation
+- **Modern Python**: Python 3.12+ with latest libraries
+
+### Adding New Strategies
+1. Create controller in `app/controllers/`
+2. Add backtesting notebook in `app/research_notebooks/`
+3. Configure task in `config/tasks/`
+4. Test with CLI: `python cli.py run app.tasks.your_task`
+
+### Contributing
+```bash
+# Install development dependencies
+pip install -e ".[dev]"
+
+# Run pre-commit hooks
+pre-commit install
+pre-commit run --all-files
+
+# Format code
+black --line-length 130 .
+isort --profile black --line-length 130 .
+```
+
+## Uninstallation
+
+To completely remove QuantsLab:
+
+```bash
+./uninstall.sh
+```
+
+The uninstaller will:
+- 🛑 Stop all running services and containers
+- 🗑️ Remove the conda environment
+- 🧹 Clean up Docker images, volumes, and networks  
+- 📁 Remove Python cache and build artifacts
+- ⚙️ Optionally remove generated data and outputs
+
+Your source code and configuration files are preserved.
+
+## Troubleshooting
+
+**Import Errors**: Make sure you've installed the package with `pip install -e .`
+
+**Database Connection Issues**: Ensure Docker containers are running:
+```bash
+docker-compose -f docker-compose-db.yml up -d
+docker ps  # Check container status
+```
+
+**Task Failures**: Check logs and validate configuration:
+```bash
+python cli.py validate-config --config config/tasks/your_config.yml
+```
+
+**Port Conflicts**: If MongoDB port 27017 is in use, update `docker-compose-db.yml`
+
+## Support
+
+- 📚 **Documentation**: Check `ARCHITECTURE_V2.md` for detailed system design
+- 🐛 **Issues**: Report bugs via GitHub issues
+- 💡 **Ideas**: Contribute new strategies and features
+- 🔧 **Development**: See `CLAUDE.md` for development guidelines
 
 ---
 
-#### **Configuration**
-
-1. **Modify Task Settings**:
-   - Navigate to the `config` folder and locate the `tasks.yml` file.
-   - Update the file to include the specific tasks you want to execute. By default, it is configured to run the pool-fetching task.
-
-2. **Customize Database Credentials** *(Optional)*:
-   - The default credentials for MongoDB and PostgreSQL are specified in the `docker-compose-db.yml` file.
-   - Update these credentials if necessary, especially for production environments.
-
----
-
-#### **Steps to Run Tasks**
-
-1. **Build the Docker Image**:
-   Build the local Quants-Lab Docker image by running:
-   ```bash
-   make build
-   ```
-
-2. **Start Databases**:
-   Start the necessary databases (MongoDB and PostgreSQL) using:
-   ```bash
-   make run-db
-   ```
-
-3. **Run the Task Runner**:
-   Execute tasks specified in `tasks.yml` with the following command:
-   ```bash
-   make run-task config=tasks.yml
-   ```
-
-4. **Monitor Database Activity**:
-   Use Mongo Compass UI to inspect the database data:
-   - Open your web browser and visit:
-     ```
-     http://localhost:28081/
-     ```
-   - Default credentials:
-     - **Username**: `admin`
-     - **Password**: `changeme`
-   - Update these credentials in `docker-compose-db.yml` if needed.
-
-   Replace `localhost` with your machine's IP address if accessing remotely.
-
----
-
-#### **Stopping Services**
-
-1. **Stop the Task Runner**:
-   ```bash
-   make stop-task
-   ```
-
-2. **Stop the Databases**:
-   ```bash
-   make stop-db
-   ```
-
----
-
-### Notes:
-- Ensure all required ports are open and accessible.
-- Regularly check the logs for errors using `docker logs <container_name>`.
-- Make sure to re-build the local Docker image using `make build` after any changes are made to `tasks.yml`.
-
---- 
-
-## Data Source
-- **CLOB (Central Limit Order Book)**
-  - Last Traded Price
-  - Current Order Book
-  - Historical Candles
-  - Historical Trades
-  - Trading Rules
-  - Funding Info
-
-- **AMM (Automated Market Maker)**
-  - Last Traded Price
-  - Current Liquidity
-  - Pool Stats
-    - Fees Collected
-    - Volume (24h)
-  - Historical Trades
-
-- **GeckoTerminal**
-  - Networks
-  - Dexes by Network
-  - Top Pools by Network
-  - Top Pools by Network Dex
-  - Top Pools by Network Token
-  - New Pools by Network
-  - New Pools (All Networks)
-  - OHLCV
-
-- **CoinGecko**
-  - Top Tokens Stats
-  - Top Exchange Stats
-  - Market Stats by Token
-  - Market Stats by Exchange
-
-- **Spice (DuneAnalytics)**
-  - Queries
-
-### Modules
-- **Labeling**
-  - Triple Barrier Method
-
-- **Backtesting**
-
-- **Optimization**
-
-- **Visualization**
-  - OHLC
-  - Order Book
-  - Backtesting Report
-
-- **Features**
-  - Signals
+**Happy Trading! 🚀📈**
