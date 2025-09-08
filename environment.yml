@@ -4,6 +4,7 @@ channels:
   - defaults
 dependencies:
   - python=3.12
+  - pandas-ta==0.3.14b
   - sqlalchemy
   - libcxx
   - pip
@@ -20,7 +21,6 @@ dependencies:
       - jupyter
       - scikit-learn
       - pydantic
-      - pandas_ta==0.3.14b
       - pyyaml
       - optuna
       - optuna-dashboard
