@@ -117,17 +117,21 @@ setup_databases() {
             if [[ $REPLY =~ ^[Yy]$ ]]; then
                 docker-compose -f docker-compose-db.yml down
                 docker-compose -f docker-compose-db.yml up -d
+                DATABASES_STARTED=true
+            else
+                DATABASES_STARTED=true  # They're already running
             fi
         else
             docker-compose -f docker-compose-db.yml up -d
+            DATABASES_STARTED=true
         fi
         
         log_success "Databases started successfully!"
-        log_info "MongoDB UI: http://localhost:28081/ (admin/changeme)"
         log_info "MongoDB connection: mongodb://admin:admin@localhost:27017/quants_lab"
         log_info "TimescaleDB connection: postgresql://admin:admin@localhost:5432/timescaledb"
     else
         log_warning "Databases not started. You can start them later with: make run-db"
+        DATABASES_STARTED=false
     fi
 }
 
