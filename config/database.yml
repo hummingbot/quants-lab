@@ -1,0 +1,12 @@
+# Database Configuration for QuantsLab
+
+mongodb:
+  uri: "mongodb://admin:admin@localhost:27017/quants_lab?authSource=admin&retryWrites=true&w=majority"
+  database: "quants_lab"
+
+timescaledb:
+  host: "localhost"
+  port: 5432
+  user: "admin" 
+  password: "admin"
+  database: "timescaledb"
