@@ -4,8 +4,8 @@ Task class registry for simplified task_class references.
 
 # Registry of simplified task class names to full paths
 TASK_CLASS_REGISTRY = {
-    "notebook": "app.tasks.notebook.enhanced_notebook_task.NotebookTask",
-    "notebooks": "app.tasks.notebook.enhanced_notebook_task.NotebookTask",  # Alias
+    "notebook": "app.tasks.notebook.notebook_task.NotebookTask", 
+    "notebooks": "app.tasks.notebook.notebook_task.NotebookTask",  # Alias
     
     # Add more simplified names here as needed
     # "data_collection": "app.tasks.data_collection.SomeTask",
