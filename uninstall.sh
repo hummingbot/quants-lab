@@ -160,18 +160,6 @@ clean_generated_files() {
         fi
     fi
     
-    # Remove app/data if it exists (ask user first)
-    if [[ -d "app/data" ]]; then
-        read -p "Remove app/data directory? This will delete cached application data. (y/N): " -n 1 -r
-        echo
-        if [[ $REPLY =~ ^[Yy]$ ]]; then
-            rm -rf app/data/
-            log_success "App data directory removed"
-        else
-            log_info "Keeping app/data directory"
-        fi
-    fi
-    
     # Remove .env file (ask user first)
     if [[ -f ".env" ]]; then
         read -p "Remove .env file? This will delete your environment configuration. (y/N): " -n 1 -r
