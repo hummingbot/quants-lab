@@ -98,7 +98,8 @@ async def run_tasks(config_path: str, verbose: bool = False):
     logger.info(f"Config: {config_path}")
     
     try:
-        runner = TaskRunner(config_path=config_path)
+        # Run tasks without API server (API disabled by default)
+        runner = TaskRunner(config_path=config_path, enable_api=False)
         await runner.start()
     except KeyboardInterrupt:
         logger.info("Shutting down...")
@@ -161,7 +162,10 @@ async def serve_api(config_path: str, host: str, port: int):
     logger.info(f"Server: http://{host}:{port}")
     
     try:
-        runner = TaskRunner(config_path=config_path, enable_api=True, api_port=port, api_host=host)
+        # Create runner with API enabled and configure host/port
+        runner = TaskRunner(config_path=config_path, enable_api=True)
+        runner.api_host = host
+        runner.api_port = port
         await runner.start()
     except KeyboardInterrupt:
         logger.info("Shutting down...")
