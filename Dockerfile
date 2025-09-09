@@ -9,12 +9,10 @@ RUN apt-get update && \
 # Set the working directory in the container
 WORKDIR /quants-lab
 
-# Copy the current directory contents and the Conda environment file into the container
+# Copy only core framework and CLI - other directories should be mounted
 COPY core/ core/
 COPY environment.yml .
-COPY research_notebooks/ research_notebooks/
-COPY controllers/ controllers/
-COPY tasks/ tasks/
+COPY cli.py .
 
 # Create the environment from the environment.yml file
 # If cchardet fails, we'll install it separately
@@ -26,8 +24,8 @@ RUN conda env create -f environment.yml
 # Make RUN commands use the new environment
 SHELL ["conda", "run", "-n", "quants-lab", "/bin/bash", "-c"]
 
-# Copy task configurations
-COPY config/tasks.yml /quants-lab/config/tasks.yml
+# Create outputs directory
+RUN mkdir -p outputs/notebooks
 
 # Default command now uses the task runner
-CMD ["conda", "run", "--no-capture-output", "-n", "quants-lab", "python3", "run_tasks.py"]
+CMD ["conda", "run", "--no-capture-output", "-n", "quants-lab", "python3", "cli.py", "run", "--config", "config/tasks/notebook_tasks.yml"]
