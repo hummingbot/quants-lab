@@ -28,13 +28,19 @@ class TaskRunner:
     Enhanced task runner with new task system.
     """
     
-    def __init__(self, config_path: str = "config/tasks.yml"):
+    def __init__(self, config_path: str = "config/tasks.yml", enable_api: bool = None):
         load_dotenv()
         
         self.config_path = config_path
         self.orchestrator: Optional[TaskOrchestrator] = None
         self.api_server: Optional[uvicorn.Server] = None
-        self.api_enabled = os.getenv("TASK_API_ENABLED", "true").lower() == "true"
+        
+        # API configuration with fallback to environment variables
+        if enable_api is not None:
+            self.api_enabled = enable_api
+        else:
+            self.api_enabled = os.getenv("TASK_API_ENABLED", "false").lower() == "true"
+        
         self.api_host = os.getenv("TASK_API_HOST", "0.0.0.0")
         self.api_port = int(os.getenv("TASK_API_PORT", "8000"))
         
