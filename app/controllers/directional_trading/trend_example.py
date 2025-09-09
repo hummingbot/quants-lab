@@ -7,6 +7,7 @@ from hummingbot.strategy_v2.controllers.directional_trading_controller_base impo
     DirectionalTradingControllerConfigBase,
 )
 from pydantic import Field, field_validator
+from pydantic_core.core_schema import ValidationInfo
 
 
 class TrendExampleControllerConfig(DirectionalTradingControllerConfigBase):
