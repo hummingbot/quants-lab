@@ -87,35 +87,30 @@ class StrategyOptimizer:
     Class for optimizing trading strategies using Optuna and a backtesting engine.
     """
 
-    def __init__(self, storage_name: Optional[str] = None, root_path: str = "",
+    def __init__(self, storage_name: Optional[str] = None,
                  load_cached_data: bool = False, resolution: str = "1m", db_client: Optional[TimescaleClient] = None,
                  custom_backtester: Optional[BacktestingEngineBase] = None):
         """
         Initialize the optimizer with a backtesting engine and database configuration.
 
         Args:
-            engine (str): "sqlite" or "postgres".
-            root_path (str): Root path for storing database files.
-            database_name (str): Name of the SQLite database for storing optimization results.
+            storage_name (str): Optional storage name for Optuna study.
             load_cached_data (bool): Whether to load cached backtesting data.
             resolution (str): The resolution or time frame of the data (e.g., '1h', '1d').
-            db_host (str): Database Host
-            db_port (int): Database Port
-            db_user (str): Database User
-            db_pass (str): Database Password
+            db_client (TimescaleClient): Database client for data retrieval.
+            custom_backtester (BacktestingEngineBase): Custom backtesting engine.
         """
-        self._backtesting_engine = BacktestingEngine(load_cached_data=load_cached_data, root_path=root_path,
+        self._backtesting_engine = BacktestingEngine(load_cached_data=load_cached_data,
                                                      custom_backtester=custom_backtester)
         self._db_client = db_client
         self.resolution = resolution
-        self.root_path = root_path
-        self._storage_name = storage_name if storage_name else self.get_storage_name(engine="sqlite", root_path=root_path)
+        self._storage_name = storage_name if storage_name else self.get_storage_name(engine="sqlite")
         self.dashboard_process = None
 
     @classmethod
     def get_storage_name(cls, engine, **kwargs):
         if engine == "sqlite":
-            # Use centralized data paths, ignoring root_path for backward compatibility
+            # Use centralized data paths
             database_name = kwargs.get("database_name", "optimization_database")
             path = data_paths.get_backtesting_db_path(f"{database_name}.db")
             return f"sqlite:///{path}"
@@ -135,8 +130,7 @@ class StrategyOptimizer:
             connector_name (str): The name of the connector.
             trading_pair (str): The trading pair.
         """
-        # root_path parameter is now ignored by the backtesting engine
-        self._backtesting_engine.load_candles_cache_by_connector_pair(connector_name, trading_pair, root_path="")
+        self._backtesting_engine.load_candles_cache_by_connector_pair(connector_name, trading_pair)
 
     def get_all_study_names(self):
         """
