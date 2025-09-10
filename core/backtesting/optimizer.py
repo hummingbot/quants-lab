@@ -14,7 +14,7 @@ from pydantic import BaseModel
 
 from core.backtesting import BacktestingEngine
 from core.data_paths import data_paths
-from core.services.timescale_client import TimescaleClient
+from core.data_sources import CLOBDataSource
 
 load_dotenv()
 
@@ -88,7 +88,7 @@ class StrategyOptimizer:
     """
 
     def __init__(self, storage_name: Optional[str] = None,
-                 load_cached_data: bool = False, resolution: str = "1m", db_client: Optional[TimescaleClient] = None,
+                 load_cached_data: bool = False, resolution: str = "1m", clob_source: Optional[CLOBDataSource] = None,
                  custom_backtester: Optional[BacktestingEngineBase] = None):
         """
         Initialize the optimizer with a backtesting engine and database configuration.
@@ -97,12 +97,12 @@ class StrategyOptimizer:
             storage_name (str): Optional storage name for Optuna study.
             load_cached_data (bool): Whether to load cached backtesting data.
             resolution (str): The resolution or time frame of the data (e.g., '1h', '1d').
-            db_client (TimescaleClient): Database client for data retrieval.
+            clob_source (CLOBDataSource): CLOB data source for candles data retrieval.
             custom_backtester (BacktestingEngineBase): Custom backtesting engine.
         """
         self._backtesting_engine = BacktestingEngine(load_cached_data=load_cached_data,
                                                      custom_backtester=custom_backtester)
-        self._db_client = db_client
+        self._clob_source = clob_source or CLOBDataSource()
         self.resolution = resolution
         self._storage_name = storage_name if storage_name else self.get_storage_name(engine="sqlite")
         self.dashboard_process = None
@@ -269,7 +269,8 @@ class StrategyOptimizer:
             n_trials (int): Number of trials to run for optimization.
         """
         backtesting_configs = config_generator.generate_custom_configs()
-        await self._db_client.connect()
+        # Load cached data
+        self._clob_source.load_candles_cache()
         for bt_config in backtesting_configs:
             trial = study.ask()
             try:
@@ -281,9 +282,9 @@ class StrategyOptimizer:
                 trial.set_user_attr("config", bt_config.config.json())
                 trial.set_user_attr("start_bt", start)
                 trial.set_user_attr("end_bt", end)
-                candles = await self._db_client.get_candles(connector_name,
-                                                            trading_pair,
-                                                            self.resolution, start, end)
+                candles = await self._clob_source.get_candles(connector_name,
+                                                               trading_pair,
+                                                               self.resolution, start, end)
                 self._backtesting_engine._dt_bt.backtesting_data_provider.candles_feeds[
                     f"{connector_name}_{trading_pair}_{self.resolution}"] = candles.data
                 self._backtesting_engine._mm_bt.backtesting_data_provider.candles_feeds[
