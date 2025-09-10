@@ -17,12 +17,6 @@ class NotificationMessage:
     title: str
     message: str
     level: str = "info"  # info, warning, error, success
-    metadata: Optional[Dict[str, Any]] = None
-    
-    def __post_init__(self):
-        if self.metadata is None:
-            self.metadata = {}
-
 
 class BaseNotifier(ABC):
     """Base class for all notification services."""

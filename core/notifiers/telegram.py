@@ -82,12 +82,14 @@ class TelegramNotifier(BaseNotifier):
             else:
                 return f"{emoji} {message.message}"
     
-    async def send_notification(self, message: NotificationMessage) -> bool:
+    async def send_notification(self, message: NotificationMessage, 
+                               chat_ids: Optional[list] = None) -> bool:
         """
         Send notification via Telegram Bot API.
         
         Args:
             message: The notification message to send
+            chat_ids: Optional list of chat IDs to override default, can be strings or integers
             
         Returns:
             bool: True if successful, False otherwise
@@ -96,41 +98,59 @@ class TelegramNotifier(BaseNotifier):
             self._logger.debug("Telegram notifier is disabled")
             return False
         
+        # Use custom chat IDs if provided, otherwise use configured default
+        target_chat_ids = chat_ids if chat_ids else [self.chat_id]
+        
         try:
             formatted_message = self.format_message(message)
-            
             url = f"https://api.telegram.org/bot{self.bot_token}/sendMessage"
             
-            payload = {
-                "chat_id": self.chat_id,
-                "text": formatted_message,
-                "disable_notification": self.disable_notification
-            }
-            
-            if self.parse_mode:
-                payload["parse_mode"] = self.parse_mode
+            success_count = 0
+            total_chats = len(target_chat_ids)
             
             async with aiohttp.ClientSession() as session:
-                async with session.post(url, json=payload) as response:
-                    if response.status == 200:
-                        self._log_success("via Telegram")
-                        return True
-                    else:
-                        response_text = await response.text()
-                        self._logger.error(f"Telegram API error {response.status}: {response_text}")
-                        return False
+                for chat_id in target_chat_ids:
+                    payload = {
+                        "chat_id": str(chat_id),  # Ensure string format
+                        "text": formatted_message,
+                        "disable_notification": self.disable_notification
+                    }
+                    
+                    if self.parse_mode:
+                        payload["parse_mode"] = self.parse_mode
+                    
+                    try:
+                        async with session.post(url, json=payload) as response:
+                            if response.status == 200:
+                                success_count += 1
+                                self._logger.debug(f"Telegram message sent successfully to chat_id: {chat_id}")
+                            else:
+                                response_text = await response.text()
+                                self._logger.error(f"Telegram API error {response.status} for chat_id {chat_id}: {response_text}")
+                    except Exception as e:
+                        self._logger.error(f"Error sending to Telegram chat_id {chat_id}: {e}")
+            
+            # Consider success if at least one message was sent
+            if success_count > 0:
+                self._log_success(f"via Telegram ({success_count}/{total_chats} chats)")
+                return True
+            else:
+                self._logger.error("Failed to send Telegram message to all chat IDs")
+                return False
                         
         except Exception as e:
             self._log_error(e, "via Telegram")
             return False
     
-    async def send_photo(self, photo_path: str, caption: Optional[str] = None) -> bool:
+    async def send_photo(self, photo_path: str, caption: Optional[str] = None, 
+                        chat_ids: Optional[list] = None) -> bool:
         """
         Send a photo via Telegram.
         
         Args:
             photo_path: Path to the photo file
             caption: Optional caption for the photo
+            chat_ids: Optional list of chat IDs to override default
             
         Returns:
             bool: True if successful, False otherwise
@@ -138,39 +158,57 @@ class TelegramNotifier(BaseNotifier):
         if not self.is_enabled():
             return False
             
+        # Use custom chat IDs if provided, otherwise use configured default
+        target_chat_ids = chat_ids if chat_ids else [self.chat_id]
+            
         try:
             url = f"https://api.telegram.org/bot{self.bot_token}/sendPhoto"
-            
-            data = aiohttp.FormData()
-            data.add_field('chat_id', str(self.chat_id))
-            data.add_field('photo', open(photo_path, 'rb'))
-            
-            if caption:
-                data.add_field('caption', caption)
-                if self.parse_mode:
-                    data.add_field('parse_mode', self.parse_mode)
+            success_count = 0
+            total_chats = len(target_chat_ids)
             
             async with aiohttp.ClientSession() as session:
-                async with session.post(url, data=data) as response:
-                    if response.status == 200:
-                        self._log_success("photo via Telegram")
-                        return True
-                    else:
-                        response_text = await response.text()
-                        self._logger.error(f"Telegram photo API error {response.status}: {response_text}")
-                        return False
+                for chat_id in target_chat_ids:
+                    try:
+                        data = aiohttp.FormData()
+                        data.add_field('chat_id', str(chat_id))
+                        data.add_field('photo', open(photo_path, 'rb'))
+                        
+                        if caption:
+                            data.add_field('caption', caption)
+                            if self.parse_mode:
+                                data.add_field('parse_mode', self.parse_mode)
+                        
+                        async with session.post(url, data=data) as response:
+                            if response.status == 200:
+                                success_count += 1
+                                self._logger.debug(f"Telegram photo sent successfully to chat_id: {chat_id}")
+                            else:
+                                response_text = await response.text()
+                                self._logger.error(f"Telegram photo API error {response.status} for chat_id {chat_id}: {response_text}")
+                    except Exception as e:
+                        self._logger.error(f"Error sending photo to Telegram chat_id {chat_id}: {e}")
+            
+            # Consider success if at least one photo was sent
+            if success_count > 0:
+                self._log_success(f"photo via Telegram ({success_count}/{total_chats} chats)")
+                return True
+            else:
+                self._logger.error("Failed to send Telegram photo to all chat IDs")
+                return False
                         
         except Exception as e:
             self._log_error(e, "sending photo via Telegram")
             return False
     
-    async def send_document(self, document_path: str, caption: Optional[str] = None) -> bool:
+    async def send_document(self, document_path: str, caption: Optional[str] = None,
+                           chat_ids: Optional[list] = None) -> bool:
         """
         Send a document via Telegram.
         
         Args:
             document_path: Path to the document file
             caption: Optional caption for the document
+            chat_ids: Optional list of chat IDs to override default
             
         Returns:
             bool: True if successful, False otherwise
@@ -178,27 +216,43 @@ class TelegramNotifier(BaseNotifier):
         if not self.is_enabled():
             return False
             
+        # Use custom chat IDs if provided, otherwise use configured default
+        target_chat_ids = chat_ids if chat_ids else [self.chat_id]
+            
         try:
             url = f"https://api.telegram.org/bot{self.bot_token}/sendDocument"
-            
-            data = aiohttp.FormData()
-            data.add_field('chat_id', str(self.chat_id))
-            data.add_field('document', open(document_path, 'rb'))
-            
-            if caption:
-                data.add_field('caption', caption)
-                if self.parse_mode:
-                    data.add_field('parse_mode', self.parse_mode)
+            success_count = 0
+            total_chats = len(target_chat_ids)
             
             async with aiohttp.ClientSession() as session:
-                async with session.post(url, data=data) as response:
-                    if response.status == 200:
-                        self._log_success("document via Telegram")
-                        return True
-                    else:
-                        response_text = await response.text()
-                        self._logger.error(f"Telegram document API error {response.status}: {response_text}")
-                        return False
+                for chat_id in target_chat_ids:
+                    try:
+                        data = aiohttp.FormData()
+                        data.add_field('chat_id', str(chat_id))
+                        data.add_field('document', open(document_path, 'rb'))
+                        
+                        if caption:
+                            data.add_field('caption', caption)
+                            if self.parse_mode:
+                                data.add_field('parse_mode', self.parse_mode)
+                        
+                        async with session.post(url, data=data) as response:
+                            if response.status == 200:
+                                success_count += 1
+                                self._logger.debug(f"Telegram document sent successfully to chat_id: {chat_id}")
+                            else:
+                                response_text = await response.text()
+                                self._logger.error(f"Telegram document API error {response.status} for chat_id {chat_id}: {response_text}")
+                    except Exception as e:
+                        self._logger.error(f"Error sending document to Telegram chat_id {chat_id}: {e}")
+            
+            # Consider success if at least one document was sent
+            if success_count > 0:
+                self._log_success(f"document via Telegram ({success_count}/{total_chats} chats)")
+                return True
+            else:
+                self._logger.error("Failed to send Telegram document to all chat IDs")
+                return False
                         
         except Exception as e:
             self._log_error(e, "sending document via Telegram")
