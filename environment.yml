@@ -10,6 +10,7 @@ dependencies:
   - pip
   - pip:
       - hummingbot
+      - hummingbot-api-client
       - pycoingecko
       - geckoterminal-py==0.2.5
       - glom
