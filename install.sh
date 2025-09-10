@@ -104,7 +104,7 @@ setup_databases() {
     log_info "Setting up databases..."
     
     # Ask user if they want to start databases
-    read -p "Do you want to start the databases (MongoDB + TimescaleDB) now? (Y/n): " -n 1 -r
+    read -p "Do you want to start the databases (MongoDB only) now? (Y/n): " -n 1 -r
     echo
     if [[ ! $REPLY =~ ^[Nn]$ ]]; then
         log_info "Starting databases with Docker Compose..."
@@ -128,7 +128,6 @@ setup_databases() {
         
         log_success "Databases started successfully!"
         log_info "MongoDB connection: mongodb://admin:admin@localhost:27017/quants_lab"
-        log_info "TimescaleDB connection: postgresql://admin:admin@localhost:5432/timescaledb"
     else
         log_warning "Databases not started. You can start them later with: make run-db"
         DATABASES_STARTED=false
@@ -183,12 +182,6 @@ MONGO_PORT=27017
 MONGO_USER=admin
 MONGO_PASSWORD=admin
 MONGO_DATABASE=quants_lab
-
-POSTGRES_HOST=localhost
-POSTGRES_PORT=5432
-POSTGRES_USER=admin
-POSTGRES_PASSWORD=admin
-POSTGRES_DATABASE=timescaledb
 
 # Environment
 ENVIRONMENT=development

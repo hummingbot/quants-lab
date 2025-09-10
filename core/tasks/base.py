@@ -171,7 +171,6 @@ class BaseTask(ABC):
         
         # Database clients (will be initialized if needed)
         self.mongodb_client = None
-        self.timescale_client = None
         
     @abstractmethod
     async def execute(self, context: TaskContext) -> Dict[str, Any]:
@@ -209,10 +208,7 @@ class BaseTask(ABC):
         
         if task_config.get('use_mongodb', False):
             await self._init_mongodb()
-            
-        if task_config.get('use_timescaledb', False):
-            await self._init_timescaledb()
-    
+
     async def _init_mongodb(self) -> None:
         """Initialize MongoDB client."""
         try:
@@ -220,15 +216,7 @@ class BaseTask(ABC):
             self.mongodb_client = await db_manager.get_mongodb_client()
         except Exception as e:
             logger.warning(f"Failed to initialize MongoDB: {e}")
-    
-    async def _init_timescaledb(self) -> None:  
-        """Initialize TimescaleDB client."""
-        try:
-            from core.database_manager import db_manager
-            self.timescale_client = await db_manager.get_timescale_client()
-        except Exception as e:
-            logger.warning(f"Failed to initialize TimescaleDB: {e}")
-    
+
     async def cleanup(self, context: TaskContext, result: TaskResult) -> None:
         """
         Cleanup after task execution.
