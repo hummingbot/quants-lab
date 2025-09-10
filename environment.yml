@@ -41,3 +41,4 @@ dependencies:
       - papermill
       - nbformat
       - nbclient
+      - kaleido
