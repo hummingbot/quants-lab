@@ -23,18 +23,24 @@ def parse_args():
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog="""
 Examples:
-  # Run tasks continuously from config
-  python cli.py run-tasks --config config/data_collection_v2.yml
+  # Run tasks continuously from templates
+  python cli.py run-tasks --config template_1_candles_optimization.yml
+  python cli.py run-tasks --config template_2_candles_pools_screener.yml
+  python cli.py run-tasks --config template_3_periodic_reports.yml
+  python cli.py run-tasks --config template_4_notebook_execution.yml
   
   # Run single task from config
-  python cli.py trigger-task --task pools_screener --config config/data_collection_v2.yml
+  python cli.py trigger-task --task candles_downloader --config template_1_candles_optimization.yml
+  python cli.py trigger-task --task market_screener --config template_2_candles_pools_screener.yml
   
-  # Run task directly with built-in defaults (no config needed!)
-  python cli.py run app.tasks.data_collection.pools_screener
-  python cli.py run app.tasks.data_collection.candles_downloader_task
+  # List available tasks
+  python cli.py list-tasks --config template_1_candles_optimization.yml
+  
+  # Validate configuration
+  python cli.py validate-config --config template_3_periodic_reports.yml
   
   # Start API server with tasks
-  python cli.py serve --config config/data_collection_v2.yml --port 8000
+  python cli.py serve --config template_2_candles_pools_screener.yml --port 8000
         """
     )
     
@@ -43,8 +49,8 @@ Examples:
     # Run tasks continuously
     run_parser = subparsers.add_parser('run-tasks', help='Run tasks continuously')
     run_parser.add_argument('--config', '-c', 
-                           default='config/pools_screener_v2.yml',
-                           help='Path to tasks configuration file')
+                           default='template_1_candles_optimization.yml',
+                           help='Configuration file name (from config/ directory)')
     run_parser.add_argument('--verbose', '-v', action='store_true',
                            help='Enable verbose logging')
     
@@ -53,8 +59,8 @@ Examples:
     trigger_parser.add_argument('--task', '-t', required=True,
                                help='Task name to trigger')
     trigger_parser.add_argument('--config', '-c',
-                               default='config/pools_screener_v2.yml', 
-                               help='Path to tasks configuration file')
+                               default='template_1_candles_optimization.yml', 
+                               help='Configuration file name (from config/ directory)')
     trigger_parser.add_argument('--timeout', type=int, default=300,
                                help='Task timeout in seconds')
     
@@ -68,8 +74,8 @@ Examples:
     # Serve API with tasks
     serve_parser = subparsers.add_parser('serve', help='Start API server with background tasks')
     serve_parser.add_argument('--config', '-c',
-                             default='config/pools_screener_v2.yml',
-                             help='Path to tasks configuration file')
+                             default='template_1_candles_optimization.yml',
+                             help='Configuration file name (from config/ directory)')
     serve_parser.add_argument('--port', '-p', type=int, default=8000,
                              help='API server port')
     serve_parser.add_argument('--host', default='0.0.0.0',
@@ -78,13 +84,13 @@ Examples:
     # List tasks
     list_parser = subparsers.add_parser('list-tasks', help='List available tasks')
     list_parser.add_argument('--config', '-c',
-                            default='config/pools_screener_v2.yml',
-                            help='Path to tasks configuration file')
+                            default='template_1_candles_optimization.yml',
+                            help='Configuration file name (from config/ directory)')
     
     # Validate config  
     validate_parser = subparsers.add_parser('validate-config', help='Validate task configuration')
     validate_parser.add_argument('--config', '-c', required=True,
-                                help='Path to configuration file to validate')
+                                help='Configuration file name (from config/ directory)')
     
     return parser.parse_args()
 
@@ -93,6 +99,10 @@ async def run_tasks(config_path: str, verbose: bool = False):
     """Run tasks continuously."""
     if verbose:
         logging.getLogger().setLevel(logging.DEBUG)
+    
+    # Add config/ prefix if not present
+    if not config_path.startswith('config/') and not os.path.isabs(config_path):
+        config_path = f'config/{config_path}'
     
     logger.info(f"Starting QuantsLab Task Runner v2.0")
     logger.info(f"Config: {config_path}")
@@ -110,6 +120,10 @@ async def run_tasks(config_path: str, verbose: bool = False):
 
 async def trigger_task(task_name: str, config_path: str, timeout: int):
     """Trigger a single task."""
+    # Add config/ prefix if not present
+    if not config_path.startswith('config/') and not os.path.isabs(config_path):
+        config_path = f'config/{config_path}'
+    
     logger.info(f"Triggering task: {task_name}")
     logger.info(f"Config: {config_path}")
     logger.info(f"Timeout: {timeout}s")
@@ -157,6 +171,10 @@ async def trigger_task(task_name: str, config_path: str, timeout: int):
 
 async def serve_api(config_path: str, host: str, port: int):
     """Start API server with background tasks."""
+    # Add config/ prefix if not present
+    if not config_path.startswith('config/') and not os.path.isabs(config_path):
+        config_path = f'config/{config_path}'
+    
     logger.info(f"Starting QuantsLab API Server")
     logger.info(f"Config: {config_path}")
     logger.info(f"Server: http://{host}:{port}")
@@ -205,6 +223,10 @@ async def run_task_direct(task_path: str, timeout: int):
 
 def list_tasks(config_path: str):
     """List available tasks from configuration."""
+    # Add config/ prefix if not present
+    if not config_path.startswith('config/') and not os.path.isabs(config_path):
+        config_path = f'config/{config_path}'
+    
     logger.info(f"Loading tasks from: {config_path}")
     
     try:
@@ -232,6 +254,10 @@ def list_tasks(config_path: str):
 
 def validate_config(config_path: str):
     """Validate task configuration file."""
+    # Add config/ prefix if not present
+    if not config_path.startswith('config/') and not os.path.isabs(config_path):
+        config_path = f'config/{config_path}'
+    
     logger.info(f"Validating config: {config_path}")
     
     try:
