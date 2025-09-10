@@ -28,4 +28,4 @@ SHELL ["conda", "run", "-n", "quants-lab", "/bin/bash", "-c"]
 RUN mkdir -p outputs/notebooks
 
 # Default command now uses the task runner
-CMD ["conda", "run", "--no-capture-output", "-n", "quants-lab", "python3", "cli.py", "run", "--config", "config/tasks/notebook_tasks.yml"]
+CMD ["conda", "run", "--no-capture-output", "-n", "quants-lab", "python3", "cli.py", "run", "--config", "config/notebook_tasks.yml"]

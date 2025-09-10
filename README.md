@@ -19,7 +19,7 @@ The installer will:
 - ✅ Check prerequisites (conda, docker, docker-compose)
 - ✅ Create conda environment from `environment.yml`
 - ✅ Install QuantsLab package in development mode
-- ✅ Setup databases (MongoDB + TimescaleDB)
+- ✅ Setup database (MongoDB only - TimescaleDB removed)
 - ✅ Create `.env` file with defaults
 - ✅ Test the complete installation
 
@@ -51,19 +51,19 @@ python cli.py --help
 python cli.py list-tasks
 
 # Run tasks continuously from config
-python cli.py run-tasks --config config/tasks/data_collection_v2.yml
+python cli.py run-tasks --config config/data_collection_v2.yml
 
 # Run single task
-python cli.py trigger-task --task pools_screener --config config/tasks/pools_screener_v2.yml
+python cli.py trigger-task --task pools_screener --config config/pools_screener_v2.yml
 
 # Run task directly (no config needed!)
 python cli.py run app.tasks.data_collection.pools_screener
 
 # Start API server with background tasks
-python cli.py serve --config config/tasks/data_collection_v2.yml --port 8000
+python cli.py serve --config config/data_collection_v2.yml --port 8000
 
 # Validate configuration
-python cli.py validate-config --config config/tasks/pools_screener_v2.yml
+python cli.py validate-config --config config/pools_screener_v2.yml
 ```
 
 ### 🔬 Research & Development
@@ -76,7 +76,7 @@ jupyter lab
 # app/research_notebooks/
 #   ├── ai_livestream/          # AI-powered trading strategies
 #   ├── backtesting_examples/   # Strategy backtesting examples
-#   ├── market_data_analysis/   # Data exploration and analysis
+#   ├── market_data_etl/   # Data exploration and analysis
 #   ├── optimization_analysis/  # Parameter optimization studies
 #   └── strategy_specific/      # Individual strategy research
 ```
@@ -89,9 +89,9 @@ jupyter lab
 
 **Direct Connections**:
 - MongoDB: `mongodb://admin:admin@localhost:27017/quants_lab`
-- TimescaleDB: `postgresql://admin:admin@localhost:5432/timescaledb`
+- TimescaleDB: Removed - now using parquet files for time-series data
 
-**Configuration**: All database settings are in `config/database.yml`
+**Configuration**: All database settings are in `.env` file
 
 ## Architecture
 
@@ -108,19 +108,18 @@ quants-lab/
 │   ├── controllers/            # Trading strategy controllers
 │   ├── research_notebooks/     # Jupyter notebooks for research
 │   └── data/                   # Application-specific data
-├── ⚙️  config/                 # Configuration files
-│   ├── database.yml           # Database configurations
-│   └── tasks/                 # Task-specific configurations
+├── ⚙️  config/                 # Configuration files (tasks & settings)
 └── 🚀 cli.py                  # Command-line interface
 ```
 
 ## Key Features
 
-### 📈 Data Sources
+### 📈 Data Sources & Storage
 - **CLOB**: Order books, trades, candles, funding rates
-- **AMM**: Liquidity data, pool stats, DEX analytics
+- **AMM**: Liquidity data, pool stats, DEX analytics  
 - **GeckoTerminal**: Multi-network DEX data, OHLCV
 - **CoinGecko**: Market data, token & exchange stats
+- **Parquet Storage**: High-performance time-series data storage with automatic caching
 
 ### 🧠 Research Tools
 - **Triple Barrier Labeling**: Advanced ML labeling technique
@@ -133,6 +132,12 @@ quants-lab/
 - **Dependency Management**: Task orchestration
 - **Error Handling**: Robust failure recovery
 - **API Integration**: RESTful task management
+
+### 💾 Data Architecture
+- **Parquet Files**: All time-series data (candles, trades) stored as parquet for optimal analytics performance
+- **MongoDB**: Metadata, configuration, and application data
+- **CLOB Integration**: Seamless caching and data management through CLOBDataSource
+- **Automatic Merging**: Smart cache updates with incremental data fetching
 
 ## Quick Examples
 
@@ -175,7 +180,7 @@ results = engine.run(controller, start_date="2024-01-01")
 ### Adding New Strategies
 1. Create controller in `app/controllers/`
 2. Add backtesting notebook in `app/research_notebooks/`
-3. Configure task in `config/tasks/`
+3. Configure task in `config/`
 4. Test with CLI: `python cli.py run app.tasks.your_task`
 
 ### Contributing
@@ -221,7 +226,7 @@ docker ps  # Check container status
 
 **Task Failures**: Check logs and validate configuration:
 ```bash
-python cli.py validate-config --config config/tasks/your_config.yml
+python cli.py validate-config --config config/your_config.yml
 ```
 
 **Port Conflicts**: If MongoDB port 27017 is in use, update `docker-compose-db.yml`

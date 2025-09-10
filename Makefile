@@ -22,30 +22,81 @@ stop-db:
 # Task Management Commands
 # 
 # Examples:
-#   make run-tasks config=tasks/pools_screener_v2.yml              # Run tasks continuously
-#   make trigger-task task=pools_screener config=tasks/pools_screener_v2.yml  # Run single task
-#   make serve-api config=tasks/pools_screener_v2.yml port=8000    # Start API server
-#   make list-tasks config=tasks/pools_screener_v2.yml             # List available tasks
+#   make run-tasks config=pools_screener_v2.yml              # Run tasks continuously (Docker)
+#   make run-tasks config=pools_screener_v2.yml source=1     # Run tasks continuously (Local)
+#   make trigger-task task=pools_screener config=pools_screener_v2.yml  # Run single task (Docker)
+#   make serve-api config=pools_screener_v2.yml port=8000    # Start API server (Docker)
+#   make list-tasks config=pools_screener_v2.yml             # List available tasks (Docker)
 
 # Run tasks continuously
 run-tasks:
+ifeq ($(source),1)
 	python cli.py run-tasks --config config/$(config)
+else
+	docker run --rm \
+		-v $(shell pwd)/outputs:/quants-lab/outputs \
+		-v $(shell pwd)/config:/quants-lab/config \
+		-v $(shell pwd)/app:/quants-lab/app \
+		-v $(shell pwd)/research_notebooks:/quants-lab/research_notebooks \
+		--env-file .env \
+		hummingbot/quants-lab \
+		conda run --no-capture-output -n quants-lab python3 cli.py run-tasks --config config/$(config)
+endif
 
 # Trigger single task
 trigger-task:
+ifeq ($(source),1)
 	python cli.py trigger-task --task $(task) --config config/$(config)
+else
+	docker run --rm \
+		-v $(shell pwd)/outputs:/quants-lab/outputs \
+		-v $(shell pwd)/config:/quants-lab/config \
+		-v $(shell pwd)/app:/quants-lab/app \
+		-v $(shell pwd)/research_notebooks:/quants-lab/research_notebooks \
+		--env-file .env \
+		hummingbot/quants-lab \
+		conda run --no-capture-output -n quants-lab python3 cli.py trigger-task --task $(task) --config config/$(config)
+endif
 
 # Start API server with background tasks
 serve-api:
+ifeq ($(source),1)
 	python cli.py serve --config config/$(config) --port $(port)
+else
+	docker run --rm \
+		-p $(port):$(port) \
+		-v $(shell pwd)/outputs:/quants-lab/outputs \
+		-v $(shell pwd)/config:/quants-lab/config \
+		-v $(shell pwd)/app:/quants-lab/app \
+		-v $(shell pwd)/research_notebooks:/quants-lab/research_notebooks \
+		--env-file .env \
+		hummingbot/quants-lab \
+		conda run --no-capture-output -n quants-lab python3 cli.py serve --config config/$(config) --port $(port)
+endif
 
 # List available tasks
 list-tasks:
+ifeq ($(source),1)
 	python cli.py list-tasks --config config/$(config)
+else
+	docker run --rm \
+		-v $(shell pwd)/config:/quants-lab/config \
+		--env-file .env \
+		hummingbot/quants-lab \
+		conda run --no-capture-output -n quants-lab python3 cli.py list-tasks --config config/$(config)
+endif
 
 # Validate configuration file
 validate-config:
+ifeq ($(source),1)
 	python cli.py validate-config --config config/$(config)
+else
+	docker run --rm \
+		-v $(shell pwd)/config:/quants-lab/config \
+		--env-file .env \
+		hummingbot/quants-lab \
+		conda run --no-capture-output -n quants-lab python3 cli.py validate-config --config config/$(config)
+endif
 
 # Run task with Docker
 run-task:
@@ -56,10 +107,13 @@ run-task:
 		-v $(shell pwd)/research_notebooks:/quants-lab/research_notebooks \
 		--env-file .env \
 		hummingbot/quants-lab \
-		conda run --no-capture-output -n quants-lab python3 cli.py run-tasks --config config/tasks/$(config)
+		conda run --no-capture-output -n quants-lab python3 cli.py run-tasks --config config/$(config)
 
-# Run a specific notebook with Docker
+# Run a specific notebook
 run-notebook:
+ifeq ($(source),1)
+	python cli.py run app.tasks.notebook.notebook_task
+else
 	docker run --rm \
 		-v $(shell pwd)/outputs:/quants-lab/outputs \
 		-v $(shell pwd)/config:/quants-lab/config \
@@ -68,33 +122,43 @@ run-notebook:
 		--env-file .env \
 		hummingbot/quants-lab \
 		conda run --no-capture-output -n quants-lab python3 cli.py run app.tasks.notebook.notebook_task
+endif
 
-# Run task from source (local)
+# Legacy commands (deprecated, use source=1 flag instead)
 run-task-local:
-	python cli.py run-tasks --config config/tasks/$(config)
+	@echo "⚠️  DEPRECATED: Use 'make run-tasks config=CONFIG source=1' instead"
+	python cli.py run-tasks --config config/$(config)
 
-# Run specific notebook from source (local)  
 run-notebook-local:
+	@echo "⚠️  DEPRECATED: Use 'make run-notebook source=1' instead"
 	python cli.py run app.tasks.notebook.notebook_task
 
 # Stop task runner (Docker)
 stop-task:
 	docker stop $(shell docker ps -q --filter ancestor=hummingbot/quants-lab) || true
 
+# Launch Optuna Dashboard
+launch-optuna:
+	python -c "from core.backtesting.optimizer import StrategyOptimizer; optimizer = StrategyOptimizer(); optimizer.launch_optuna_dashboard()"
+
+# Kill Optuna Dashboard
+kill-optuna:
+	python -c "from core.backtesting.optimizer import StrategyOptimizer; optimizer = StrategyOptimizer(); optimizer.kill_optuna_dashboard()"
+
 # Help target
 help:
 	@echo "QuantsLab Task Management Commands:"
 	@echo ""
-	@echo "🚀 Quick Start (Docker):"
-	@echo "  make run-task config=notebook_tasks.yml        Run task config in Docker"
-	@echo "  make run-notebook                               Run notebook task directly"
+	@echo "🚀 Quick Start (Docker by default):"
+	@echo "  make run-tasks config=CONFIG.yml               Run tasks continuously"
+	@echo "  make run-notebook                               Run notebook task"
 	@echo "  make stop-task                                  Stop running Docker tasks"
 	@echo ""
-	@echo "💻 Local Development:"
-	@echo "  make run-task-local config=notebook_tasks.yml  Run task config locally"
-	@echo "  make run-notebook-local                         Run notebook task locally"
+	@echo "💻 Local Development (add source=1):"
+	@echo "  make run-tasks config=CONFIG.yml source=1      Run tasks locally"
+	@echo "  make run-notebook source=1                      Run notebook task locally"
 	@echo ""
-	@echo "📋 Task Commands:"
+	@echo "📋 Task Commands (Docker by default):"
 	@echo "  make run-tasks config=tasks/CONFIG.yml         Run tasks continuously"
 	@echo "  make trigger-task task=NAME config=tasks/CONFIG.yml  Run single task"
 	@echo "  make serve-api config=tasks/CONFIG.yml port=8000     Start API server"
@@ -105,13 +169,18 @@ help:
 	@echo "  make run-db                                    Start database containers"
 	@echo "  make stop-db                                   Stop database containers"
 	@echo ""
+	@echo "📊 Optimization Commands:"
+	@echo "  make launch-optuna                             Launch Optuna dashboard"
+	@echo "  make kill-optuna                               Kill Optuna dashboard"
+	@echo ""
 	@echo "🔨 Build Commands:"
 	@echo "  make build                                     Build Docker image"
 	@echo "  make install                                   Install conda environment"
 	@echo "  make uninstall                                 Remove conda environment"
 	@echo ""
 	@echo "📚 Examples:"
-	@echo "  make run-task config=notebook_tasks.yml"
-	@echo "  make run-task config=data_collection_v2.yml"
-	@echo "  make run-notebook"
+	@echo "  make run-tasks config=notebook_tasks.yml       # Docker"
+	@echo "  make run-tasks config=notebook_tasks.yml source=1  # Local"
+	@echo "  make run-notebook                               # Docker"
+	@echo "  make run-notebook source=1                      # Local"
 	@echo "  make trigger-task task=etl_download_candles config=notebook_tasks.yml"

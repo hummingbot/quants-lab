@@ -24,17 +24,17 @@ def parse_args():
         epilog="""
 Examples:
   # Run tasks continuously from config
-  python cli.py run-tasks --config config/tasks/data_collection_v2.yml
+  python cli.py run-tasks --config config/data_collection_v2.yml
   
   # Run single task from config
-  python cli.py trigger-task --task pools_screener --config config/tasks/data_collection_v2.yml
+  python cli.py trigger-task --task pools_screener --config config/data_collection_v2.yml
   
   # Run task directly with built-in defaults (no config needed!)
   python cli.py run app.tasks.data_collection.pools_screener
   python cli.py run app.tasks.data_collection.candles_downloader_task
   
   # Start API server with tasks
-  python cli.py serve --config config/tasks/data_collection_v2.yml --port 8000
+  python cli.py serve --config config/data_collection_v2.yml --port 8000
         """
     )
     
@@ -43,7 +43,7 @@ Examples:
     # Run tasks continuously
     run_parser = subparsers.add_parser('run-tasks', help='Run tasks continuously')
     run_parser.add_argument('--config', '-c', 
-                           default='config/tasks/pools_screener_v2.yml',
+                           default='config/pools_screener_v2.yml',
                            help='Path to tasks configuration file')
     run_parser.add_argument('--verbose', '-v', action='store_true',
                            help='Enable verbose logging')
@@ -53,7 +53,7 @@ Examples:
     trigger_parser.add_argument('--task', '-t', required=True,
                                help='Task name to trigger')
     trigger_parser.add_argument('--config', '-c',
-                               default='config/tasks/pools_screener_v2.yml', 
+                               default='config/pools_screener_v2.yml', 
                                help='Path to tasks configuration file')
     trigger_parser.add_argument('--timeout', type=int, default=300,
                                help='Task timeout in seconds')
@@ -68,7 +68,7 @@ Examples:
     # Serve API with tasks
     serve_parser = subparsers.add_parser('serve', help='Start API server with background tasks')
     serve_parser.add_argument('--config', '-c',
-                             default='config/tasks/pools_screener_v2.yml',
+                             default='config/pools_screener_v2.yml',
                              help='Path to tasks configuration file')
     serve_parser.add_argument('--port', '-p', type=int, default=8000,
                              help='API server port')
@@ -78,7 +78,7 @@ Examples:
     # List tasks
     list_parser = subparsers.add_parser('list-tasks', help='List available tasks')
     list_parser.add_argument('--config', '-c',
-                            default='config/tasks/pools_screener_v2.yml',
+                            default='config/pools_screener_v2.yml',
                             help='Path to tasks configuration file')
     
     # Validate config  
