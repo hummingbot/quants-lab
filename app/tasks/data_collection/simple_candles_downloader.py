@@ -1,24 +1,20 @@
 import asyncio
 import logging
-import os
 import time
 from datetime import datetime, timedelta, timezone
 from typing import Any, Dict
 
 import pandas as pd
-from dotenv import load_dotenv
 
 from core.data_sources import CLOBDataSource
-from core.services.timescale_client import TimescaleClient
 from core.tasks import BaseTask, TaskContext
 
 logging.basicConfig(level=logging.INFO)
 logging.getLogger("asyncio").setLevel(logging.CRITICAL)
-load_dotenv()
 
 
 class SimpleCandlesDownloader(BaseTask):
-    """Download OHLC candles for specific trading pairs and store in TimescaleDB."""
+    """Download OHLC candles for specific trading pairs and store as parquet files."""
     
     def __init__(self, config):
         super().__init__(config)
@@ -30,9 +26,8 @@ class SimpleCandlesDownloader(BaseTask):
         self.intervals = task_config.get("intervals", ["1m"])
         self.trading_pairs = task_config.get("trading_pairs", ["BTC-USDT"])
         
-        # Initialize clients (will be connected in setup)
+        # Initialize CLOB data source (handles parquet caching automatically)
         self.clob = CLOBDataSource()
-        self.timescale_client = None
 
     async def validate_prerequisites(self) -> bool:
         """Validate task prerequisites before execution."""
@@ -46,11 +41,6 @@ class SimpleCandlesDownloader(BaseTask):
                 logging.error("trading_pairs not configured")
                 return False
                 
-            timescale_config = self.config.config.get("timescale_config", {})
-            if not timescale_config:
-                logging.error("timescale_config not provided")
-                return False
-                
             return True
         except Exception as e:
             logging.error(f"Prerequisites validation failed: {e}")
@@ -59,16 +49,7 @@ class SimpleCandlesDownloader(BaseTask):
     async def setup(self, context: TaskContext) -> None:
         """Setup task before execution."""
         try:
-            # Initialize TimescaleDB client
-            timescale_config = self.config.config["timescale_config"]
-            self.timescale_client = TimescaleClient(
-                host=timescale_config.get("host", "localhost"),
-                port=timescale_config.get("port", 5432),
-                user=timescale_config.get("user", "admin"),
-                password=timescale_config.get("password", "admin"),
-                database=timescale_config.get("database", "timescaledb")
-            )
-            await self.timescale_client.connect()
+            await super().setup(context)
             
             logging.info(f"Setup completed for {context.task_name}")
             logging.info(f"Connector: {self.connector_name}")
@@ -83,8 +64,7 @@ class SimpleCandlesDownloader(BaseTask):
     async def cleanup(self, context: TaskContext, result) -> None:
         """Cleanup after task execution."""
         try:
-            if self.timescale_client:
-                await self.timescale_client.close()
+            await super().cleanup(context, result)
             logging.info(f"Cleanup completed for {context.task_name}")
         except Exception as e:
             logging.warning(f"Cleanup error: {e}")
@@ -113,33 +93,19 @@ class SimpleCandlesDownloader(BaseTask):
                 "errors": 0
             }
             
-            # Process each trading pair
+            # Process each trading pair and interval
             for i, trading_pair in enumerate(self.trading_pairs):
                 for interval in self.intervals:
                     try:
                         logging.info(f"Fetching candles for {trading_pair} [{i+1}/{len(self.trading_pairs)}] {interval}")
                         
-                        # Setup table
-                        table_name = self.timescale_client.get_ohlc_table_name(
-                            self.connector_name, trading_pair, interval
-                        )
-                        await self.timescale_client.create_candles_table(table_name)
-                        
-                        # Get last timestamp to avoid duplicates
-                        last_timestamp = await self.timescale_client.get_last_candle_timestamp(
-                            connector_name=self.connector_name,
-                            trading_pair=trading_pair,
-                            interval=interval
-                        )
-                        fetch_start = last_timestamp if last_timestamp else start_time
-                        
-                        # Fetch candles
+                        # Fetch candles using CLOB (handles caching automatically)
                         try:
                             candles = await self.clob.get_candles(
                                 self.connector_name,
                                 trading_pair,
                                 interval,
-                                int(fetch_start),
+                                int(start_time),
                                 int(end_time.timestamp())
                             )
                         except KeyError as e:
@@ -150,21 +116,6 @@ class SimpleCandlesDownloader(BaseTask):
                         if candles.data.empty:
                             logging.info(f"No new candles for {trading_pair} {interval}")
                             continue
-                        
-                        # Store candles
-                        await self.timescale_client.append_candles(
-                            table_name=table_name,
-                            candles=candles.data.values.tolist()
-                        )
-                        
-                        # Clean up old data
-                        cutoff_time = datetime.now(timezone.utc) - timedelta(days=self.days_data_retention)
-                        await self.timescale_client.delete_candles(
-                            connector_name=self.connector_name,
-                            trading_pair=trading_pair,
-                            interval=interval,
-                            timestamp=cutoff_time.timestamp()
-                        )
                         
                         stats["candles_downloaded"] += len(candles.data)
                         stats["intervals_processed"] += 1
@@ -178,6 +129,10 @@ class SimpleCandlesDownloader(BaseTask):
                         continue
                 
                 stats["pairs_processed"] += 1
+            
+            # Save all cached data to parquet files
+            logging.info("Saving candles cache to parquet files...")
+            self.clob.dump_candles_cache()
             
             # Prepare result
             duration = datetime.now(timezone.utc) - start_execution
@@ -222,15 +177,6 @@ async def main():
     """Standalone execution for testing."""
     from core.tasks.base import TaskConfig, ScheduleConfig
     
-    # Build TimescaleDB config from environment
-    timescale_config = {
-        "host": os.getenv("TIMESCALE_HOST", "localhost"),
-        "port": int(os.getenv("TIMESCALE_PORT", "5432")),
-        "user": os.getenv("TIMESCALE_USER", "admin"),
-        "password": os.getenv("TIMESCALE_PASSWORD", "admin"),
-        "database": os.getenv("TIMESCALE_DB", "timescaledb")
-    }
-    
     # Create v2.0 TaskConfig
     config = TaskConfig(
         name="simple_candles_downloader_test",
@@ -244,8 +190,7 @@ async def main():
             "connector_name": "binance_perpetual",
             "intervals": ["15m"],
             "days_data_retention": 7,
-            "trading_pairs": ["BTC-USDT", "ETH-USDT"],
-            "timescale_config": timescale_config
+            "trading_pairs": ["BTC-USDT", "ETH-USDT"]
         }
     )
     

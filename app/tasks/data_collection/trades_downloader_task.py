@@ -1,24 +1,20 @@
 import asyncio
 import logging
-import os
 import time
 from datetime import datetime, timedelta, timezone
 from decimal import Decimal
 from typing import Any, Dict
 
 import pandas as pd
-from dotenv import load_dotenv
 
 from core.data_sources import CLOBDataSource
-from core.services.timescale_client import TimescaleClient
 from core.tasks import BaseTask, TaskContext
 
 logging.basicConfig(level=logging.INFO)
-load_dotenv()
 
 
 class TradesDownloaderTask(BaseTask):
-    """Download trades data from exchanges and store in TimescaleDB with OHLC resampling."""
+    """Download trades data from exchanges and store as parquet files with OHLC resampling."""
     
     def __init__(self, config):
         super().__init__(config)
@@ -29,11 +25,10 @@ class TradesDownloaderTask(BaseTask):
         self.days_data_retention = task_config.get("days_data_retention", 7)
         self.quote_asset = task_config.get("quote_asset", "USDT")
         self.min_notional_size = Decimal(str(task_config.get("min_notional_size", 10.0)))
-        self.resample_intervals = task_config.get("resample_intervals", ["1s"])
+        self.resample_intervals = task_config.get("resample_intervals", ["1m"])  # Default to 1m candles
         
-        # Initialize clients (will be connected in setup)
+        # Initialize CLOB data source (handles parquet caching automatically)
         self.clob = CLOBDataSource()
-        self.timescale_client = None
 
     async def validate_prerequisites(self) -> bool:
         """Validate task prerequisites before execution."""
@@ -41,11 +36,6 @@ class TradesDownloaderTask(BaseTask):
             # Check required configuration
             if not self.connector_name:
                 logging.error("connector_name not configured")
-                return False
-                
-            timescale_config = self.config.config.get("timescale_config", {})
-            if not timescale_config:
-                logging.error("timescale_config not provided")
                 return False
                 
             return True
@@ -56,16 +46,7 @@ class TradesDownloaderTask(BaseTask):
     async def setup(self, context: TaskContext) -> None:
         """Setup task before execution."""
         try:
-            # Initialize TimescaleDB client
-            timescale_config = self.config.config["timescale_config"]
-            self.timescale_client = TimescaleClient(
-                host=timescale_config.get("host", "localhost"),
-                port=timescale_config.get("port", 5432),
-                user=timescale_config.get("user", "admin"),
-                password=timescale_config.get("password", "admin"),
-                database=timescale_config.get("database", "timescaledb")
-            )
-            await self.timescale_client.connect()
+            await super().setup(context)
             
             logging.info(f"Setup completed for {context.task_name}")
             logging.info(f"Connector: {self.connector_name}")
@@ -81,8 +62,7 @@ class TradesDownloaderTask(BaseTask):
     async def cleanup(self, context: TaskContext, result) -> None:
         """Cleanup after task execution."""
         try:
-            if self.timescale_client:
-                await self.timescale_client.close()
+            await super().cleanup(context, result)
             logging.info(f"Cleanup completed for {context.task_name}")
         except Exception as e:
             logging.warning(f"Cleanup error: {e}")
@@ -112,77 +92,39 @@ class TradesDownloaderTask(BaseTask):
             stats = {
                 "pairs_processed": 0,
                 "pairs_total": len(trading_pairs),
-                "trades_downloaded": 0,
+                "candles_downloaded": 0,
                 "ohlc_resampled": 0,
                 "errors": 0
             }
             
-            # Process each trading pair
+            # Process each trading pair to generate OHLC candles from trades
             for i, trading_pair in enumerate(trading_pairs):
                 try:
-                    logging.info(f"Fetching trades for {trading_pair} [{i+1}/{len(trading_pairs)}]")
+                    logging.info(f"Generating OHLC candles from trades for {trading_pair} [{i+1}/{len(trading_pairs)}]")
                     
-                    # Setup table
-                    table_name = self.timescale_client.get_trades_table_name(
-                        self.connector_name, trading_pair
-                    )
-                    
-                    # Get last trade ID to avoid duplicates
-                    last_trade_id = await self.timescale_client.get_last_trade_id(
-                        connector_name=self.connector_name,
-                        trading_pair=trading_pair,
-                        table_name=table_name
-                    )
-                    
-                    # Fetch trades
-                    trades = await self.clob.get_trades(
-                        self.connector_name,
-                        trading_pair,
-                        int(start_time.timestamp()),
-                        int(end_time.timestamp()),
-                        last_trade_id
-                    )
-                    
-                    if trades.empty:
-                        logging.info(f"No new trades for {trading_pair}")
-                        continue
-                    
-                    # Prepare trades data
-                    trades["connector_name"] = self.connector_name
-                    trades["trading_pair"] = trading_pair
-                    
-                    trades_data = trades[
-                        ["id", "connector_name", "trading_pair", "timestamp", "price", "volume", "sell_taker"]
-                    ].values.tolist()
-                    
-                    # Store trades
-                    await self.timescale_client.append_trades(
-                        table_name=table_name,
-                        trades=trades_data
-                    )
-                    
-                    # Clean up old data
-                    cutoff_time = datetime.now(timezone.utc) - timedelta(days=self.days_data_retention)
-                    await self.timescale_client.delete_trades(
-                        connector_name=self.connector_name,
-                        trading_pair=trading_pair,
-                        timestamp=cutoff_time.timestamp()
-                    )
-                    
-                    # Resample to OHLC for configured intervals
+                    # Generate OHLC candles from trades for each interval
                     for interval in self.resample_intervals:
                         try:
-                            await self.timescale_client.compute_resampled_ohlc(
-                                connector_name=self.connector_name,
-                                trading_pair=trading_pair,
-                                interval=interval
+                            # Fetch candles (CLOB will use trades to generate OHLC if needed)
+                            candles = await self.clob.get_candles(
+                                self.connector_name,
+                                trading_pair,
+                                interval,
+                                int(start_time.timestamp()),
+                                int(end_time.timestamp()),
+                                from_trades=True  # Generate from trades data
                             )
+                            
+                            if candles.data.empty:
+                                logging.info(f"No candles generated from trades for {trading_pair} {interval}")
+                                continue
+                            
+                            stats["candles_downloaded"] += len(candles.data)
                             stats["ohlc_resampled"] += 1
+                            logging.info(f"Generated {len(candles.data)} candles from trades for {trading_pair} {interval}")
+                            
                         except Exception as e:
-                            logging.warning(f"OHLC resampling failed for {trading_pair} {interval}: {e}")
-                    
-                    stats["trades_downloaded"] += len(trades_data)
-                    logging.info(f"Inserted {len(trades_data)} trades for {trading_pair}")
+                            logging.warning(f"OHLC generation failed for {trading_pair} {interval}: {e}")
                     
                 except Exception as e:
                     stats["errors"] += 1
@@ -190,6 +132,10 @@ class TradesDownloaderTask(BaseTask):
                     continue
                 
                 stats["pairs_processed"] += 1
+            
+            # Save all cached candles data to parquet files
+            logging.info("Saving candles cache to parquet files...")
+            self.clob.dump_candles_cache()
             
             # Prepare result
             duration = datetime.now(timezone.utc) - start_execution
@@ -214,7 +160,7 @@ class TradesDownloaderTask(BaseTask):
         stats = result.result_data.get("stats", {})
         logging.info(f"✓ TradesDownloaderTask succeeded in {result.duration_seconds:.2f}s")
         logging.info(f"  - Pairs: {stats.get('pairs_processed', 0)}/{stats.get('pairs_total', 0)}")
-        logging.info(f"  - Trades: {stats.get('trades_downloaded', 0)}")
+        logging.info(f"  - Candles: {stats.get('candles_downloaded', 0)}")
         logging.info(f"  - OHLC resampled: {stats.get('ohlc_resampled', 0)}")
         if stats.get('errors', 0) > 0:
             logging.warning(f"  - Errors: {stats.get('errors', 0)}")
@@ -233,15 +179,6 @@ async def main():
     """Standalone execution for testing."""
     from core.tasks.base import TaskConfig, ScheduleConfig
     
-    # Build TimescaleDB config from environment
-    timescale_config = {
-        "host": os.getenv("TIMESCALE_HOST", "localhost"),
-        "port": int(os.getenv("TIMESCALE_PORT", "5432")),
-        "user": os.getenv("TIMESCALE_USER", "admin"),
-        "password": os.getenv("TIMESCALE_PASSWORD", "admin"),
-        "database": os.getenv("TIMESCALE_DB", "timescaledb")
-    }
-    
     # Create v2.0 TaskConfig
     config = TaskConfig(
         name="trades_downloader_test",
@@ -256,8 +193,7 @@ async def main():
             "quote_asset": "USDT",
             "min_notional_size": 10.0,
             "days_data_retention": 7,
-            "resample_intervals": ["1s", "1m"],
-            "timescale_config": timescale_config
+            "resample_intervals": ["1m", "5m", "15m", "1h"]
         }
     )
     
@@ -268,7 +204,7 @@ async def main():
     print(f"Task completed with status: {result.status}")
     if result.result_data:
         stats = result.result_data.get("stats", {})
-        print(f"Downloaded {stats.get('trades_downloaded', 0)} trades")
+        print(f"Generated {stats.get('candles_downloaded', 0)} candles from trades")
         print(f"Processed {stats.get('pairs_processed', 0)} pairs")
         print(f"OHLC intervals resampled: {stats.get('ohlc_resampled', 0)}")
     if result.error_message:

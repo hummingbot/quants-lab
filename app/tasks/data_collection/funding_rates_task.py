@@ -1,21 +1,17 @@
 import asyncio
 import logging
-import os
 import time
 from datetime import datetime, timedelta, timezone
 from itertools import combinations
 from typing import Any, Dict
 
 import pandas as pd
-from dotenv import load_dotenv
 
 from core.data_sources import CLOBDataSource
 from core.data_structures.trading_rules import TradingRules
-from core.services.mongodb_client import MongoClient
 from core.tasks import BaseTask, TaskContext
 
 logging.getLogger("asyncio").setLevel(logging.CRITICAL)
-load_dotenv()
 
 
 class FundingRatesTask(BaseTask):
@@ -30,19 +26,12 @@ class FundingRatesTask(BaseTask):
         self.quote_asset = task_config.get("quote_asset", "USDT")
         self.n_top_funding_rates_per_group = task_config.get("n_top_funding_rates_per_group", 5)
         
-        # Initialize clients (will be connected in setup)
+        # Initialize clients
         self.clob = CLOBDataSource()
-        self.mongo_client = None
 
     async def validate_prerequisites(self) -> bool:
         """Validate task prerequisites before execution."""
         try:
-            # Check required configuration
-            mongo_config = self.config.config.get("mongo_config", {})
-            if not mongo_config.get("uri"):
-                logging.error("MongoDB URI not configured")
-                return False
-                
             if not self.connector_names:
                 logging.error("connector_names not configured")
                 return False
@@ -55,13 +44,7 @@ class FundingRatesTask(BaseTask):
     async def setup(self, context: TaskContext) -> None:
         """Setup task before execution."""
         try:
-            # Initialize MongoDB client
-            mongo_config = self.config.config["mongo_config"]
-            self.mongo_client = MongoClient(
-                uri=mongo_config["uri"],
-                database=mongo_config.get("database", "quants_lab")
-            )
-            await self.mongo_client.connect()
+            await super().setup(context)
             
             logging.info(f"Setup completed for {context.task_name}")
             logging.info(f"Connectors: {self.connector_names}")
@@ -74,8 +57,7 @@ class FundingRatesTask(BaseTask):
     async def cleanup(self, context: TaskContext, result) -> None:
         """Cleanup after task execution."""
         try:
-            if self.mongo_client:
-                await self.mongo_client.disconnect()
+            await super().cleanup(context, result)
             logging.info(f"Cleanup completed for {context.task_name}")
         except Exception as e:
             logging.warning(f"Cleanup error: {e}")
@@ -127,7 +109,7 @@ class FundingRatesTask(BaseTask):
                         })
                     
                     # Store funding rates
-                    await self.mongo_client.insert_documents(
+                    await self.mongodb_client.insert_documents(
                         collection_name="funding_rates",
                         documents=funding_rates,
                         index=[
@@ -159,7 +141,7 @@ class FundingRatesTask(BaseTask):
                             })
                         
                         # Store processed results
-                        await self.mongo_client.insert_documents(
+                        await self.mongodb_client.insert_documents(
                             collection_name="funding_rates_processed",
                             documents=results,
                             index=[
@@ -224,14 +206,6 @@ async def main():
     """Standalone execution for testing."""
     from core.tasks.base import TaskConfig, ScheduleConfig
     
-    # Build MongoDB config from environment
-    mongo_uri = (
-        f"mongodb://{os.getenv('MONGO_INITDB_ROOT_USERNAME', 'admin')}:"
-        f"{os.getenv('MONGO_INITDB_ROOT_PASSWORD', 'admin')}@"
-        f"{os.getenv('MONGO_HOST', 'localhost')}:"
-        f"{os.getenv('MONGO_PORT', '27017')}/"
-    )
-    
     # Create v2.0 TaskConfig
     config = TaskConfig(
         name="funding_rates_task_test",
@@ -242,10 +216,7 @@ async def main():
             frequency_hours=1.0
         ),
         config={
-            "mongo_config": {
-                "uri": mongo_uri,
-                "database": "quants_lab"
-            },
+            "use_mongodb": True,
             "connector_names": ["binance_perpetual"],
             "quote_asset": "USDT",
             "n_top_funding_rates_per_group": 5

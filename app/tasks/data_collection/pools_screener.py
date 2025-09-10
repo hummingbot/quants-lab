@@ -1,17 +1,13 @@
 import asyncio
 import logging
-import os
 from datetime import datetime, timedelta, timezone
 import pandas as pd
 from typing import Dict, Any
-from dotenv import load_dotenv
 
-from core.services.mongodb_client import MongoClient
 from geckoterminal_py import GeckoTerminalAsyncClient
 from core.tasks import BaseTask, TaskContext
 
 logging.basicConfig(level=logging.INFO)
-load_dotenv()
 
 
 class PoolsScreenerTask(BaseTask):
@@ -20,7 +16,6 @@ class PoolsScreenerTask(BaseTask):
     def __init__(self, config):
         super().__init__(config)
         self.gt = None
-        self.mongo_client = None
         
         # Configuration with defaults
         self.network = self.config.config.get("network", "solana")
@@ -35,11 +30,6 @@ class PoolsScreenerTask(BaseTask):
     async def validate_prerequisites(self) -> bool:
         """Validate task prerequisites before execution."""
         try:
-            # Check required environment variables/config
-            mongo_config = self.config.config.get("mongo_config", {})
-            if not mongo_config.get("uri"):
-                logging.error("MongoDB URI not configured")
-                return False
             return True
         except Exception as e:
             logging.error(f"Prerequisites validation failed: {e}")
@@ -48,18 +38,10 @@ class PoolsScreenerTask(BaseTask):
     async def setup(self, context: TaskContext) -> None:
         """Setup task before execution."""
         try:
+            await super().setup(context)
+            
             # Initialize GeckoTerminal client
             self.gt = GeckoTerminalAsyncClient()
-            
-            # Initialize MongoDB client with configuration
-            mongo_config = self.config.config.get("mongo_config", {})
-            self.mongo_client = MongoClient(
-                uri=mongo_config.get("uri", ""),
-                database=mongo_config.get("db", "strategies"),
-            )
-            
-            # Connect to MongoDB
-            await self.mongo_client.connect()
             
             logging.info(f"Setup completed for {context.task_name}")
             
@@ -70,8 +52,7 @@ class PoolsScreenerTask(BaseTask):
     async def cleanup(self, context: TaskContext, result) -> None:
         """Cleanup after task execution."""
         try:
-            if self.mongo_client:
-                await self.mongo_client.disconnect()
+            await super().cleanup(context, result)
             logging.info(f"Cleanup completed for {context.task_name}")
         except Exception as e:
             logging.warning(f"Cleanup error: {e}")
@@ -157,8 +138,8 @@ class PoolsScreenerTask(BaseTask):
                 'filtered_new_pools': filtered_new.to_dict('records') if not filtered_new.empty else []
             }
             
-            # Store data using MongoDBClient
-            await self.mongo_client.insert_documents(collection_name="pools", documents=[document])
+            # Store data using MongoDB client
+            await self.mongodb_client.insert_documents(collection_name="pools", documents=[document])
             
             # Prepare result
             result = {
@@ -205,14 +186,6 @@ async def main():
     """Standalone execution for testing."""
     from core.tasks.base import TaskConfig, ScheduleConfig
     
-    # Build MongoDB URI from environment
-    mongo_uri = (
-        f"mongodb://{os.getenv('MONGO_INITDB_ROOT_USERNAME', 'admin')}:"
-        f"{os.getenv('MONGO_INITDB_ROOT_PASSWORD', 'admin')}@"
-        f"{os.getenv('MONGO_HOST', 'localhost')}:"
-        f"{os.getenv('MONGO_PORT', '27017')}/"
-    )
-    
     # Create v2.0 TaskConfig
     config = TaskConfig(
         name="pools_screener_test",
@@ -223,10 +196,7 @@ async def main():
             frequency_hours=1.0
         ),
         config={
-            "mongo_config": {
-                "uri": mongo_uri,
-                "db": "strategies"
-            },
+            "use_mongodb": True,
             "network": "solana",
             "quote_asset": "SOL",
             "min_pool_age_days": 2,

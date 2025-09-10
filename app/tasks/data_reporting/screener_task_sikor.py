@@ -7,12 +7,12 @@ from typing import Any, Dict
 
 import numpy as np
 import pandas as pd
-from dotenv import load_dotenv
+# Removed dotenv - no longer needed
 
-from core.services.timescale_client import TimescaleClient
+from core.data_sources import CLOBDataSource
 from core.tasks import BaseTask, TaskContext
 
-load_dotenv()
+# No environment loading needed
 logging.basicConfig(level=logging.INFO)
 
 
@@ -30,8 +30,9 @@ class ScreenerSikorTask(BaseTask):
         self.volatility_window = task_config.get("volatility_window", 50)
         self.volume_window = task_config.get("volume_window", 50)
         
-        # Initialize client (will be connected in setup)
-        self.ts_client = None
+        # Initialize CLOB data source (handles parquet caching automatically)
+        self.clob = CLOBDataSource()
+        self.days_lookback = task_config.get("days_lookback", 7)
 
     @staticmethod
     def get_volatility(df, window):
@@ -106,17 +107,22 @@ class ScreenerSikorTask(BaseTask):
                 "errors": 0
             }
 
-            # Get available candles
-            available_candles = await self.ts_client.get_available_candles()
-            filtered_candles = [
-                candle for candle in available_candles
-                if candle[2] == self.interval and candle[0] == self.connector_name
-            ]
+            # Get available candles from cache
+            available_candles = set()
+            for (connector, pair, interval) in self.clob.candles_cache.keys():
+                if connector == self.connector_name and interval == self.interval:
+                    available_candles.add((connector, pair, interval))
+            
+            filtered_candles = list(available_candles)
             stats["candles_total"] = len(filtered_candles)
+            
+            # Calculate time range
+            end_time = int(datetime.now(timezone.utc).timestamp())
+            start_time = end_time - (self.days_lookback * 24 * 60 * 60)
             
             # Process candles in batch
             candles_tasks = [
-                self.ts_client.get_all_candles(candle[0], candle[1], candle[2])
+                self.clob.get_candles(candle[0], candle[1], candle[2], start_time, end_time)
                 for candle in filtered_candles
             ]
             candles = await asyncio.gather(*candles_tasks)
@@ -208,10 +214,9 @@ async def main():
             frequency_hours=12.0
         ),
         config={
-            "host": os.getenv("TIMESCALE_HOST", "localhost"),
             "connector_name": "binance_perpetual",
             "interval": "15m",
-            "days": 30,
+            "days_lookback": 7,
             "volatility_window": 50,
             "volume_window": 50
         }

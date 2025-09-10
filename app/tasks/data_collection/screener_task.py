@@ -1,19 +1,16 @@
 import asyncio
 import json
 import logging
-import os
 from datetime import datetime, timedelta, timezone
 from typing import Any, Dict
 
 import pandas as pd
 import pandas_ta as ta
-from dotenv import load_dotenv
 
-from core.services.timescale_client import TimescaleClient
+from core.data_sources import CLOBDataSource
 from core.tasks import BaseTask, TaskContext
 
 logging.basicConfig(level=logging.INFO)
-load_dotenv()
 
 
 class MarketScreenerTask(BaseTask):
@@ -32,19 +29,15 @@ class MarketScreenerTask(BaseTask):
             "15m": "fifteen_min",
             "1h": "one_hour"
         }
+        self.connector_name = task_config.get("connector_name", "binance_perpetual")
+        self.days_lookback = task_config.get("days_lookback", 7)
         
-        # Initialize client (will be connected in setup)
-        self.ts_client = None
+        # Initialize CLOB data source for parquet caching
+        self.clob = CLOBDataSource()
 
     async def validate_prerequisites(self) -> bool:
         """Validate task prerequisites before execution."""
         try:
-            # Check required configuration
-            timescale_config = self.config.config.get("timescale_config", {})
-            if not timescale_config:
-                logging.error("timescale_config not provided")
-                return False
-                
             if not self.intervals:
                 logging.error("intervals not configured")
                 return False
@@ -57,17 +50,7 @@ class MarketScreenerTask(BaseTask):
     async def setup(self, context: TaskContext) -> None:
         """Setup task before execution."""
         try:
-            # Initialize TimescaleDB client
-            timescale_config = self.config.config.get("timescale_config", {})
-            self.ts_client = TimescaleClient(
-                host=timescale_config.get("host", "localhost"),
-                port=timescale_config.get("port", 5432),
-                user=timescale_config.get("user", "admin"),
-                password=timescale_config.get("password", "admin"),
-                database=timescale_config.get("database", "timescaledb")
-            )
-            await self.ts_client.connect()
-            
+            await super().setup(context)
             logging.info(f"Setup completed for {context.task_name}")
             logging.info(f"Intervals: {self.intervals}")
             
@@ -78,8 +61,7 @@ class MarketScreenerTask(BaseTask):
     async def cleanup(self, context: TaskContext, result) -> None:
         """Cleanup after task execution."""
         try:
-            if self.ts_client:
-                await self.ts_client.close()
+            await super().cleanup(context, result)
             logging.info(f"Cleanup completed for {context.task_name}")
         except Exception as e:
             logging.warning(f"Cleanup error: {e}")
@@ -99,7 +81,7 @@ class MarketScreenerTask(BaseTask):
             }
 
             # Get available pairs
-            available_pairs = await self.ts_client.get_available_pairs()
+            available_pairs = await self.timescale_client.get_available_pairs()
             stats["pairs_total"] = len(available_pairs)
 
             for connector_name, trading_pair in available_pairs:
@@ -150,7 +132,7 @@ class MarketScreenerTask(BaseTask):
     async def process_pair(self, connector_name, trading_pair):
         """Process metrics for a single trading pair."""
         try:
-            candles = await self.ts_client.get_candles(connector_name, trading_pair, interval="1h")
+            candles = await self.timescale_client.get_candles(connector_name, trading_pair, interval="1h")
             screener_metrics = self.calculate_global_screener_metrics(
                 candles_df=candles.data,
                 connector_name=connector_name,
@@ -161,7 +143,7 @@ class MarketScreenerTask(BaseTask):
             screener_metrics.update(interval_screener_metrics)
             screener_metrics = {key: json.dumps(value) if isinstance(value, dict) else value for key, value in screener_metrics.items()}
 
-            await self.ts_client.append_screener_metrics(screener_metrics)
+            await self.timescale_client.append_screener_metrics(screener_metrics)
 
         except (ValueError, TypeError) as e:
             logging.exception(f"{self.now()} - Error calculating metrics for {trading_pair}\n {e}")
@@ -174,7 +156,7 @@ class MarketScreenerTask(BaseTask):
         for selected_interval in self.intervals:
             mapped_interval = self.interval_mapping[selected_interval]
             try:
-                candles = await self.ts_client.get_candles(connector_name, trading_pair, interval=selected_interval)
+                candles = await self.timescale_client.get_candles(connector_name, trading_pair, interval=selected_interval)
                 interval_screener_metrics[mapped_interval] = self.calculate_interval_screener_metrics(candles.data)
             except Exception as e:
                 logging.exception(
@@ -251,15 +233,6 @@ async def main():
     """Standalone execution for testing."""
     from core.tasks.base import TaskConfig, ScheduleConfig
     
-    # Build TimescaleDB config from environment
-    timescale_config = {
-        "host": os.getenv("TIMESCALE_HOST", "localhost"),
-        "port": int(os.getenv("TIMESCALE_PORT", "5432")),
-        "user": os.getenv("TIMESCALE_USER", "admin"),
-        "password": os.getenv("TIMESCALE_PASSWORD", "admin"),
-        "database": os.getenv("TIMESCALE_DB", "timescaledb")
-    }
-    
     # Create v2.0 TaskConfig
     config = TaskConfig(
         name="market_screener_test",
@@ -271,7 +244,9 @@ async def main():
         ),
         config={
             "intervals": ["1m", "3m", "5m", "15m", "1h"],
-            "timescale_config": timescale_config
+            "connector_name": "binance_perpetual",
+            "days_lookback": 7,
+            "use_mongodb": True  # Optional: store metrics in MongoDB
         }
     )
     
