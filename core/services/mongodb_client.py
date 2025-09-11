@@ -96,3 +96,14 @@ class MongoClient:
         except Exception as e:
             logging.error(f"Error deleting documents from {collection_name}: {str(e)}")
             raise
+    
+    def get_database(self, db_name: Optional[str] = None):
+        """Get a database by name or return the default database."""
+        if db_name:
+            return self.client[db_name]
+        return self.db
+    
+    def get_collection(self, db_name: str, collection_name: str):
+        """Get a collection from a specific database."""
+        db = self.client[db_name] if db_name else self.db
+        return db[collection_name]
