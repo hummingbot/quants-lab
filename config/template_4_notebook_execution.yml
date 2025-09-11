@@ -1,0 +1,64 @@
+# Template 4: Jupyter Notebook Execution Pipeline
+# Runs different notebooks with various frequencies for data analysis and research
+
+tasks:
+  # Daily: Market data ETL notebook
+  daily_market_etl:
+    enabled: true
+    task_class: notebook
+    
+#    schedule:
+#      type: cron
+#      cron: "0 6 * * *"  # 6:00 AM UTC daily
+#      timezone: UTC
+    schedule:
+      type: frequency
+      frequency_hours: 6.0  # Every 6 hours
+      timezone: UTC
+
+    max_retries: 2
+    retry_delay_seconds: 300
+    timeout_seconds: 1800  # 30 minutes
+    
+    dependencies: []
+    
+    config:
+      notebooks:
+        - path: "market_data_etl/download_specific_candles.ipynb"
+          parameters:
+            CONNECTOR_NAME: "binance_perpetual"
+            TRADING_PAIRS: ["BTC-USDT", "ETH-USDT", "SOL-USDT"]
+            DAYS: 7
+        - path: "screeners/volume_volatility.ipynb"
+          parameters:
+            CONNECTOR_NAME: "binance_perpetual"
+            QUOTE_ASSET: "USDT"
+            INTERVAL: "1m"
+            VOLATILITY_WINDOW: 20
+            VOLUME_SHORT_WINDOW: 60
+            VOLUME_LONG_WINDOW: 500
+            FETCH_CANDLES: false
+            DAYS: 15
+            BATCH_CANDLES_REQUEST: 2
+            SLEEP_REQUEST: 2.0
+            VOLUME_QUANTILE: 0.5
+            NATR_QUANTILE: 0.5
+            TOP_X_MARKETS: 20
+      
+      output_dir: "app/outputs/daily_etl"
+      save_outputs: true
+      extract_results: true
+      kernel_name: "python3"
+      timeout: "30m"
+      execution: "sequential"  # Run notebooks one after another
+      
+      # Notification settings
+      notification:
+        on_completion: true
+        on_error: true
+        telegram_chat_ids: []  # Use default
+    
+    tags:
+      - notebook
+      - etl
+      - daily

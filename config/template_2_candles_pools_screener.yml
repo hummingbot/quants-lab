@@ -1,0 +1,134 @@
+# Template 2: Candles + Solana Pools → Volume Volatility Screener Pipeline
+#
+# EXECUTION FLOW:
+# 1. candles_downloader runs every 2 hours (schedule-based)
+# 2. solana_pools_screener runs every 1 hour (schedule-based, independent)  
+# 3. volume_volatility_screener runs 3 minutes after candles_downloader completes (dependency-based)
+#
+# RESULT: Candles + volume/volatility analysis every 2 hours, pools data every hour
+
+tasks:
+  # Step 1: Download and cache candles data
+  candles_downloader:
+    enabled: true
+    task_class: app.tasks.data_collection.candles_downloader_task.CandlesDownloaderTask
+    
+    schedule:
+      type: frequency
+      frequency_hours: 2.0  # Every 2 hours
+      timezone: UTC
+      
+    max_retries: 3
+    retry_delay_seconds: 180
+    timeout_seconds: 2400
+    
+    dependencies: []
+    
+    config:
+      connector_name: "binance_perpetual"
+      quote_asset: "USDT"
+      intervals: ["15m", "1h"]
+      days_data_retention: 14  # 2 weeks of data
+      min_notional_size: 10
+    
+    tags:
+      - data_collection
+      - candles
+      - binance
+
+  # Step 2: Download Solana pools data (runs independently)
+  solana_pools_screener:
+    enabled: true
+    task_class: app.tasks.data_collection.pools_screener.PoolsScreenerTask
+    
+    schedule:
+      type: frequency
+      frequency_hours: 1.0  # Every hour
+      timezone: UTC
+      
+    max_retries: 3
+    retry_delay_seconds: 300
+    timeout_seconds: 1800
+    
+    dependencies: []
+    
+    config:
+      mongo_config:
+        uri: "${MONGO_URI}"
+        db: "strategies"
+        collection: "solana_pools"
+      
+      network: "solana"
+      quote_asset: "SOL"
+      min_pool_age_days: 1
+      min_fdv: 50000
+      max_fdv: 10000000
+      min_volume_24h: 100000
+      min_liquidity: 30000
+      min_transactions_24h: 200
+    
+    tags:
+      - data_collection
+      - pools
+      - solana
+
+  # Step 3: Run volume volatility screener after candles are ready
+  # NOTE: This task is ONLY triggered by dependency (not by schedule)
+  # It runs every time candles_downloader completes (every 2 hours)
+  volume_volatility_screener:
+    enabled: true
+    task_class: app.tasks.screeners.volume_volatility_screener_task.VolumeVolatilityScreenerTask
+      
+    max_retries: 2
+    retry_delay_seconds: 240
+    timeout_seconds: 1800
+    
+    # Dependency: Wait for candles data to be available
+    # This task will run 3 minutes after candles_downloader completes
+    dependencies:
+      - task_name: "candles_downloader"
+        on_completion: true
+        delay_seconds: 180  # 3 minute delay
+    
+    config:
+      connector_name: "binance_perpetual"
+      quote_asset: "USDT"
+      interval: "15m"
+      
+      # Technical analysis parameters
+      volatility_window: 20
+      volume_short_window: 60
+      volume_long_window: 600
+      
+      # Data configuration  
+      days: 15
+      batch_candles_request: 2
+      sleep_request: 2.0
+      
+      # Filtering parameters
+      volume_quantile: 0.5    # Markets above 50th percentile in volume
+      natr_quantile: 0.5      # Markets above 50th percentile in volatility
+      top_x_markets: 20       # Number of top markets to analyze
+      
+      # MongoDB storage for screener results
+      mongo_config:
+        uri: "${MONGO_URI}"
+        db: "strategies"
+        collection: "volume_volatility_screener"
+      
+      # Telegram notification settings
+      notification:
+        enabled: true
+        telegram_chat_ids: []  # Use default from .env
+        min_score_threshold: 0.3  # Only notify if normalized score > 0.3
+        top_results_count: 5      # Send top 5 results
+    
+    tags:
+      - screener
+      - volume_volatility
+      - momentum
+
+# Environment variables required
+# - MONGO_URI (for storing pools and screener results)
+# - TELEGRAM_BOT_TOKEN (for notifications)
+# - TELEGRAM_CHAT_ID (for notifications)

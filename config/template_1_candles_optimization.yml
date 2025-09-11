@@ -1,0 +1,82 @@
+# Template 1: Candles Download → Optimization Pipeline
+# 
+# EXECUTION FLOW:
+# 1. candles_downloader runs every 6 hours (schedule-based)
+# 2. macd_bb_optimization runs 5 minutes after candles_downloader completes (dependency-based)
+# 
+# RESULT: Optimization runs every 6 hours, triggered by fresh candle data
+
+tasks:
+  # Step 1: Download and cache candles data
+  candles_downloader:
+    enabled: true
+    task_class: app.tasks.data_collection.candles_downloader_task.CandlesDownloaderTask
+    
+    schedule:
+      type: frequency
+      frequency_hours: 6.0  # Every 6 hours
+      timezone: UTC
+      
+    max_retries: 3
+    retry_delay_seconds: 180
+    timeout_seconds: 3600
+    
+    dependencies: []
+    
+    config:
+      connector_name: "binance_perpetual"
+      quote_asset: "USDT"
+      intervals: ["1d"]
+      days_data_retention: 30
+      min_notional_size: 10
+    
+    tags:
+      - data_collection
+      - candles
+      - binance
+
+  # Step 2: Run MACD BB optimization study after candles are downloaded
+  # NOTE: This task is ONLY triggered by dependency (not by schedule)
+  # It runs every time candles_downloader completes (every 6 hours)
+  macd_bb_optimization:
+    enabled: true
+    task_class: app.tasks.backtesting.macd_bb_backtesting_task.MACDBBBacktestingTask
+      
+    max_retries: 1
+    retry_delay_seconds: 600
+    timeout_seconds: 7200  # 2 hours for optimization
+    
+    # Dependency: Wait for candles to be downloaded
+    # This task will run 5 minutes after candles_downloader completes
+    dependencies:
+      - task_name: "candles_downloader"
+        on_completion: true
+        delay_seconds: 300  # 5 minute delay
+    
+    config:
+      # Backtesting configuration for multiple pairs
+      selected_pairs: 
+        - "BTC-USDT"
+#        - "ETH-USDT"
+#        - "SOL-USDT"
+#        - "BNB-USDT"
+#        - "ADA-USDT"
+#        - "AVAX-USDT"
+#        - "MATIC-USDT"
+#        - "DOT-USDT"
+#        - "LINK-USDT"
+#        - "UNI-USDT"
+      
+      connector_name: "binance_perpetual"
+      resolution: "15m"
+      lookback_days: 30
+      end_time_buffer_hours: 6
+      
+      # Optimization configuration
+      n_trials: 50  # Reasonable number for regular runs
+      study_name: "macd_bb_multi_pair_optimization"
+    
+    tags:
+      - backtesting
+      - optimization
+      - macd_bb
