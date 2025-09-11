@@ -6,8 +6,6 @@ import asyncio
 import argparse
 import sys
 import os
-from pathlib import Path
-from typing import Optional
 
 from core.tasks.runner import TaskRunner
 from core.tasks.base import TaskConfig
@@ -133,8 +131,8 @@ async def trigger_task(task_name: str, config_path: str, timeout: int):
         
         # Setup storage and orchestrator
         storage_config = runner._get_storage_config()
-        from core.tasks.storage import TimescaleDBTaskStorage
-        storage = TimescaleDBTaskStorage(storage_config)
+        from core.tasks.storage import MongoDBTaskStorage
+        storage = MongoDBTaskStorage(storage_config)
         
         from core.tasks.orchestrator import TaskOrchestrator
         max_concurrent = runner.config.get("max_concurrent_tasks", 10)
