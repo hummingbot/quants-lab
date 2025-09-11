@@ -139,11 +139,19 @@ stop-task:
 
 # Launch Optuna Dashboard
 launch-optuna:
-	python -c "from core.backtesting.optimizer import StrategyOptimizer; optimizer = StrategyOptimizer(); optimizer.launch_optuna_dashboard()"
+	python -c "from core.backtesting.optimizer import StrategyOptimizer; optimizer = StrategyOptimizer(skip_initialization=True); optimizer.launch_optuna_dashboard()"
 
 # Kill Optuna Dashboard
 kill-optuna:
-	python -c "from core.backtesting.optimizer import StrategyOptimizer; optimizer = StrategyOptimizer(); optimizer.kill_optuna_dashboard()"
+	python -c "from core.backtesting.optimizer import StrategyOptimizer; optimizer = StrategyOptimizer(skip_initialization=True); optimizer.kill_optuna_dashboard()"
+
+# Clean up stale task states in MongoDB
+cleanup-tasks:
+	python scripts/cleanup_tasks.py
+
+# List current task states
+list-task-states:
+	python scripts/cleanup_tasks.py --list
 
 # Help target
 help:
@@ -168,6 +176,8 @@ help:
 	@echo "🗄️ Database Commands:"
 	@echo "  make run-db                                    Start database containers"
 	@echo "  make stop-db                                   Stop database containers"
+	@echo "  make cleanup-tasks                             Clean up stale task states"
+	@echo "  make list-task-states                          List current task states"
 	@echo ""
 	@echo "📊 Optimization Commands:"
 	@echo "  make launch-optuna                             Launch Optuna dashboard"
