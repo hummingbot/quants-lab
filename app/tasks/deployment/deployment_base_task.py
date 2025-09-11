@@ -10,7 +10,6 @@ from dotenv import load_dotenv
 
 from core.task_base import BaseTask
 from core.data_sources.clob import CLOBDataSource
-from core.services.mongodb_client import MongoClient
 from core.services.backend_api_client import BackendAPIClient
 from app.tasks.deployment.models import ConfigCandidate
 
@@ -37,7 +36,6 @@ class DeploymentBaseTask(BaseTask):
     def __init__(self, name: str, frequency: timedelta, config: Dict[str, Any]):
         super().__init__(name=name, frequency=frequency, config=config)
         self.backend_api_client = BackendAPIClient(self.config["backend_api_server"])
-        self.mongo_client = MongoClient(self.config["mongo_uri"], database="quants_lab")
         self.root_path = "../../.."
         self.clob = CLOBDataSource()
         self.connector_name = self.config.get("connector_name", "binance_perpetual")
@@ -54,7 +52,6 @@ class DeploymentBaseTask(BaseTask):
 
     async def initialize(self):
         """Initialize connections and resources."""
-        await self.mongo_client.connect()
         self.connector_instance = self.clob.get_connector(self.connector_name)
         await self.connector_instance._update_trading_rules()
         await self._update_exchange_info()
@@ -384,12 +381,7 @@ class DeploymentBaseTask(BaseTask):
 
 async def main():
     connector_name = "binance_perpetual"
-    mongo_uri = (
-        f"mongodb://{os.getenv('MONGO_INITDB_ROOT_USERNAME', 'admin')}:"
-        f"{os.getenv('MONGO_INITDB_ROOT_PASSWORD', 'admin')}@"
-        f"{os.getenv('MONGO_HOST', 'localhost')}:"
-        f"{os.getenv('MONGO_PORT', '27017')}/"
-    )
+    mongo_uri = os.getenv('MONGO_URI', 'mongodb://admin:admin@localhost:27017/quants_lab?authSource=admin&retryWrites=true&w=majority')
     task_config = {
         "connector_name": connector_name,
         "mongo_uri": mongo_uri,

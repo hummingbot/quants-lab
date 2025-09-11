@@ -17,7 +17,6 @@ from dtaidistance import dtw
 
 from core.data_sources import CLOBDataSource
 from core.data_structures.candles import Candles
-from core.services.mongodb_client import MongoClient
 from core.task_base import BaseTask
 
 logging.getLogger("asyncio").setLevel(logging.CRITICAL)
@@ -29,18 +28,16 @@ load_dotenv()
 class CointegrationV2Task(BaseTask):
     def __init__(self, name: str, frequency: timedelta, config: Dict[str, Any]):
         super().__init__(name=name, frequency=frequency, config=config)
-        self.mongo_client = MongoClient(self.config.get("mongo_uri"))
         self.root_path = "../../.."
         self.clob = CLOBDataSource()
 
     async def initialize(self):
         """Initialize connections and resources."""
         self.reset_metadata()
-        await self.mongo_client.connect()
 
     async def cleanup(self):
         """Cleanup resources."""
-        await self.mongo_client.disconnect()
+        pass
 
     async def execute(self):
         """Main task execution logic."""
@@ -121,10 +118,9 @@ class CointegrationV2Task(BaseTask):
             self.logs.append(f"{self.now()} - Found {len(cointegration_results)} cointegrated pairs.")
 
             if len(cointegration_results) > 0:
-                await self.mongo_client.insert_documents(collection_name="cointegration_results_v2",
-                                                         db_name="quants_lab",
-                                                         documents=cointegration_results,
-                                                         index=[("base", 1), ("quote", 1)])
+                await self.mongodb_client.insert_documents(collection_name="cointegration_results_v2",
+                                                           documents=cointegration_results,
+                                                           index=[("base", 1), ("quote", 1)])
                 logging_msg = f"{self.now()} - Successfully added {len(cointegration_results)} cointegration records"
                 logging.info(logging_msg)
                 self.logs.append(logging_msg)

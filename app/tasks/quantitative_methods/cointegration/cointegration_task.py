@@ -17,7 +17,6 @@ from tqdm import tqdm
 
 from core.data_sources import CLOBDataSource
 from core.data_structures.candles import Candles
-from core.services.mongodb_client import MongoClient
 from core.task_base import BaseTask
 
 logging.getLogger("asyncio").setLevel(logging.CRITICAL)
@@ -27,28 +26,18 @@ load_dotenv()
 class CointegrationTask(BaseTask):
     def __init__(self, name: str, frequency: timedelta, config: Dict[str, Any]):
         super().__init__(name=name, frequency=frequency, config=config)
-        self.mongo_client = MongoClient(self.config.get("mongo_uri"))
         self.root_path = "../../.."
         self.clob = CLOBDataSource()
-
-    async def initialize(self):
-        """Initialize connections and resources."""
-        await self.mongo_client.connect()
-
-    async def cleanup(self):
-        """Cleanup resources."""
-        await self.mongo_client.disconnect()
 
     async def execute(self):
         """Main task execution logic."""
         try:
-            await self.initialize()
             candles = await self.get_candles()
             cointegration_results: List[Dict[str, Any]] = self.analyze_trading_pairs(candles)
 
-            await self.mongo_client.insert_documents(collection_name="cointegration_results",
-                                                     documents=cointegration_results,
-                                                     index=[("base", 1), ("quote", 1)])
+            await self.mongodb_client.insert_documents(collection_name="cointegration_results",
+                                                       documents=cointegration_results,
+                                                       index=[("base", 1), ("quote", 1)])
 
             logging.info(f"Successfully added {len(cointegration_results)} cointegration records")
 

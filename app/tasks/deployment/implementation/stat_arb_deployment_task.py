@@ -123,12 +123,7 @@ class StatArbDeploymentTask(DeploymentBaseTask):
 
 async def main():
     connector_name = "binance_perpetual"
-    mongo_uri = (
-        f"mongodb://{os.getenv('MONGO_INITDB_ROOT_USERNAME', 'admin')}:"
-        f"{os.getenv('MONGO_INITDB_ROOT_PASSWORD', 'admin')}@"
-        f"{os.getenv('MONGO_HOST', 'localhost')}:"
-        f"{os.getenv('MONGO_PORT', '27017')}/"
-    )
+    mongo_uri = os.getenv('MONGO_URI', 'mongodb://admin:admin@localhost:27017/quants_lab?authSource=admin&retryWrites=true&w=majority')
     task_config = {
         "connector_name": connector_name,
         "mongo_uri": mongo_uri,

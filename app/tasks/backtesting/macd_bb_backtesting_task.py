@@ -94,6 +94,9 @@ class MACDBBBacktestingTask(BaseTask):
 
     async def setup(self, context: TaskContext) -> None:
         """Setup task before execution, including validation of prerequisites."""
+        # Call parent setup to initialize database and notification services
+        await super().setup(context)
+        
         try:
             # Validate prerequisites
             if not self.connector_name:

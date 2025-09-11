@@ -129,6 +129,9 @@ class NotebookTask(BaseTask):
     
     async def setup(self, context: TaskContext) -> None:
         """Setup task before execution including validation of notebooks."""
+        # Call parent setup to initialize database and notification services
+        await super().setup(context)
+        
         logger.info(f"Setting up enhanced notebook execution for {context.task_name}")
         logger.info(f"Notebooks: {len(self.notebooks)} notebook(s)")
         logger.info(f"Execution mode: {self.execution_mode}")
@@ -261,15 +264,8 @@ class NotebookTask(BaseTask):
             output_filename = f"{input_path.stem}_{sequence_num}_{timestamp}.ipynb"
             output_path = self.output_dir / output_filename
             
-            # Execute notebook
-            loop = asyncio.get_event_loop()
-            await loop.run_in_executor(
-                None,
-                self._run_papermill,
-                str(input_path),
-                str(output_path),
-                notebook_config.parameters
-            )
+            # Execute notebook with Papermill (fixed for async context)
+            await self._run_papermill_async(str(input_path), str(output_path), notebook_config.parameters)
             
             # Prepare result
             duration = datetime.now(timezone.utc) - start_time
@@ -313,17 +309,183 @@ class NotebookTask(BaseTask):
             
             return result
     
+    async def _run_papermill_async(self, input_path: str, output_path: str, parameters: Dict[str, Any]):
+        """Execute notebook with Papermill in a way that handles async context properly."""
+        import concurrent.futures
+        
+        logger.info(f"Executing notebook with Papermill: {Path(input_path).name}")
+        
+        def run_papermill_sync():
+            """Run papermill in a separate thread to avoid async context issues."""
+            try:
+                # Import here to avoid any module-level async issues
+                import papermill as pm
+                import nest_asyncio
+                
+                # Allow nested event loops for Jupyter notebooks with async code
+                nest_asyncio.apply()
+                
+                pm.execute_notebook(
+                    input_path=input_path,
+                    output_path=output_path,
+                    parameters=parameters,
+                    kernel_name=self.kernel_name,
+                    timeout=self.timeout_per_notebook,
+                    progress_bar=False,
+                    log_output=True
+                )
+                return True
+            except Exception as e:
+                logger.error(f"Papermill execution failed: {e}")
+                raise e
+        
+        # Execute in a thread pool to avoid async context conflicts
+        loop = asyncio.get_event_loop()
+        with concurrent.futures.ThreadPoolExecutor(max_workers=1) as executor:
+            await loop.run_in_executor(executor, run_papermill_sync)
+        
+        logger.info(f"Notebook executed successfully with Papermill: {Path(output_path).name}")
+    
+    async def _run_notebook_subprocess(self, input_path: str, output_path: str, parameters: Dict[str, Any]):
+        """Execute notebook using subprocess to avoid async context issues."""
+        import subprocess
+        import sys
+        import tempfile
+        
+        logger.info(f"Executing notebook via subprocess: {Path(input_path).name}")
+        
+        # Create parameterized notebook if parameters provided
+        if parameters:
+            temp_input = self._create_parameterized_notebook(input_path, parameters)
+        else:
+            temp_input = input_path
+        
+        try:
+            # Use jupyter nbconvert for execution
+            cmd = [
+                sys.executable, "-m", "jupyter", "nbconvert",
+                "--to", "notebook",
+                "--execute",
+                f"--output={Path(output_path).name}",
+                f"--output-dir={Path(output_path).parent}",
+                f"--ExecutePreprocessor.timeout={self.timeout_per_notebook}",
+                "--ExecutePreprocessor.kernel_name=" + self.kernel_name,
+                temp_input
+            ]
+            
+            logger.debug(f"Running command: {' '.join(cmd)}")
+            
+            # Run in subprocess with proper environment
+            process = await asyncio.create_subprocess_exec(
+                *cmd,
+                stdout=asyncio.subprocess.PIPE,
+                stderr=asyncio.subprocess.PIPE,
+                env=None  # Inherit current environment
+            )
+            
+            stdout, stderr = await asyncio.wait_for(
+                process.communicate(),
+                timeout=self.timeout_per_notebook + 60  # Extra buffer for subprocess overhead
+            )
+            
+            if process.returncode != 0:
+                error_msg = stderr.decode('utf-8') if stderr else "Unknown error"
+                logger.error(f"Notebook execution failed: {error_msg}")
+                raise Exception(f"Notebook execution failed: {error_msg}")
+            
+            logger.info(f"Notebook executed successfully: {Path(output_path).name}")
+            
+        finally:
+            # Clean up temporary parameterized notebook
+            if parameters and temp_input != input_path:
+                Path(temp_input).unlink(missing_ok=True)
+    
     def _run_papermill(self, input_path: str, output_path: str, parameters: Dict[str, Any]):
         """Run papermill synchronously (for executor)."""
-        pm.execute_notebook(
-            input_path=input_path,
-            output_path=output_path,
-            parameters=parameters,
-            kernel_name=self.kernel_name,
-            timeout=self.timeout_per_notebook,
-            progress_bar=False,
-            log_output=True
-        )
+        try:
+            pm.execute_notebook(
+                input_path=input_path,
+                output_path=output_path,
+                parameters=parameters,
+                kernel_name=self.kernel_name,
+                timeout=self.timeout_per_notebook,
+                progress_bar=False,
+                log_output=True
+            )
+        except Exception as e:
+            # Check if it's an async-related error
+            if "cannot enter context" in str(e) or "RuntimeError" in str(e):
+                logger.warning(f"Async context error detected, retrying with kernel restart")
+                # Try to execute with fresh kernel environment
+                import subprocess
+                import sys
+                
+                # Use jupyter nbconvert as a fallback for async notebooks
+                cmd = [
+                    sys.executable, "-m", "jupyter", "nbconvert",
+                    "--to", "notebook",
+                    "--execute",
+                    f"--output={Path(output_path).name}",
+                    f"--output-dir={Path(output_path).parent}",
+                    "--ExecutePreprocessor.timeout={}".format(self.timeout_per_notebook),
+                    input_path
+                ]
+                
+                # Add parameters by creating a temporary notebook with injected parameters
+                if parameters:
+                    # Create temporary parameterized notebook
+                    temp_nb = self._create_parameterized_notebook(input_path, parameters)
+                    result = subprocess.run(cmd[:-1] + [temp_nb], 
+                                          capture_output=True, text=True, 
+                                          timeout=self.timeout_per_notebook + 30)
+                    # Clean up temp file
+                    Path(temp_nb).unlink(missing_ok=True)
+                else:
+                    result = subprocess.run(cmd, capture_output=True, text=True,
+                                          timeout=self.timeout_per_notebook + 30)
+                
+                if result.returncode != 0:
+                    raise Exception(f"Jupyter nbconvert failed: {result.stderr}")
+            else:
+                raise e
+    
+    def _create_parameterized_notebook(self, input_path: str, parameters: Dict[str, Any]) -> str:
+        """Create a temporary notebook with parameters injected."""
+        import nbformat
+        import tempfile
+        
+        # Read the original notebook
+        with open(input_path, 'r') as f:
+            nb = nbformat.read(f, as_version=4)
+        
+        # Find the parameters cell and update it
+        for cell in nb.cells:
+            if cell.cell_type == 'code' and 'parameters' in cell.get('metadata', {}).get('tags', []):
+                # Inject parameters into the cell source
+                param_lines = []
+                for key, value in parameters.items():
+                    if isinstance(value, str):
+                        param_lines.append(f'{key} = "{value}"')
+                    elif isinstance(value, list):
+                        param_lines.append(f'{key} = {repr(value)}')
+                    else:
+                        param_lines.append(f'{key} = {value}')
+                
+                # Prepend parameters to existing cell content
+                cell.source = '\n'.join(param_lines) + '\n\n' + cell.source
+                break
+        
+        # Save to temporary file
+        temp_fd, temp_path = tempfile.mkstemp(suffix='.ipynb')
+        try:
+            with open(temp_fd, 'w') as f:
+                nbformat.write(nb, f)
+        except:
+            import os
+            os.close(temp_fd)
+            raise
+        
+        return temp_path
     
     async def _extract_results(self, notebook_path: Path, output_file: Path) -> bool:
         """Extract results from executed notebook."""

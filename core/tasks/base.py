@@ -160,8 +160,9 @@ class BaseTask(ABC):
         self._is_running = False
         self._lock = asyncio.Lock()
         
-        # Database clients (will be initialized if needed)
+        # Database and notification services (initialized in setup)
         self.mongodb_client = None
+        self.notification_manager = None
         
     @abstractmethod
     async def execute(self, context: TaskContext) -> Dict[str, Any]:
@@ -187,19 +188,34 @@ class BaseTask(ABC):
         Raises:
             RuntimeError: If prerequisites are not met
         """
-        # Initialize databases if requested in task config
-        task_config = self.config.config
-        
-        if task_config.get('use_mongodb', False):
-            await self._init_mongodb()
+        # Always initialize database and notification services
+        await self._init_services()
 
-    async def _init_mongodb(self) -> None:
-        """Initialize MongoDB client."""
+    async def _init_services(self) -> None:
+        """Initialize database and notification services."""
+        # Initialize MongoDB client (always available)
         try:
             from core.database_manager import db_manager
             self.mongodb_client = await db_manager.get_mongodb_client()
+            if self.mongodb_client:
+                logger.debug(f"MongoDB client initialized for task {self.config.name}")
         except Exception as e:
-            logger.warning(f"Failed to initialize MongoDB: {e}")
+            logger.warning(f"Failed to initialize MongoDB for task {self.config.name}: {e}")
+            # Don't fail the task, services are optional
+        
+        # Initialize notification manager (always available)
+        try:
+            from core.notifiers.manager import get_notification_manager
+            self.notification_manager = get_notification_manager()
+            if self.notification_manager:
+                enabled_notifiers = self.notification_manager.get_enabled_notifiers()
+                if enabled_notifiers:
+                    logger.debug(f"Notification manager initialized for task {self.config.name} with notifiers: {enabled_notifiers}")
+                else:
+                    logger.debug(f"Notification manager initialized for task {self.config.name} but no notifiers are enabled")
+        except Exception as e:
+            logger.warning(f"Failed to initialize notification manager for task {self.config.name}: {e}")
+            # Don't fail the task, services are optional
 
     async def cleanup(self, context: TaskContext, result: TaskResult) -> None:
         """

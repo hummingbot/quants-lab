@@ -5,7 +5,6 @@ import logging
 from abc import ABC, abstractmethod
 from datetime import datetime, timedelta
 from typing import Dict, Any, List, Optional
-import json
 
 from motor.motor_asyncio import AsyncIOMotorClient, AsyncIOMotorDatabase
 from pydantic import BaseModel, Field
@@ -74,8 +73,7 @@ class TaskStorage(ABC):
 class MongoDBTaskStorage(TaskStorage):
     """MongoDB implementation of task storage."""
     
-    def __init__(self, config: Dict[str, Any]):
-        self.config = config
+    def __init__(self):
         self.client: Optional[AsyncIOMotorClient] = None
         self.db: Optional[AsyncIOMotorDatabase] = None
         self.executions_collection = None
@@ -83,19 +81,26 @@ class MongoDBTaskStorage(TaskStorage):
         
     async def initialize(self) -> None:
         """Initialize MongoDB connection and create indexes."""
-        # Create MongoDB client - try without auth first, fallback to auth if needed
-        host = self.config.get('host', 'localhost')
-        port = self.config.get('port', 27017)
-        database = self.config.get('database', 'quants_lab')
+        from core.database_manager import db_manager
+        import os
         
-        # First try simple connection without auth
-        connection_string = self.config.get(
-            "connection_string",
-            f"mongodb://{host}:{port}/{database}"
-        )
+        # Use centralized database manager
+        mongodb_client = await db_manager.get_mongodb_client()
+        if mongodb_client is None:
+            raise RuntimeError("Failed to get MongoDB client from database manager. Please ensure MONGO_URI is set in environment variables.")
         
-        self.client = AsyncIOMotorClient(connection_string)
-        self.db = self.client[self.config.get("database", "quants_lab")]
+        # Get database name from environment
+        database = os.getenv('MONGO_DATABASE', 'quants_lab')
+        
+        # Debug logging for MongoDB connection
+        logger.info("=== MongoDB Storage Initialization ===")
+        logger.info(f"Using centralized database manager")
+        logger.info(f"Database: {database}")
+        logger.info("=======================================")
+        
+        # Use the centralized client and get database
+        self.client = mongodb_client.client  # Access underlying AsyncIOMotorClient
+        self.db = mongodb_client.get_database(database)
         
         # Get collections
         self.executions_collection = self.db["task_executions"]
@@ -122,8 +127,10 @@ class MongoDBTaskStorage(TaskStorage):
     
     async def close(self) -> None:
         """Close MongoDB connection."""
-        if self.client:
-            self.client.close()
+        # Don't close the shared connection from database_manager
+        # The database_manager handles its own lifecycle
+        self.client = None
+        self.db = None
     
     async def save_execution(self, result: TaskResult, context: TaskContext) -> None:
         """Save task execution result to MongoDB."""

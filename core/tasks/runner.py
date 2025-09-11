@@ -29,8 +29,6 @@ class TaskRunner:
     """
     
     def __init__(self, config_path: str = "config/tasks.yml", enable_api: bool = None):
-        load_dotenv()
-        
         self.config_path = config_path
         self.orchestrator: Optional[TaskOrchestrator] = None
         self.api_server: Optional[uvicorn.Server] = None
@@ -73,22 +71,19 @@ class TaskRunner:
         signal.signal(signal.SIGINT, signal_handler)
         signal.signal(signal.SIGTERM, signal_handler)
     
-    def _get_storage_config(self) -> Dict[str, Any]:
-        """Get storage configuration from environment and config."""
-        # MongoDB configuration
-        storage_config = {
-            "host": os.getenv("MONGODB_HOST", "localhost"),
-            "port": int(os.getenv("MONGODB_PORT", "27017")),
-            "user": os.getenv("MONGODB_USER", "admin"),
-            "password": os.getenv("MONGODB_PASSWORD", "admin"),
-            "database": os.getenv("MONGODB_DB", "quants_lab")
-        }
+    def _check_mongodb_configured(self) -> None:
+        """Check if MongoDB is configured in environment."""
+        mongo_uri = os.getenv("MONGO_URI")
+        mongo_database = os.getenv("MONGO_DATABASE", "quants_lab")
         
-        # Override with config file values if present
-        if "storage" in self.config:
-            storage_config.update(self.config["storage"])
+        # Debug logging to check environment variables
+        logger.info("=== MongoDB Environment Check ===")
+        logger.info(f"MONGO_URI: {'Configured' if mongo_uri else 'Not configured'}")
+        logger.info(f"MONGO_DATABASE: {mongo_database}")
+        logger.info("=================================")
         
-        return storage_config
+        if not mongo_uri:
+            logger.warning("MONGO_URI not set in environment. Storage will not be available.")
     
     def _create_task_config(self, task_name: str, task_data: Dict[str, Any]) -> TaskConfig:
         """Create TaskConfig from configuration data."""
@@ -137,20 +132,6 @@ class TaskRunner:
     def _create_task_instance(self, config: TaskConfig) -> BaseTask:
         """Create task instance from configuration."""
         task_class = self._import_task_class(config.task_class)
-        
-        # Add common configuration
-        common_config = {
-            "timescale_config": self._get_storage_config(),
-            "mongo_config": {
-                "uri": os.getenv("MONGO_URI"),
-                "db": os.getenv("MONGO_DB")
-            }
-        }
-        
-        # Merge with task-specific config
-        config.config.update(common_config)
-        
-        # Create task instance
         return task_class(config)
     
     async def _initialize_tasks(self) -> List[BaseTask]:
@@ -212,9 +193,11 @@ class TaskRunner:
         logger.info("Starting QuantsLab Task Runner v2.0")
         
         try:
-            # Initialize storage
-            storage_config = self._get_storage_config()
-            storage = MongoDBTaskStorage(storage_config)
+            # Check MongoDB configuration
+            self._check_mongodb_configured()
+            
+            # Initialize storage (no config needed, uses db_manager)
+            storage = MongoDBTaskStorage()
             
             # Create orchestrator
             max_concurrent = self.config.get("max_concurrent_tasks", 10)
