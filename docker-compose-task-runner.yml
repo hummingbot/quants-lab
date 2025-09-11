@@ -12,7 +12,6 @@ services:
     env_file:
       - .env
     network_mode: host
-    command: conda run --no-capture-output -n quants-lab python3 run_tasks.py --config ${TASK_CONFIG:-config/template_1_candles_optimization.yml}
     deploy:
       restart_policy:
         condition: on-failure
