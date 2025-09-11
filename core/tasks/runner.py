@@ -14,8 +14,8 @@ import uvicorn
 import yaml
 from dotenv import load_dotenv
 
+from core.tasks import MongoDBTaskStorage
 from core.tasks.base import BaseTask, TaskConfig, ScheduleConfig
-from core.tasks.storage import TimescaleDBTaskStorage
 from core.tasks.orchestrator import TaskOrchestrator
 from core.tasks.api import app, set_orchestrator
 
@@ -75,13 +75,13 @@ class TaskRunner:
     
     def _get_storage_config(self) -> Dict[str, Any]:
         """Get storage configuration from environment and config."""
-        # TimescaleDB configuration
+        # MongoDB configuration
         storage_config = {
-            "host": os.getenv("TIMESCALE_HOST", "localhost"),
-            "port": int(os.getenv("TIMESCALE_PORT", "5432")),
-            "user": os.getenv("TIMESCALE_USER", "admin"),
-            "password": os.getenv("TIMESCALE_PASSWORD", "admin"),
-            "database": os.getenv("TIMESCALE_DB", "timescaledb")
+            "host": os.getenv("MONGODB_HOST", "localhost"),
+            "port": int(os.getenv("MONGODB_PORT", "27017")),
+            "user": os.getenv("MONGODB_USER", "admin"),
+            "password": os.getenv("MONGODB_PASSWORD", "admin"),
+            "database": os.getenv("MONGODB_DB", "quants_lab")
         }
         
         # Override with config file values if present
@@ -110,7 +110,6 @@ class TaskRunner:
             enabled=task_data.get("enabled", True),
             task_class=task_data["task_class"],
             schedule=schedule,
-            priority=task_data.get("priority", 3),  # Default to NORMAL
             max_retries=task_data.get("max_retries", 3),
             retry_delay_seconds=task_data.get("retry_delay_seconds", 60),
             timeout_seconds=task_data.get("timeout_seconds"),
@@ -215,7 +214,7 @@ class TaskRunner:
         try:
             # Initialize storage
             storage_config = self._get_storage_config()
-            storage = TimescaleDBTaskStorage(storage_config)
+            storage = MongoDBTaskStorage(storage_config)
             
             # Create orchestrator
             max_concurrent = self.config.get("max_concurrent_tasks", 10)

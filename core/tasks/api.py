@@ -10,7 +10,7 @@ from fastapi.responses import JSONResponse
 from pydantic import BaseModel, Field
 
 from core.tasks.orchestrator import TaskOrchestrator
-from core.tasks.base import TaskStatus, TaskPriority, TaskContext
+from core.tasks.base import TaskStatus, TaskContext
 import uuid
 
 logger = logging.getLogger(__name__)

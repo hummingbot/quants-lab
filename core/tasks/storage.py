@@ -1,18 +1,17 @@
 """
-TimescaleDB Storage Implementation for Task Management System.
+MongoDB Storage Implementation for Task Management System.
 """
 import logging
 from abc import ABC, abstractmethod
 from datetime import datetime, timedelta
 from typing import Dict, Any, List, Optional
-import asyncio
 import json
 
-import asyncpg
-from asyncpg.pool import Pool
+from motor.motor_asyncio import AsyncIOMotorClient, AsyncIOMotorDatabase
 from pydantic import BaseModel, Field
+from pymongo import DESCENDING, ASCENDING
 
-from core.tasks.base import TaskResult, TaskStatus, TaskContext, TaskConfig
+from core.tasks.base import TaskResult, TaskStatus, TaskContext
 
 logger = logging.getLogger(__name__)
 
@@ -33,6 +32,7 @@ class TaskExecutionRecord(BaseModel):
     error_traceback: Optional[str] = None
     metrics: Dict[str, Any] = Field(default_factory=dict)
     metadata: Dict[str, Any] = Field(default_factory=dict)
+    created_at: datetime = Field(default_factory=datetime.utcnow)
 
 
 class TaskStorage(ABC):
@@ -71,237 +71,141 @@ class TaskStorage(ABC):
         pass
 
 
-class TimescaleDBTaskStorage(TaskStorage):
-    """TimescaleDB implementation of task storage."""
+class MongoDBTaskStorage(TaskStorage):
+    """MongoDB implementation of task storage."""
     
     def __init__(self, config: Dict[str, Any]):
         self.config = config
-        self.pool: Optional[Pool] = None
+        self.client: Optional[AsyncIOMotorClient] = None
+        self.db: Optional[AsyncIOMotorDatabase] = None
+        self.executions_collection = None
+        self.schedules_collection = None
         
     async def initialize(self) -> None:
-        """Initialize TimescaleDB connection pool and create tables."""
-        # Create connection pool
-        self.pool = await asyncpg.create_pool(
-            host=self.config.get("host", "localhost"),
-            port=self.config.get("port", 5432),
-            user=self.config.get("user", "admin"),
-            password=self.config.get("password", "admin"),
-            database=self.config.get("database", "timescaledb"),
-            min_size=2,
-            max_size=10
+        """Initialize MongoDB connection and create indexes."""
+        # Create MongoDB client - try without auth first, fallback to auth if needed
+        host = self.config.get('host', 'localhost')
+        port = self.config.get('port', 27017)
+        database = self.config.get('database', 'quants_lab')
+        
+        # First try simple connection without auth
+        connection_string = self.config.get(
+            "connection_string",
+            f"mongodb://{host}:{port}/{database}"
         )
         
-        # Create tables and hypertables
-        async with self.pool.acquire() as conn:
-            # Create TimescaleDB extension if not exists
-            await conn.execute("CREATE EXTENSION IF NOT EXISTS timescaledb CASCADE;")
-            
-            # Create task_executions table
-            await conn.execute("""
-                CREATE TABLE IF NOT EXISTS task_executions (
-                    execution_id TEXT PRIMARY KEY,
-                    task_name TEXT NOT NULL,
-                    status TEXT NOT NULL,
-                    started_at TIMESTAMPTZ NOT NULL,
-                    completed_at TIMESTAMPTZ,
-                    duration_seconds DOUBLE PRECISION,
-                    triggered_by TEXT NOT NULL,
-                    attempt_number INTEGER NOT NULL,
-                    parent_execution_id TEXT,
-                    result_data JSONB,
-                    error_message TEXT,
-                    error_traceback TEXT,
-                    metrics JSONB,
-                    metadata JSONB,
-                    created_at TIMESTAMPTZ DEFAULT NOW()
-                );
-            """)
-            
-            # Create hypertable for time-series data
-            await conn.execute("""
-                SELECT create_hypertable('task_executions', 'started_at',
-                    if_not_exists => TRUE,
-                    chunk_time_interval => INTERVAL '1 day'
-                );
-            """)
-            
-            # Create indexes
-            await conn.execute("""
-                CREATE INDEX IF NOT EXISTS idx_task_executions_task_name 
-                ON task_executions (task_name, started_at DESC);
-            """)
-            
-            await conn.execute("""
-                CREATE INDEX IF NOT EXISTS idx_task_executions_status 
-                ON task_executions (status, started_at DESC);
-            """)
-            
-            await conn.execute("""
-                CREATE INDEX IF NOT EXISTS idx_task_executions_parent 
-                ON task_executions (parent_execution_id) 
-                WHERE parent_execution_id IS NOT NULL;
-            """)
-            
-            # Create task_schedules table for tracking last runs
-            await conn.execute("""
-                CREATE TABLE IF NOT EXISTS task_schedules (
-                    task_name TEXT PRIMARY KEY,
-                    last_run TIMESTAMPTZ,
-                    next_run TIMESTAMPTZ,
-                    is_running BOOLEAN DEFAULT FALSE,
-                    current_execution_id TEXT,
-                    run_count INTEGER DEFAULT 0,
-                    success_count INTEGER DEFAULT 0,
-                    failure_count INTEGER DEFAULT 0,
-                    average_duration_seconds DOUBLE PRECISION,
-                    updated_at TIMESTAMPTZ DEFAULT NOW()
-                );
-            """)
-            
-            # Create compression policy (compress data older than 1 day)
-            await conn.execute("""
-                SELECT add_compression_policy('task_executions', 
-                    INTERVAL '1 day',
-                    if_not_exists => TRUE
-                );
-            """)
-            
-            # Create retention policy (drop data older than 90 days)
-            await conn.execute("""
-                SELECT add_retention_policy('task_executions', 
-                    INTERVAL '90 days',
-                    if_not_exists => TRUE
-                );
-            """)
-            
-            # Create continuous aggregate for hourly stats
-            await conn.execute("""
-                CREATE MATERIALIZED VIEW IF NOT EXISTS task_hourly_stats
-                WITH (timescaledb.continuous) AS
-                SELECT
-                    time_bucket('1 hour', started_at) AS hour,
-                    task_name,
-                    COUNT(*) as execution_count,
-                    COUNT(*) FILTER (WHERE status = 'completed') as success_count,
-                    COUNT(*) FILTER (WHERE status = 'failed') as failure_count,
-                    AVG(duration_seconds) as avg_duration,
-                    PERCENTILE_CONT(0.5) WITHIN GROUP (ORDER BY duration_seconds) as median_duration,
-                    PERCENTILE_CONT(0.95) WITHIN GROUP (ORDER BY duration_seconds) as p95_duration,
-                    MAX(duration_seconds) as max_duration,
-                    MIN(duration_seconds) as min_duration
-                FROM task_executions
-                GROUP BY hour, task_name
-                WITH NO DATA;
-            """)
-            
-            # Refresh policy for continuous aggregate
-            await conn.execute("""
-                SELECT add_continuous_aggregate_policy('task_hourly_stats',
-                    start_offset => INTERVAL '3 hours',
-                    end_offset => INTERVAL '1 hour',
-                    schedule_interval => INTERVAL '1 hour',
-                    if_not_exists => TRUE
-                );
-            """)
-            
-        logger.info("TimescaleDB storage initialized successfully")
+        self.client = AsyncIOMotorClient(connection_string)
+        self.db = self.client[self.config.get("database", "quants_lab")]
+        
+        # Get collections
+        self.executions_collection = self.db["task_executions"]
+        self.schedules_collection = self.db["task_schedules"]
+        
+        # Create indexes for task_executions
+        await self.executions_collection.create_index([("task_name", ASCENDING), ("started_at", DESCENDING)])
+        await self.executions_collection.create_index([("status", ASCENDING), ("started_at", DESCENDING)])
+        await self.executions_collection.create_index([("execution_id", ASCENDING)], unique=True)
+        await self.executions_collection.create_index([("parent_execution_id", ASCENDING)], sparse=True)
+        await self.executions_collection.create_index([("started_at", DESCENDING)])
+        
+        # Create TTL index to automatically delete old records (90 days)
+        await self.executions_collection.create_index(
+            [("created_at", ASCENDING)],
+            expireAfterSeconds=90 * 24 * 60 * 60  # 90 days in seconds
+        )
+        
+        # Create indexes for task_schedules
+        await self.schedules_collection.create_index([("task_name", ASCENDING)], unique=True)
+        await self.schedules_collection.create_index([("is_running", ASCENDING)])
+        
+        logger.info("MongoDB storage initialized successfully")
     
     async def close(self) -> None:
-        """Close TimescaleDB connection pool."""
-        if self.pool:
-            await self.pool.close()
+        """Close MongoDB connection."""
+        if self.client:
+            self.client.close()
     
     async def save_execution(self, result: TaskResult, context: TaskContext) -> None:
-        """Save task execution result to TimescaleDB."""
-        async with self.pool.acquire() as conn:
-            # Save execution record
-            await conn.execute("""
-                INSERT INTO task_executions (
-                    execution_id, task_name, status, started_at, completed_at,
-                    duration_seconds, triggered_by, attempt_number, parent_execution_id,
-                    result_data, error_message, error_traceback, metrics, metadata
-                ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14)
-            """,
-                result.execution_id,
-                result.task_name,
-                result.status.value,
-                result.started_at,
-                result.completed_at,
-                result.duration_seconds,
-                context.triggered_by,
-                context.attempt_number,
-                context.parent_execution_id,
-                json.dumps(result.result_data) if result.result_data else None,
-                result.error_message,
-                result.error_traceback,
-                json.dumps(result.metrics) if result.metrics else None,
-                json.dumps(context.metadata) if context.metadata else None
-            )
-            
-            # Update task schedule
-            await conn.execute("""
-                INSERT INTO task_schedules (
-                    task_name, last_run, is_running, current_execution_id, 
-                    run_count, success_count, failure_count
-                ) VALUES ($1, $2, $3, $4, 1, $5, $6)
-                ON CONFLICT (task_name) DO UPDATE SET
-                    last_run = EXCLUDED.last_run,
-                    is_running = EXCLUDED.is_running,
-                    current_execution_id = EXCLUDED.current_execution_id,
-                    run_count = task_schedules.run_count + 1,
-                    success_count = task_schedules.success_count + $5,
-                    failure_count = task_schedules.failure_count + $6,
-                    updated_at = NOW()
-            """,
-                result.task_name,
-                result.started_at,
-                result.status == TaskStatus.RUNNING,
-                result.execution_id if result.status == TaskStatus.RUNNING else None,
-                1 if result.status == TaskStatus.COMPLETED else 0,
-                1 if result.status == TaskStatus.FAILED else 0
-            )
-            
-            # Update average duration if completed
-            if result.status == TaskStatus.COMPLETED and result.duration_seconds:
-                await conn.execute("""
-                    UPDATE task_schedules SET
-                        average_duration_seconds = (
-                            SELECT AVG(duration_seconds) 
-                            FROM task_executions 
-                            WHERE task_name = $1 
-                            AND status = 'completed' 
-                            AND started_at > NOW() - INTERVAL '7 days'
-                        )
-                    WHERE task_name = $1
-                """, result.task_name)
+        """Save task execution result to MongoDB."""
+        # Prepare execution record
+        execution_doc = {
+            "execution_id": result.execution_id,
+            "task_name": result.task_name,
+            "status": result.status.value,
+            "started_at": result.started_at,
+            "completed_at": result.completed_at,
+            "duration_seconds": result.duration_seconds,
+            "triggered_by": context.triggered_by,
+            "attempt_number": context.attempt_number,
+            "parent_execution_id": context.parent_execution_id,
+            "result_data": result.result_data,
+            "error_message": result.error_message,
+            "error_traceback": result.error_traceback,
+            "metrics": result.metrics,
+            "metadata": context.metadata,
+            "created_at": datetime.utcnow()
+        }
+        
+        # Save execution record
+        await self.executions_collection.insert_one(execution_doc)
+        
+        # Update task schedule
+        schedule_update = {
+            "$set": {
+                "last_run": result.started_at,
+                "is_running": result.status == TaskStatus.RUNNING,
+                "current_execution_id": result.execution_id if result.status == TaskStatus.RUNNING else None,
+                "updated_at": datetime.utcnow()
+            },
+            "$inc": {
+                "run_count": 1,
+                "success_count": 1 if result.status == TaskStatus.COMPLETED else 0,
+                "failure_count": 1 if result.status == TaskStatus.FAILED else 0
+            }
+        }
+        
+        # Update average duration if completed
+        if result.status == TaskStatus.COMPLETED and result.duration_seconds:
+            # Calculate new average duration
+            schedule_doc = await self.schedules_collection.find_one({"task_name": result.task_name})
+            if schedule_doc:
+                current_avg = schedule_doc.get("average_duration_seconds", 0)
+                current_count = schedule_doc.get("success_count", 0)
+                new_avg = ((current_avg * current_count) + result.duration_seconds) / (current_count + 1)
+                schedule_update["$set"]["average_duration_seconds"] = new_avg
+            else:
+                schedule_update["$set"]["average_duration_seconds"] = result.duration_seconds
+        
+        await self.schedules_collection.update_one(
+            {"task_name": result.task_name},
+            schedule_update,
+            upsert=True
+        )
     
     async def get_last_execution(self, task_name: str) -> Optional[TaskExecutionRecord]:
         """Get last execution record for a task."""
-        async with self.pool.acquire() as conn:
-            row = await conn.fetchrow("""
-                SELECT * FROM task_executions
-                WHERE task_name = $1
-                ORDER BY started_at DESC
-                LIMIT 1
-            """, task_name)
-            
-            if row:
-                return TaskExecutionRecord(
-                    execution_id=row["execution_id"],
-                    task_name=row["task_name"],
-                    status=row["status"],
-                    started_at=row["started_at"],
-                    completed_at=row["completed_at"],
-                    duration_seconds=row["duration_seconds"],
-                    triggered_by=row["triggered_by"],
-                    attempt_number=row["attempt_number"],
-                    parent_execution_id=row["parent_execution_id"],
-                    result_data=json.loads(row["result_data"]) if row["result_data"] else None,
-                    error_message=row["error_message"],
-                    error_traceback=row["error_traceback"],
-                    metrics=json.loads(row["metrics"]) if row["metrics"] else {},
-                    metadata=json.loads(row["metadata"]) if row["metadata"] else {}
-                )
+        doc = await self.executions_collection.find_one(
+            {"task_name": task_name},
+            sort=[("started_at", DESCENDING)]
+        )
+        
+        if doc:
+            return TaskExecutionRecord(
+                execution_id=doc["execution_id"],
+                task_name=doc["task_name"],
+                status=doc["status"],
+                started_at=doc["started_at"],
+                completed_at=doc.get("completed_at"),
+                duration_seconds=doc.get("duration_seconds"),
+                triggered_by=doc["triggered_by"],
+                attempt_number=doc["attempt_number"],
+                parent_execution_id=doc.get("parent_execution_id"),
+                result_data=doc.get("result_data"),
+                error_message=doc.get("error_message"),
+                error_traceback=doc.get("error_traceback"),
+                metrics=doc.get("metrics", {}),
+                metadata=doc.get("metadata", {})
+            )
         return None
     
     async def get_executions(
@@ -313,159 +217,169 @@ class TimescaleDBTaskStorage(TaskStorage):
         limit: int = 100
     ) -> List[TaskExecutionRecord]:
         """Get task executions with filters."""
-        query = "SELECT * FROM task_executions WHERE 1=1"
-        params = []
-        param_count = 0
+        query = {}
         
         if task_name:
-            param_count += 1
-            query += f" AND task_name = ${param_count}"
-            params.append(task_name)
+            query["task_name"] = task_name
         
         if status:
-            param_count += 1
-            query += f" AND status = ${param_count}"
-            params.append(status.value)
+            query["status"] = status.value
         
-        if start_time:
-            param_count += 1
-            query += f" AND started_at >= ${param_count}"
-            params.append(start_time)
+        if start_time or end_time:
+            query["started_at"] = {}
+            if start_time:
+                query["started_at"]["$gte"] = start_time
+            if end_time:
+                query["started_at"]["$lte"] = end_time
         
-        if end_time:
-            param_count += 1
-            query += f" AND started_at <= ${param_count}"
-            params.append(end_time)
+        cursor = self.executions_collection.find(query).sort("started_at", DESCENDING).limit(limit)
         
-        query += f" ORDER BY started_at DESC LIMIT {limit}"
+        executions = []
+        async for doc in cursor:
+            executions.append(TaskExecutionRecord(
+                execution_id=doc["execution_id"],
+                task_name=doc["task_name"],
+                status=doc["status"],
+                started_at=doc["started_at"],
+                completed_at=doc.get("completed_at"),
+                duration_seconds=doc.get("duration_seconds"),
+                triggered_by=doc["triggered_by"],
+                attempt_number=doc["attempt_number"],
+                parent_execution_id=doc.get("parent_execution_id"),
+                result_data=doc.get("result_data"),
+                error_message=doc.get("error_message"),
+                error_traceback=doc.get("error_traceback"),
+                metrics=doc.get("metrics", {}),
+                metadata=doc.get("metadata", {})
+            ))
         
-        async with self.pool.acquire() as conn:
-            rows = await conn.fetch(query, *params)
-            
-            return [
-                TaskExecutionRecord(
-                    execution_id=row["execution_id"],
-                    task_name=row["task_name"],
-                    status=row["status"],
-                    started_at=row["started_at"],
-                    completed_at=row["completed_at"],
-                    duration_seconds=row["duration_seconds"],
-                    triggered_by=row["triggered_by"],
-                    attempt_number=row["attempt_number"],
-                    parent_execution_id=row["parent_execution_id"],
-                    result_data=json.loads(row["result_data"]) if row["result_data"] else None,
-                    error_message=row["error_message"],
-                    error_traceback=row["error_traceback"],
-                    metrics=json.loads(row["metrics"]) if row["metrics"] else {},
-                    metadata=json.loads(row["metadata"]) if row["metadata"] else {}
-                )
-                for row in rows
-            ]
+        return executions
     
     async def get_task_performance_metrics(
         self, 
         task_name: Optional[str] = None,
-        interval: str = '1 hour',
         last_days: int = 7
-    ) -> List[Dict[str, Any]]:
+    ) -> Dict[str, Any]:
         """Get aggregated performance metrics for tasks."""
-        query = """
-            SELECT 
-                time_bucket($1, started_at) AS time_bucket,
-                task_name,
-                COUNT(*) as total_executions,
-                COUNT(*) FILTER (WHERE status = 'completed') as successful_executions,
-                COUNT(*) FILTER (WHERE status = 'failed') as failed_executions,
-                AVG(duration_seconds) as avg_duration,
-                PERCENTILE_CONT(0.5) WITHIN GROUP (ORDER BY duration_seconds) as median_duration,
-                PERCENTILE_CONT(0.95) WITHIN GROUP (ORDER BY duration_seconds) as p95_duration,
-                MAX(duration_seconds) as max_duration,
-                MIN(duration_seconds) as min_duration
-            FROM task_executions 
-            WHERE started_at >= NOW() - $2::INTERVAL
-        """
+        pipeline = []
         
-        params = [interval, f"{last_days} days"]
+        # Filter by date range
+        start_date = datetime.utcnow() - timedelta(days=last_days)
+        pipeline.append({
+            "$match": {
+                "started_at": {"$gte": start_date}
+            }
+        })
         
+        # Filter by task name if provided
         if task_name:
-            query += " AND task_name = $3"
-            params.append(task_name)
+            pipeline[0]["$match"]["task_name"] = task_name
         
-        query += " GROUP BY time_bucket, task_name ORDER BY time_bucket DESC"
+        # Group and calculate metrics
+        pipeline.extend([
+            {
+                "$group": {
+                    "_id": "$task_name",
+                    "total_executions": {"$sum": 1},
+                    "successful_executions": {
+                        "$sum": {"$cond": [{"$eq": ["$status", "completed"]}, 1, 0]}
+                    },
+                    "failed_executions": {
+                        "$sum": {"$cond": [{"$eq": ["$status", "failed"]}, 1, 0]}
+                    },
+                    "avg_duration": {"$avg": "$duration_seconds"},
+                    "max_duration": {"$max": "$duration_seconds"},
+                    "min_duration": {"$min": "$duration_seconds"},
+                    "durations": {"$push": "$duration_seconds"}
+                }
+            },
+            {
+                "$project": {
+                    "task_name": "$_id",
+                    "total_executions": 1,
+                    "successful_executions": 1,
+                    "failed_executions": 1,
+                    "success_rate": {
+                        "$multiply": [
+                            {"$divide": ["$successful_executions", "$total_executions"]},
+                            100
+                        ]
+                    },
+                    "avg_duration": {"$round": ["$avg_duration", 2]},
+                    "max_duration": 1,
+                    "min_duration": 1,
+                    "_id": 0
+                }
+            }
+        ])
         
-        async with self.pool.acquire() as conn:
-            rows = await conn.fetch(query, *params)
-            return [dict(row) for row in rows]
-    
-    async def detect_anomalies(self, task_name: str, threshold_stddev: float = 3.0) -> List[Dict[str, Any]]:
-        """Detect anomalous task executions based on duration."""
-        query = """
-            WITH task_stats AS (
-                SELECT 
-                    AVG(duration_seconds) as mean_duration,
-                    STDDEV(duration_seconds) as stddev_duration
-                FROM task_executions
-                WHERE task_name = $1
-                AND status = 'completed'
-                AND started_at >= NOW() - INTERVAL '30 days'
-            )
-            SELECT 
-                e.execution_id,
-                e.started_at,
-                e.duration_seconds,
-                s.mean_duration,
-                s.stddev_duration,
-                ABS(e.duration_seconds - s.mean_duration) / NULLIF(s.stddev_duration, 0) as z_score
-            FROM task_executions e
-            CROSS JOIN task_stats s
-            WHERE e.task_name = $1
-            AND e.status = 'completed'
-            AND e.started_at >= NOW() - INTERVAL '7 days'
-            AND ABS(e.duration_seconds - s.mean_duration) > $2 * s.stddev_duration
-            ORDER BY e.started_at DESC
-        """
+        cursor = self.executions_collection.aggregate(pipeline)
+        metrics = []
+        async for doc in cursor:
+            metrics.append(doc)
         
-        async with self.pool.acquire() as conn:
-            rows = await conn.fetch(query, task_name, threshold_stddev)
-            return [dict(row) for row in rows]
-    
-    async def get_task_dependencies_execution(
-        self, 
-        parent_execution_id: str
-    ) -> List[TaskExecutionRecord]:
-        """Get all child task executions for a parent execution."""
-        return await self.get_executions(
-            parent_execution_id=parent_execution_id
-        )
+        return {
+            "period_days": last_days,
+            "start_date": start_date.isoformat(),
+            "end_date": datetime.utcnow().isoformat(),
+            "metrics": metrics
+        }
     
     async def mark_task_running(self, task_name: str, execution_id: str) -> bool:
         """Mark a task as running (for preventing duplicate runs)."""
-        async with self.pool.acquire() as conn:
-            result = await conn.fetchval("""
-                UPDATE task_schedules 
-                SET is_running = TRUE, 
-                    current_execution_id = $2,
-                    updated_at = NOW()
-                WHERE task_name = $1 AND is_running = FALSE
-                RETURNING TRUE
-            """, task_name, execution_id)
-            return bool(result)
+        # First, try to find and update if exists and not running
+        result = await self.schedules_collection.update_one(
+            {"task_name": task_name, "is_running": False},
+            {
+                "$set": {
+                    "is_running": True,
+                    "current_execution_id": execution_id,
+                    "updated_at": datetime.utcnow()
+                }
+            }
+        )
+        
+        # If no document was modified, check if it exists
+        if result.modified_count == 0:
+            # Check if task exists and is already running
+            existing = await self.schedules_collection.find_one({"task_name": task_name})
+            if existing and existing.get("is_running", False):
+                return False  # Task is already running
+            
+            # If document doesn't exist, create it
+            if not existing:
+                await self.schedules_collection.insert_one({
+                    "task_name": task_name,
+                    "is_running": True,
+                    "current_execution_id": execution_id,
+                    "created_at": datetime.utcnow(),
+                    "updated_at": datetime.utcnow()
+                })
+                return True
+        
+        return result.modified_count > 0
     
     async def mark_task_completed(self, task_name: str) -> None:
         """Mark a task as completed (no longer running)."""
-        async with self.pool.acquire() as conn:
-            await conn.execute("""
-                UPDATE task_schedules 
-                SET is_running = FALSE, 
-                    current_execution_id = NULL,
-                    updated_at = NOW()
-                WHERE task_name = $1
-            """, task_name)
+        await self.schedules_collection.update_one(
+            {"task_name": task_name},
+            {
+                "$set": {
+                    "is_running": False,
+                    "current_execution_id": None,
+                    "updated_at": datetime.utcnow()
+                }
+            }
+        )
     
     async def get_running_tasks(self) -> List[str]:
         """Get list of currently running tasks."""
-        async with self.pool.acquire() as conn:
-            rows = await conn.fetch("""
-                SELECT task_name FROM task_schedules WHERE is_running = TRUE
-            """)
-            return [row["task_name"] for row in rows]
+        cursor = self.schedules_collection.find({"is_running": True})
+        tasks = []
+        async for doc in cursor:
+            tasks.append(doc["task_name"])
+        return tasks
+    
+    async def get_task_schedule(self, task_name: str) -> Optional[Dict[str, Any]]:
+        """Get schedule information for a task."""
+        return await self.schedules_collection.find_one({"task_name": task_name})

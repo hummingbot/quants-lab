@@ -6,10 +6,9 @@ import logging
 from datetime import datetime, timezone
 from typing import Dict, List, Optional, Set
 from collections import defaultdict
-import pytz
 
 from core.tasks.base import BaseTask, TaskConfig, TaskContext, TaskResult, TaskStatus
-from core.tasks.storage import TaskStorage, TimescaleDBTaskStorage
+from core.tasks.storage import TaskStorage
 
 logger = logging.getLogger(__name__)
 
@@ -251,6 +250,10 @@ class TaskOrchestrator:
                     
                     # Skip if task has dependencies (will be triggered by parent)
                     if task_name in self.task_dependencies and self.task_dependencies[task_name]:
+                        continue
+                    
+                    # Skip if task is already running
+                    if task_name in self.running_tasks:
                         continue
                     
                     # Check if task should run

@@ -26,14 +26,6 @@ class TaskStatus(str, Enum):
     SKIPPED = "skipped"
 
 
-class TaskPriority(int, Enum):
-    """Task priority levels."""
-    CRITICAL = 1
-    HIGH = 2
-    NORMAL = 3
-    LOW = 4
-
-
 class ScheduleConfig(BaseModel):
     """Schedule configuration for tasks."""
     model_config = ConfigDict(extra='forbid')
@@ -89,7 +81,6 @@ class TaskConfig(BaseModel):
     enabled: bool = Field(default=True, description="Whether task is enabled")
     task_class: str = Field(..., description="Python path to task class or simplified name")
     schedule: ScheduleConfig = Field(..., description="Schedule configuration")
-    priority: TaskPriority = Field(default=TaskPriority.NORMAL, description="Task priority")
     max_retries: int = Field(default=3, description="Maximum number of retries")
     retry_delay_seconds: int = Field(default=60, description="Delay between retries")
     timeout_seconds: Optional[int] = Field(None, description="Task execution timeout")
@@ -185,23 +176,16 @@ class BaseTask(ABC):
         """
         pass
     
-    async def validate_prerequisites(self) -> bool:
-        """
-        Validate task prerequisites before execution.
-        Override in subclasses for custom validation.
-        
-        Returns:
-            True if prerequisites are met, False otherwise
-        """
-        return True
-    
     async def setup(self, context: TaskContext) -> None:
         """
-        Setup task before execution.
-        Override in subclasses for custom setup.
+        Setup task before execution including any prerequisite validation.
+        Override in subclasses for custom setup and validation.
         
         Args:
             context: Task execution context
+            
+        Raises:
+            RuntimeError: If prerequisites are not met
         """
         # Initialize databases if requested in task config
         task_config = self.config.config
@@ -300,11 +284,7 @@ class BaseTask(ABC):
         )
         
         try:
-            # Validate prerequisites
-            if not await self.validate_prerequisites():
-                raise RuntimeError("Task prerequisites not met")
-            
-            # Setup
+            # Setup (includes any prerequisite validation)
             await self.setup(context)
             
             # Execute with timeout if specified
