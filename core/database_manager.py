@@ -21,15 +21,13 @@ class DatabaseManager:
     async def get_mongodb_client(self) -> Optional[MongoClient]:
         """Get MongoDB client instance."""
         if self._mongodb_client is None:
-            # Build MongoDB URI from environment variables
-            mongo_host = os.getenv('MONGO_HOST', 'localhost')
-            mongo_port = os.getenv('MONGO_PORT', '27017')
-            mongo_user = os.getenv('MONGO_USER', 'admin')
-            mongo_password = os.getenv('MONGO_PASSWORD', 'admin')
+            # Use MONGO_URI from environment variables
+            mongo_uri = os.getenv('MONGO_URI')
             mongo_database = os.getenv('MONGO_DATABASE', 'quants_lab')
             
-            # Build MongoDB URI with authentication
-            mongo_uri = f"mongodb://{mongo_user}:{mongo_password}@{mongo_host}:{mongo_port}/{mongo_database}?authSource=admin&retryWrites=true&w=majority"
+            if not mongo_uri:
+                logger.warning("MONGO_URI environment variable not set")
+                return None
             
             try:
                 self._mongodb_client = MongoClient(
@@ -37,7 +35,7 @@ class DatabaseManager:
                     database=mongo_database
                 )
                 await self._mongodb_client.connect()
-                logger.info("MongoDB client initialized from environment variables")
+                logger.info(f"MongoDB client initialized successfully (database: {mongo_database})")
             except Exception as e:
                 logger.error(f"Failed to initialize MongoDB client: {e}")
                 return None
