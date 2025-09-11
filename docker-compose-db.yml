@@ -12,12 +12,6 @@ services:
     volumes:
       - mongodb_data:/data/db
     restart: unless-stopped
-    networks:
-      - mongodb_network
-
-networks:
-  mongodb_network:
-    driver: bridge
 
 volumes:
   mongodb_data:

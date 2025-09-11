@@ -33,8 +33,8 @@ run-tasks:
 ifeq ($(source),1)
 	python cli.py run-tasks --config config/$(config)
 else
-	docker run --rm \
-		-v $(shell pwd)/outputs:/quants-lab/outputs \
+	docker run -d --rm \
+		-v $(shell pwd)/app/outputs:/quants-lab/app/outputs \
 		-v $(shell pwd)/config:/quants-lab/config \
 		-v $(shell pwd)/app:/quants-lab/app \
 		-v $(shell pwd)/research_notebooks:/quants-lab/research_notebooks \
@@ -49,7 +49,7 @@ ifeq ($(source),1)
 	python cli.py trigger-task --task $(task) --config config/$(config)
 else
 	docker run --rm \
-		-v $(shell pwd)/outputs:/quants-lab/outputs \
+		-v $(shell pwd)/app/outputs:/quants-lab/app/outputs \
 		-v $(shell pwd)/config:/quants-lab/config \
 		-v $(shell pwd)/app:/quants-lab/app \
 		-v $(shell pwd)/research_notebooks:/quants-lab/research_notebooks \
@@ -65,7 +65,7 @@ ifeq ($(source),1)
 else
 	docker run --rm \
 		-p $(port):$(port) \
-		-v $(shell pwd)/outputs:/quants-lab/outputs \
+		-v $(shell pwd)/app/outputs:/quants-lab/app/outputs \
 		-v $(shell pwd)/config:/quants-lab/config \
 		-v $(shell pwd)/app:/quants-lab/app \
 		-v $(shell pwd)/research_notebooks:/quants-lab/research_notebooks \
@@ -101,7 +101,7 @@ endif
 # Run task with Docker
 run-task:
 	docker run --rm \
-		-v $(shell pwd)/outputs:/quants-lab/outputs \
+		-v $(shell pwd)/app/outputs:/quants-lab/app/outputs \
 		-v $(shell pwd)/config:/quants-lab/config \
 		-v $(shell pwd)/app:/quants-lab/app \
 		-v $(shell pwd)/research_notebooks:/quants-lab/research_notebooks \
@@ -115,7 +115,7 @@ ifeq ($(source),1)
 	python cli.py run app.tasks.notebook.notebook_task
 else
 	docker run --rm \
-		-v $(shell pwd)/outputs:/quants-lab/outputs \
+		-v $(shell pwd)/app/outputs:/quants-lab/app/outputs \
 		-v $(shell pwd)/config:/quants-lab/config \
 		-v $(shell pwd)/app:/quants-lab/app \
 		-v $(shell pwd)/research_notebooks:/quants-lab/research_notebooks \
@@ -139,11 +139,11 @@ stop-task:
 
 # Launch Optuna Dashboard
 launch-optuna:
-	python -c "from core.backtesting.optimizer import StrategyOptimizer; optimizer = StrategyOptimizer(skip_initialization=True); optimizer.launch_optuna_dashboard()"
+	python -c "from core.backtesting.optimizer import StrategyOptimizer; optimizer = StrategyOptimizer(); optimizer.launch_optuna_dashboard()"
 
 # Kill Optuna Dashboard
 kill-optuna:
-	python -c "from core.backtesting.optimizer import StrategyOptimizer; optimizer = StrategyOptimizer(skip_initialization=True); optimizer.kill_optuna_dashboard()"
+	python -c "from core.backtesting.optimizer import StrategyOptimizer; optimizer = StrategyOptimizer(); optimizer.kill_optuna_dashboard()"
 
 # Clean up stale task states in MongoDB
 cleanup-tasks:
@@ -158,6 +158,7 @@ help:
 	@echo "QuantsLab Task Management Commands:"
 	@echo ""
 	@echo "🚀 Quick Start (Docker by default):"
+	@echo "  make run-db                                     Start database (required first)"
 	@echo "  make run-tasks config=CONFIG.yml               Run tasks continuously"
 	@echo "  make run-notebook                               Run notebook task"
 	@echo "  make stop-task                                  Stop running Docker tasks"
@@ -194,3 +195,9 @@ help:
 	@echo "  make run-notebook                               # Docker"
 	@echo "  make run-notebook source=1                      # Local"
 	@echo "  make trigger-task task=etl_download_candles config=notebook_tasks.yml"
+	@echo ""
+	@echo "📁 Directory Structure:"
+	@echo "  app/outputs/        # All task outputs (notebooks, reports, etc.)"
+	@echo "  app/data/           # Application data storage"
+	@echo "  config/             # Task configuration files"
+	@echo "  research_notebooks/ # Jupyter research notebooks"
