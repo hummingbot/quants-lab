@@ -4,11 +4,13 @@ channels:
   - defaults
 dependencies:
   - python=3.12
+  - pandas-ta==0.3.14b
   - sqlalchemy
   - libcxx
   - pip
   - pip:
       - hummingbot
+      - hummingbot-api-client
       - pycoingecko
       - geckoterminal-py==0.2.5
       - glom
@@ -20,7 +22,6 @@ dependencies:
       - jupyter
       - scikit-learn
       - pydantic
-      - pandas_ta==0.3.14b
       - pyyaml
       - optuna
       - optuna-dashboard
@@ -34,3 +35,11 @@ dependencies:
       - psycopg2-binary
       - pyarrow
       - motor>=3.3.2
+      - fastapi
+      - uvicorn[standard]
+      - croniter
+      - pytz
+      - papermill
+      - nbformat
+      - nbclient
+      - kaleido

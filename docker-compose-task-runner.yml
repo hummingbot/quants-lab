@@ -6,11 +6,12 @@ services:
     volumes:
       - .:/quants-lab
       - ./config:/quants-lab/config
+      - ./outputs:/quants-lab/outputs
+      - ./app/data:/quants-lab/app/data
     build: .
-    # env_file:
-    #  - .env
+    env_file:
+      - .env
     network_mode: host
-    command: conda run --no-capture-output -n quants-lab python3 run_tasks.py --config ${TASK_CONFIG:-config/tasks.yml}
     deploy:
       restart_policy:
         condition: on-failure

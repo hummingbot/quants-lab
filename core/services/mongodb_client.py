@@ -1,9 +1,7 @@
 import math
 from typing import List, Optional, Dict, Any, Union
-import pandas as pd
 import logging
 from motor.motor_asyncio import AsyncIOMotorClient
-from datetime import datetime, timedelta
 
 
 class MongoClient:
@@ -39,16 +37,6 @@ class MongoClient:
         if self.client:
             self.client.close()
             print("Disconnected from MongoDB")
-
-    async def create_database(self, db_name: str):
-        """Create a new database."""
-        self.client[db_name]  # MongoDB creates a database automatically when a collection is added
-        logging.info(f"Database {db_name} is now available.")
-
-    async def delete_database(self, db_name: str):
-        """Delete a database."""
-        self.client.drop_database(db_name)
-        logging.info(f"Database {db_name} deleted.")
 
     async def create_collection(self, collection_name: str, db_name: Optional[str] = None):
         """Create a collection in a given database."""
@@ -108,3 +96,14 @@ class MongoClient:
         except Exception as e:
             logging.error(f"Error deleting documents from {collection_name}: {str(e)}")
             raise
+    
+    def get_database(self, db_name: Optional[str] = None):
+        """Get a database by name or return the default database."""
+        if db_name:
+            return self.client[db_name]
+        return self.db
+    
+    def get_collection(self, db_name: str, collection_name: str):
+        """Get a collection from a specific database."""
+        db = self.client[db_name] if db_name else self.db
+        return db[collection_name]
