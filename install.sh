@@ -177,10 +177,8 @@ create_env_file() {
         log_info "Creating .env file with default values..."
         cat > .env << EOF
 # Database Configuration
-MONGO_HOST=localhost
-MONGO_PORT=27017
-MONGO_USER=admin
-MONGO_PASSWORD=admin
+# MongoDB connection string (required)
+MONGO_URI=mongodb://admin:admin@localhost:27017/quants_lab?authSource=admin&retryWrites=true&w=majority
 MONGO_DATABASE=quants_lab
 
 # Environment
