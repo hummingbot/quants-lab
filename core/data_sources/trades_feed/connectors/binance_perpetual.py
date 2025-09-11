@@ -75,7 +75,8 @@ class BinancePerpetualTradesFeed(TradesFeedBase):
     async def _get_historical_trades_request(self, params: Dict):
         try:
             url = f"{self._base_url}{self._endpoints['historical_agg_trades']}"
-            async with self._session.get(url, params=params) as response:
+            session = await self._get_session()
+            async with session.get(url, params=params) as response:
                 response.raise_for_status()
                 self._record_request()  # Record the timestamp of this request
                 return await response.json()
