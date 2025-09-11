@@ -39,6 +39,7 @@ else
 		-v $(shell pwd)/app:/quants-lab/app \
 		-v $(shell pwd)/research_notebooks:/quants-lab/research_notebooks \
 		--env-file .env \
+		--network host \
 		hummingbot/quants-lab \
 		conda run --no-capture-output -n quants-lab python3 cli.py run-tasks --config config/$(config)
 endif
