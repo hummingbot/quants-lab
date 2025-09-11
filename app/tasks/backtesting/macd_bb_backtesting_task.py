@@ -45,6 +45,8 @@ class MACDBBConfigGenerator(BaseStrategyConfigGenerator):
         config = MACDBBV1ControllerConfig(
             connector_name=self.config["connector_name"],
             trading_pair=self.config["trading_pair"],
+            candles_connector=self.config["connector_name"],
+            candles_trading_pair=self.config["trading_pair"],
             macd_fast=fast_ma,
             macd_slow=slow_ma,
             macd_signal=signal_ma,
@@ -75,7 +77,6 @@ class MACDBBBacktestingTask(BaseTask):
         # Configuration with defaults
         task_config = self.config.config
         self.resolution = task_config.get("resolution", "1m")
-        self.root_path = task_config.get('root_path', "")
         self.connector_name = task_config.get("connector_name", "binance_perpetual")
         self.selected_pairs = task_config.get("selected_pairs", [
             '1000SHIB-USDT', 'WLD-USDT', 'ACT-USDT', '1000BONK-USDT', 'DOGE-USDT', 'AGLD-USDT',
@@ -86,37 +87,23 @@ class MACDBBBacktestingTask(BaseTask):
         self.lookback_days = task_config.get("lookback_days", 7)
         self.end_time_buffer_hours = task_config.get("end_time_buffer_hours", 6)
         self.n_trials = task_config.get("n_trials", 50)
+        self.study_name_base = task_config.get("study_name", "macd_bb_v1_task")
         
         # Initialize optimizer (will be set up in setup)
         self.optimizer = None
 
-    async def validate_prerequisites(self) -> bool:
-        """Validate task prerequisites before execution."""
+    async def setup(self, context: TaskContext) -> None:
+        """Setup task before execution, including validation of prerequisites."""
         try:
-            # Check required configuration
-            if not self.root_path:
-                logging.error("root_path not configured")
-                return False
-                
+            # Validate prerequisites
             if not self.connector_name:
-                logging.error("connector_name not configured")
-                return False
+                raise RuntimeError("connector_name not configured")
                 
             if not self.selected_pairs:
-                logging.error("selected_pairs not configured")
-                return False
-                
-            return True
-        except Exception as e:
-            logging.error(f"Prerequisites validation failed: {e}")
-            return False
-    
-    async def setup(self, context: TaskContext) -> None:
-        """Setup task before execution."""
-        try:
-            # Initialize strategy optimizer
+                raise RuntimeError("selected_pairs not configured")
+            
+            # Initialize strategy optimizer (no root_path needed)
             self.optimizer = StrategyOptimizer(
-                root_path=self.root_path,
                 resolution=self.resolution,
                 load_cached_data=True
             )
@@ -176,7 +163,7 @@ class MACDBBBacktestingTask(BaseTask):
                     )
                     
                     # Run optimization
-                    study_name = f"macd_bb_v1_task_{today_str}_{trading_pair.replace('-', '_')}"
+                    study_name = f"{self.study_name_base}_{today_str}_{trading_pair.replace('-', '_')}"
                     await self.optimizer.optimize(
                         study_name=study_name,
                         config_generator=config_generator,

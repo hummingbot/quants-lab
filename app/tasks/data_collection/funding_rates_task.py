@@ -29,22 +29,14 @@ class FundingRatesTask(BaseTask):
         # Initialize clients
         self.clob = CLOBDataSource()
 
-    async def validate_prerequisites(self) -> bool:
-        """Validate task prerequisites before execution."""
-        try:
-            if not self.connector_names:
-                logging.error("connector_names not configured")
-                return False
-                
-            return True
-        except Exception as e:
-            logging.error(f"Prerequisites validation failed: {e}")
-            return False
-    
     async def setup(self, context: TaskContext) -> None:
-        """Setup task before execution."""
+        """Setup task before execution, including validation of prerequisites."""
         try:
             await super().setup(context)
+            
+            # Validate prerequisites
+            if not self.connector_names:
+                raise RuntimeError("connector_names not configured")
             
             logging.info(f"Setup completed for {context.task_name}")
             logging.info(f"Connectors: {self.connector_names}")

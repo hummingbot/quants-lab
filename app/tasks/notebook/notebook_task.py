@@ -127,34 +127,24 @@ class NotebookTask(BaseTask):
             raise FileNotFoundError(f"Notebook not found: {full_path}")
         return full_path
     
-    async def validate_prerequisites(self) -> bool:
-        """Validate that all notebooks exist and are readable."""
-        try:
-            for notebook_config in self.notebooks:
-                notebook_path = self._resolve_notebook_path(notebook_config.path)
-                
-                if not notebook_path.is_file():
-                    logger.error(f"Not a file: {notebook_path}")
-                    return False
-                    
-                if not notebook_path.suffix == '.ipynb':
-                    logger.error(f"Not a Jupyter notebook: {notebook_path}")
-                    return False
-                    
-            return True
-            
-        except Exception as e:
-            logger.error(f"Prerequisites validation failed: {e}")
-            return False
-    
     async def setup(self, context: TaskContext) -> None:
-        """Setup task before execution."""
+        """Setup task before execution including validation of notebooks."""
         logger.info(f"Setting up enhanced notebook execution for {context.task_name}")
         logger.info(f"Notebooks: {len(self.notebooks)} notebook(s)")
         logger.info(f"Execution mode: {self.execution_mode}")
         logger.info(f"Max parallel: {self.max_parallel}")
         logger.info(f"Timeout per notebook: {self.timeout_per_notebook} seconds")
         logger.info(f"Output directory: {self.output_dir}")
+        
+        # Validate that all notebooks exist and are readable
+        for notebook_config in self.notebooks:
+            notebook_path = self._resolve_notebook_path(notebook_config.path)
+            
+            if not notebook_path.is_file():
+                raise RuntimeError(f"Not a file: {notebook_path}")
+                
+            if not notebook_path.suffix == '.ipynb':
+                raise RuntimeError(f"Not a Jupyter notebook: {notebook_path}")
         
         for i, notebook_config in enumerate(self.notebooks):
             logger.info(f"  {i+1}. {notebook_config.path}")

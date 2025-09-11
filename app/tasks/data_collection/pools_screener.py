@@ -27,16 +27,8 @@ class PoolsScreenerTask(BaseTask):
         self.min_liquidity = self.config.config.get("min_liquidity", 50_000)
         self.min_transactions_24h = self.config.config.get("min_transactions_24h", 300)
 
-    async def validate_prerequisites(self) -> bool:
-        """Validate task prerequisites before execution."""
-        try:
-            return True
-        except Exception as e:
-            logging.error(f"Prerequisites validation failed: {e}")
-            return False
-    
     async def setup(self, context: TaskContext) -> None:
-        """Setup task before execution."""
+        """Setup task before execution, including validation of prerequisites."""
         try:
             await super().setup(context)
             

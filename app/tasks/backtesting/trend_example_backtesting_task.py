@@ -40,8 +40,8 @@ class TrendExampleConfigGenerator(BaseStrategyConfigGenerator):
 
         # Create the strategy configuration
         config = TrendExampleControllerConfig(
-            connector_name="binance_perpetual",
-            trading_pair="1000BONK-USDT",
+            connector_name=self.config["connector_name"],
+            trading_pair=self.config["trading_pair"],
             interval=interval,
             ema_short=ema_short,
             ema_medium=ema_medium,
@@ -70,68 +70,38 @@ class TrendExampleBacktestingTask(BaseTask):
         # Configuration with defaults
         task_config = self.config.config
         self.resolution = task_config.get("resolution", "1m")
-        self.root_path = task_config.get('root_path', "")
         self.connector_name = task_config.get("connector_name", "binance_perpetual")
         self.selected_pairs = task_config.get("selected_pairs", ["1000BONK-USDT"])
-        self.engine = task_config.get("engine", "sqlite")
-        self.study_name = task_config.get("study_name", "Trend Example")
+        self.study_name_base = task_config.get("study_name", "trend_example")
         self.n_trials = task_config.get("n_trials", 50)
-        
-        # Optuna configuration
-        self.optuna_config = task_config.get("optuna_config", {})
-        
-        # Date configuration (can be overridden)
-        self.start_date = datetime(2024, 11, 1)
-        self.end_date = datetime(2024, 11, 16)
+        self.lookback_days = task_config.get("lookback_days", 30)
+        self.end_time_buffer_hours = task_config.get("end_time_buffer_hours", 6)
         
         # Initialize optimizer (will be set up in setup)
         self.optimizer = None
-        self.storage_name = None
 
-    async def validate_prerequisites(self) -> bool:
-        """Validate task prerequisites before execution."""
+    async def setup(self, context: TaskContext) -> None:
+        """Setup task before execution, including validation of prerequisites."""
         try:
-            # Check required configuration
-            if not self.root_path:
-                logging.error("root_path not configured")
-                return False
-                
+            # Validate prerequisites
             if not self.connector_name:
-                logging.error("connector_name not configured")
-                return False
+                raise RuntimeError("connector_name not configured")
                 
             if not self.selected_pairs:
-                logging.error("selected_pairs not configured")
-                return False
-                
-            return True
-        except Exception as e:
-            logging.error(f"Prerequisites validation failed: {e}")
-            return False
-    
-    async def setup(self, context: TaskContext) -> None:
-        """Setup task before execution."""
-        try:
-            # Prepare storage configuration
-            kwargs = {
-                "root_path": self.root_path,
-                "db_host": self.optuna_config.get("host", "localhost"),
-                "db_port": self.optuna_config.get("port", 5433),
-                "db_user": self.optuna_config.get("user", "admin"),
-                "db_pass": self.optuna_config.get("password", "admin"),
-                "database_name": self.optuna_config.get("database", "optimization_database"),
-            }
+                raise RuntimeError("selected_pairs not configured")
             
-            self.storage_name = StrategyOptimizer.get_storage_name(
-                engine=self.engine,
-                **kwargs
+            # Initialize strategy optimizer (no root_path needed, uses local SQLite)
+            self.optimizer = StrategyOptimizer(
+                resolution=self.resolution,
+                load_cached_data=True,
+                custom_backtester=DirectionalTradingBacktesting()
             )
             
             logging.info(f"Setup completed for {context.task_name}")
             logging.info(f"Connector: {self.connector_name}")
             logging.info(f"Resolution: {self.resolution}")
-            logging.info(f"Trading pairs: {self.selected_pairs}")
-            logging.info(f"Engine: {self.engine}")
+            logging.info(f"Trading pairs: {len(self.selected_pairs)} pairs")
+            logging.info(f"Lookback days: {self.lookback_days}")
             logging.info(f"N trials: {self.n_trials}")
             
         except Exception as e:
@@ -165,32 +135,29 @@ class TrendExampleBacktestingTask(BaseTask):
             
             for trading_pair in self.selected_pairs:
                 try:
+                    # Calculate time range dynamically
+                    import time
+                    import pandas as pd
+                    
+                    end_date = time.time() - (self.end_time_buffer_hours * 3600)
+                    start_date = end_date - (self.lookback_days * 24 * 3600)
+                    
                     logging.info(f"Optimizing strategy for {self.connector_name} {trading_pair}")
-                    logging.info(f"Time range: {self.start_date} to {self.end_date}")
-                    
-                    # Initialize optimizer for this pair
-                    optimizer = StrategyOptimizer(
-                        storage_name=self.storage_name,
-                        resolution=self.resolution,
-                        root_path=self.root_path,
-                        custom_backtester=DirectionalTradingBacktesting()
-                    )
-                    
-                    # Load candles cache
-                    optimizer.load_candles_cache_by_connector_pair(
-                        self.connector_name, trading_pair, self.root_path
-                    )
+                    logging.info(f"Time range: {pd.to_datetime(start_date, unit='s')} to {pd.to_datetime(end_date, unit='s')}")
                     
                     # Create config generator
                     config_generator = TrendExampleConfigGenerator(
-                        start_date=self.start_date,
-                        end_date=self.end_date
+                        start_date=pd.to_datetime(start_date, unit="s"),
+                        end_date=pd.to_datetime(end_date, unit="s"),
+                        config={
+                            "connector_name": self.connector_name,
+                            "trading_pair": trading_pair
+                        }
                     )
-                    config_generator.trading_pair = trading_pair
                     
                     # Run optimization
-                    study_name = f"{self.study_name}_{today_str}_{trading_pair.replace('-', '_')}"
-                    await optimizer.optimize(
+                    study_name = f"{self.study_name_base}_{today_str}_{trading_pair.replace('-', '_')}"
+                    await self.optimizer.optimize(
                         study_name=study_name,
                         config_generator=config_generator,
                         n_trials=self.n_trials
@@ -215,7 +182,7 @@ class TrendExampleBacktestingTask(BaseTask):
                 "execution_id": context.execution_id,
                 "connector": self.connector_name,
                 "strategy": "trend_example",
-                "time_range": f"{self.start_date} to {self.end_date}",
+                "lookback_days": self.lookback_days,
                 "stats": stats,
                 "duration_seconds": duration.total_seconds()
             }
@@ -251,15 +218,6 @@ async def main():
     """Standalone execution for testing."""
     from core.tasks.base import TaskConfig, ScheduleConfig
     
-    # Build optuna config from environment
-    optuna_config = {
-        "host": os.getenv("OPTUNA_HOST", "localhost"),
-        "port": int(os.getenv("OPTUNA_PORT", "5433")),
-        "user": os.getenv("OPTUNA_USER", "admin"),
-        "password": os.getenv("OPTUNA_PASSWORD", "admin"),
-        "database": os.getenv("OPTUNA_DB", "optimization_database")
-    }
-    
     # Create v2.0 TaskConfig
     config = TaskConfig(
         name="trend_example_backtesting_test",
@@ -270,14 +228,13 @@ async def main():
             frequency_hours=12.0
         ),
         config={
-            "root_path": os.path.abspath(os.path.join(os.path.dirname(__file__), '../..')),
             "resolution": "1m",
-            "optuna_config": optuna_config,
             "connector_name": "binance_perpetual",
             "selected_pairs": ["1000BONK-USDT"],
-            "engine": "sqlite",
-            "study_name": "Trend Example Docker",
-            "n_trials": 5  # Reduced for testing
+            "study_name": "trend_example_test",
+            "n_trials": 5,  # Reduced for testing
+            "lookback_days": 7,
+            "end_time_buffer_hours": 6
         }
     )
     
