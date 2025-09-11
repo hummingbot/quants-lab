@@ -388,6 +388,10 @@ class BaseTask(ABC):
         
         now = datetime.now(pytz.UTC)
         
+        # Ensure last_run is timezone-aware for comparisons
+        if last_run and last_run.tzinfo is None:
+            last_run = pytz.UTC.localize(last_run)
+        
         # Check schedule window
         if self.config.schedule.start_time and now < self.config.schedule.start_time:
             return False
