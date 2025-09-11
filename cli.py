@@ -6,10 +6,14 @@ import asyncio
 import argparse
 import sys
 import os
+from dotenv import load_dotenv
 
 from core.tasks.runner import TaskRunner
 from core.tasks.base import TaskConfig
 import logging
+
+# Load environment variables from .env file
+load_dotenv()
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -97,7 +101,7 @@ async def run_tasks(config_path: str, verbose: bool = False):
     """Run tasks continuously."""
     if verbose:
         logging.getLogger().setLevel(logging.DEBUG)
-    
+
     # Add config/ prefix if not present
     if not config_path.startswith('config/') and not os.path.isabs(config_path):
         config_path = f'config/{config_path}'
