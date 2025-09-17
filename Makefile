@@ -7,7 +7,7 @@ uninstall:
 	conda env remove -n quants-lab -y
 
 install:
-	conda env create -f environment.yml
+	./install.sh   # Run the full installation script
 # Build local image
 build:
 	docker build -t hummingbot/quants-lab -f Dockerfile .
@@ -187,7 +187,7 @@ help:
 	@echo ""
 	@echo "🔨 Build Commands:"
 	@echo "  make build                                     Build Docker image"
-	@echo "  make install                                   Install conda environment"
+	@echo "  make install                                   Run the installation script (install.sh)"
 	@echo "  make uninstall                                 Remove conda environment"
 	@echo ""
 	@echo "📚 Examples:"
