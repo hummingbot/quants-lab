@@ -34,30 +34,51 @@ command_exists() {
     command -v "$1" >/dev/null 2>&1
 }
 
+# Detect user's shell for conda activation
+detect_shell() {
+    if [ -n "$SHELL" ]; then
+        SHELL_NAME=$(basename "$SHELL")
+    else
+        SHELL_NAME="bash"  # default fallback
+    fi
+    log_info "Detected shell: $SHELL_NAME"
+}
+
+# Detect Docker Compose (prefer v2 "docker compose", fallback to v1 "docker-compose")
+detect_compose() {
+    if docker compose version >/dev/null 2>&1; then
+        COMPOSE="docker compose"
+        log_info "Using Docker Compose v2 (detected 'docker compose')."
+        return 0
+    fi
+    if command_exists docker-compose; then
+        COMPOSE="docker-compose"
+        log_warning "Using Docker Compose v1 (detected 'docker-compose'). Consider upgrading to v2."
+        return 0
+    fi
+    log_error "Docker Compose not found. Install Docker Compose v2 (preferred) or v1."
+    log_error "Docs: https://docs.docker.com/compose/install/"
+    exit 1
+}
+
 # Check prerequisites
 check_prerequisites() {
     log_info "Checking prerequisites..."
     
-    # Check conda
     if ! command_exists conda; then
         log_error "Conda is not installed. Please install Anaconda or Miniconda first:"
         log_error "https://docs.conda.io/en/latest/miniconda.html"
         exit 1
     fi
     
-    # Check docker
     if ! command_exists docker; then
         log_error "Docker is not installed. Please install Docker first:"
         log_error "https://docs.docker.com/get-docker/"
         exit 1
     fi
     
-    # Check docker-compose
-    if ! command_exists docker-compose; then
-        log_error "Docker Compose is not installed. Please install Docker Compose first:"
-        log_error "https://docs.docker.com/compose/install/"
-        exit 1
-    fi
+    detect_compose
+    detect_shell
     
     log_success "All prerequisites are installed!"
 }
@@ -66,7 +87,6 @@ check_prerequisites() {
 setup_conda_environment() {
     log_info "Setting up conda environment..."
     
-    # Check if environment already exists
     if conda env list | grep -q "quants-lab"; then
         log_warning "Environment 'quants-lab' already exists."
         read -p "Do you want to remove and recreate it? (y/N): " -n 1 -r
@@ -89,11 +109,9 @@ setup_conda_environment() {
 install_package() {
     log_info "Installing QuantsLab package in development mode..."
     
-    # Activate environment and install
-    eval "$(conda shell.bash hook)"
+    eval "$(conda shell.$SHELL_NAME hook)"
     conda activate quants-lab
     
-    # Install the package in editable mode
     pip install -e .
     
     log_success "QuantsLab package installed in development mode!"
@@ -103,26 +121,24 @@ install_package() {
 setup_databases() {
     log_info "Setting up databases..."
     
-    # Ask user if they want to start databases
     read -p "Do you want to start the databases (MongoDB only) now? (Y/n): " -n 1 -r
     echo
     if [[ ! $REPLY =~ ^[Nn]$ ]]; then
         log_info "Starting databases with Docker Compose..."
         
-        # Check if containers are already running
-        if docker-compose -f docker-compose-db.yml ps | grep -q "Up"; then
+        if $COMPOSE -f docker-compose-db.yml ps | grep -q "Up"; then
             log_warning "Some database containers are already running."
             read -p "Do you want to restart them? (y/N): " -n 1 -r
             echo
             if [[ $REPLY =~ ^[Yy]$ ]]; then
-                docker-compose -f docker-compose-db.yml down
-                docker-compose -f docker-compose-db.yml up -d
+                $COMPOSE -f docker-compose-db.yml down
+                $COMPOSE -f docker-compose-db.yml up -d
                 DATABASES_STARTED=true
             else
-                DATABASES_STARTED=true  # They're already running
+                DATABASES_STARTED=true
             fi
         else
-            docker-compose -f docker-compose-db.yml up -d
+            $COMPOSE -f docker-compose-db.yml up -d
             DATABASES_STARTED=true
         fi
         
@@ -138,10 +154,9 @@ setup_databases() {
 test_installation() {
     log_info "Testing installation..."
     
-    eval "$(conda shell.bash hook)"
+    eval "$(conda shell.$SHELL_NAME hook)"
     conda activate quants-lab
     
-    # Test CLI
     log_info "Testing CLI functionality..."
     if python cli.py --help > /dev/null 2>&1; then
         log_success "CLI is working!"
@@ -150,7 +165,6 @@ test_installation() {
         return 1
     fi
     
-    # Test imports
     log_info "Testing Python imports..."
     if python -c "from core.tasks.runner import TaskRunner; from app.tasks.data_collection.pools_screener import PoolsScreenerTask; print('Imports working!')" > /dev/null 2>&1; then
         log_success "Python imports are working!"
@@ -159,7 +173,6 @@ test_installation() {
         return 1
     fi
     
-    # Test list tasks
     log_info "Testing task listing..."
     if python cli.py list-tasks > /dev/null 2>&1; then
         log_success "Task listing is working!"
@@ -177,7 +190,6 @@ create_env_file() {
         log_info "Creating .env file with default values..."
         cat > .env << EOF
 # Database Configuration
-# MongoDB connection string (required)
 MONGO_URI=mongodb://admin:admin@localhost:27017/quants_lab?authSource=admin&retryWrites=true&w=majority
 MONGO_DATABASE=quants_lab
 
@@ -196,7 +208,7 @@ main() {
     log_info "🚀 Welcome to QuantsLab Installation!"
     echo
     log_info "This script will:"
-    log_info "  1. Check prerequisites (conda, docker, docker-compose)"
+    log_info "  1. Check prerequisites (conda, docker, docker compose)"
     log_info "  2. Create conda environment from environment.yml"
     log_info "  3. Install QuantsLab package in development mode"
     log_info "  4. Setup databases (optional)"
@@ -211,7 +223,6 @@ main() {
         exit 0
     fi
     
-    # Run installation steps
     check_prerequisites
     setup_conda_environment
     install_package
@@ -236,5 +247,4 @@ main() {
     log_success "Happy coding! 🚀"
 }
 
-# Run main function
 main "$@"
