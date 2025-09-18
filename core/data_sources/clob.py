@@ -223,7 +223,18 @@ class CLOBDataSource:
 
         logger.info("Candles cache dumped")
 
-    def load_candles_cache(self):
+    def load_candles_cache(self, 
+                          connector_name: Optional[str] = None,
+                          trading_pair: Optional[str] = None, 
+                          interval: Optional[str] = None):
+        """
+        Load candles from cache with optional filtering.
+        
+        Args:
+            connector_name: Optional filter by connector name
+            trading_pair: Optional filter by trading pair
+            interval: Optional filter by interval
+        """
         # Use centralized data paths
         candles_path = data_paths.candles_dir
         if not candles_path.exists():
@@ -231,11 +242,26 @@ class CLOBDataSource:
             return
 
         all_files = os.listdir(candles_path)
+        loaded_count = 0
+        skipped_count = 0
+        
         for file in all_files:
             if file == ".gitignore":
                 continue
             try:
-                connector_name, trading_pair, interval = file.split(".")[0].split("|")
+                file_connector, file_pair, file_interval = file.split(".")[0].split("|")
+                
+                # Apply filters if provided
+                if connector_name and file_connector != connector_name:
+                    skipped_count += 1
+                    continue
+                if trading_pair and file_pair != trading_pair:
+                    skipped_count += 1
+                    continue
+                if interval and file_interval != interval:
+                    skipped_count += 1
+                    continue
+                
                 candles = pd.read_parquet(candles_path / file)
                 candles.index = pd.to_datetime(candles.timestamp, unit='s')
                 candles.index.name = None
@@ -244,9 +270,12 @@ class CLOBDataSource:
                 for column in columns:
                     candles[column] = pd.to_numeric(candles[column])
 
-                self._candles_cache[(connector_name, trading_pair, interval)] = candles
+                self._candles_cache[(file_connector, file_pair, file_interval)] = candles
+                loaded_count += 1
             except Exception as e:
                 logger.error(f"Error loading {file}: {type(e).__name__} - {e}")
+        
+        logger.info(f"Loaded {loaded_count} candles cache files, skipped {skipped_count} files due to filters")
 
     async def get_trades(self, connector_name: str, trading_pair: str, start_time: int, end_time: int,
                          from_id: Optional[int] = None):
