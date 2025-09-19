@@ -1,0 +1,30 @@
+tasks:
+  data_collection:
+    enabled: true
+    task_class: notebook
+
+    schedule:
+      type: frequency
+      frequency_hours: 0.5
+      timezone: UTC
+
+    max_retries: 2
+    retry_delay_seconds: 300
+    timeout_seconds: 1800  # 30 minutes
+    
+    config:
+      notebooks:
+        - path: "cohort-12/download_candles_all_pairs.ipynb"
+        - path: "cohort-12/download_oi_all_pairs.ipynb"
+      
+      output_dir: "app/outputs/cohort-12"
+      save_outputs: true
+      extract_results: true
+      kernel_name: "python3"
+      timeout: "30m"
+      execution: "sequential"  # Run notebooks one after another
+    
+    tags:
+      - notebook
+      - etl
+      - daily
