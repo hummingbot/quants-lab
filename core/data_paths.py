@@ -45,6 +45,8 @@ class DataPaths:
         directories = [
             self.data_root,
             self.candles_dir,
+            self.trades_dir,
+            self.oi_dir,
             self.backtesting_dir,
             self.live_bot_databases_dir,
             self.cache_dir,
@@ -68,6 +70,16 @@ class DataPaths:
     def candles_dir(self) -> Path:
         """Get the candles directory."""
         return self._data_root / 'cache' / 'candles'
+    
+    @property
+    def trades_dir(self) -> Path:
+        """Get the trades cache directory."""
+        return self._data_root / 'cache' / 'trades'
+    
+    @property
+    def oi_dir(self) -> Path:
+        """Get the open interest cache directory."""
+        return self._data_root / 'cache' / 'oi'
     
     @property
     def backtesting_dir(self) -> Path:
