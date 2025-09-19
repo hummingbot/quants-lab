@@ -11,7 +11,7 @@ from hummingbot.client.settings import AllConnectorSettings, ConnectorType
 from hummingbot.data_feed.candles_feed.candles_factory import CandlesFactory
 from hummingbot.data_feed.candles_feed.data_types import CandlesConfig, HistoricalCandlesConfig
 
-from core.data_sources.trades_feed.connectors.binance_perpetual import BinancePerpetualTradesFeed
+from core.data_sources.market_feeds.market_feeds_manager import MarketFeedsManager
 from core.data_structures.candles import Candles
 from core.data_structures.trading_rules import TradingRules
 from core.data_paths import data_paths
@@ -47,18 +47,107 @@ class CLOBDataSource:
     def __init__(self):
         logger.info("Initializing ClobDataSource")
         self.candles_factory = CandlesFactory()
-        self.trades_feeds = {"binance_perpetual": BinancePerpetualTradesFeed()}
+        
+        # Initialize market feeds manager (lazy loading of feeds)
+        self.market_feeds_manager = MarketFeedsManager()
+        
+        # Cache for loaded feeds (lazy loading)
+        self._trades_feeds_cache = {}
+        self._oi_feeds_cache = {}
+        
         self.conn_settings = AllConnectorSettings.get_connector_settings()
         self.connectors = {name: self.get_connector(name) for name, settings in self.conn_settings.items()
                            if settings.type in self.CONNECTOR_TYPES and name not in self.EXCLUDED_CONNECTORS and
                            "testnet" not in name}
         self._candles_cache: Dict[Tuple[str, str, str], pd.DataFrame] = {}
+        
+    def _get_trades_feed(self, connector_name: str):
+        """Lazy-load trades feed for a specific connector."""
+        if connector_name in self._trades_feeds_cache:
+            return self._trades_feeds_cache[connector_name]
+        
+        # Map CLOB connector name to market feeds name
+        market_feed_name = self._reverse_map_connector_name(connector_name)
+        
+        available_feeds = self.market_feeds_manager.available_feeds
+        if market_feed_name not in available_feeds or "trades_feed" not in available_feeds[market_feed_name]:
+            raise ValueError(f"No trades feed available for {connector_name}")
+        
+        try:
+            trades_feed = self.market_feeds_manager.get_feed(
+                connector_name=market_feed_name,
+                feed_type="trades_feed"
+            )
+            self._trades_feeds_cache[connector_name] = trades_feed
+            logger.info(f"Loaded trades feed for {connector_name}")
+            return trades_feed
+        except Exception as e:
+            logger.error(f"Failed to load trades feed for {connector_name}: {e}")
+            raise
+    
+    def _get_oi_feed(self, connector_name: str):
+        """Lazy-load OI feed for a specific connector."""
+        if connector_name in self._oi_feeds_cache:
+            return self._oi_feeds_cache[connector_name]
+        
+        # Map CLOB connector name to market feeds name
+        market_feed_name = self._reverse_map_connector_name(connector_name)
+        
+        available_feeds = self.market_feeds_manager.available_feeds
+        if market_feed_name not in available_feeds or "oi_feed" not in available_feeds[market_feed_name]:
+            raise ValueError(f"No OI feed available for {connector_name}")
+        
+        try:
+            oi_feed = self.market_feeds_manager.get_feed(
+                connector_name=market_feed_name,
+                feed_type="oi_feed"
+            )
+            self._oi_feeds_cache[connector_name] = oi_feed
+            logger.info(f"Loaded OI feed for {connector_name}")
+            return oi_feed
+        except Exception as e:
+            logger.error(f"Failed to load OI feed for {connector_name}: {e}")
+            raise
+
+    def _reverse_map_connector_name(self, clob_name: str) -> str:
+        """Map CLOBDataSource connector names back to market feeds names."""
+        # Reverse mapping from CLOB names to market feeds names
+        mapping = {
+            "binance_perpetual": "binance",  # binance_perpetual in CLOB -> binance in market feeds
+        }
+        return mapping.get(clob_name, clob_name)
 
     @staticmethod
     def get_connector_config_map(connector_name: str):
         connector_config = AllConnectorSettings.get_connector_config_keys(connector_name)
         return {key: "" for key in connector_config.__fields__.keys() if key != "connector"}
 
+    @property
+    def trades_feeds(self):
+        """Property for backward compatibility - returns available trades feeds."""
+        result = {}
+        for connector_name in self.connectors.keys():
+            try:
+                feed = self._get_trades_feed(connector_name)
+                if feed:
+                    result[connector_name] = feed
+            except ValueError:
+                pass  # No feed available for this connector
+        return result
+    
+    @property
+    def oi_feeds(self):
+        """Property for backward compatibility - returns available OI feeds."""
+        result = {}
+        for connector_name in self.connectors.keys():
+            try:
+                feed = self._get_oi_feed(connector_name)
+                if feed:
+                    result[connector_name] = feed
+            except ValueError:
+                pass  # No feed available for this connector
+        return result
+    
     @property
     def candles_cache(self):
         return {key: Candles(candles_df=value, connector_name=key[0], trading_pair=key[1], interval=key[2])
@@ -250,8 +339,63 @@ class CLOBDataSource:
 
     async def get_trades(self, connector_name: str, trading_pair: str, start_time: int, end_time: int,
                          from_id: Optional[int] = None):
-        return await self.trades_feeds[connector_name].get_historical_trades(trading_pair, start_time, end_time,
-                                                                             from_id)
+        feed = self._get_trades_feed(connector_name)
+        return await feed.get_historical_trades(trading_pair, start_time, end_time, from_id)
+
+    async def get_oi(self, connector_name: str, trading_pair: str, interval: str, start_time: int, end_time: int,
+                     limit: int = 500):
+        """Get historical open interest data for a trading pair."""
+        feed = self._get_oi_feed(connector_name)
+        return await feed.get_historical_oi(trading_pair, interval, start_time, end_time, limit)
+
+    async def get_oi_last_days(self, connector_name: str, trading_pair: str, interval: str, days: int, limit: int = 500):
+        """Get open interest data for the last N days."""
+        end_time = int(time.time())
+        start_time = end_time - days * 24 * 60 * 60
+        return await self.get_oi(connector_name, trading_pair, interval, start_time, end_time, limit)
+
+    async def get_oi_batch_last_days(self, connector_name: str, trading_pairs: List, interval: str,
+                                     days: int, batch_size: int = 5, sleep_time: float = 5.0, limit: int = 500):
+        """Get open interest data for multiple trading pairs with batching."""
+        number_of_calls = (len(trading_pairs) // batch_size) + 1
+
+        all_oi_data = []
+
+        for i in range(number_of_calls):
+            print(f"OI Batch {i + 1}/{number_of_calls}")
+            start = i * batch_size
+            end = (i + 1) * batch_size
+            print(f"Start: {start}, End: {end}")
+            end = min(end, len(trading_pairs))
+            trading_pairs_batch = trading_pairs[start:end]
+
+            tasks = [self.get_oi_last_days(
+                connector_name=connector_name,
+                trading_pair=trading_pair,
+                interval=interval,
+                days=days,
+                limit=limit
+            ) for trading_pair in trading_pairs_batch]
+
+            oi_data = await asyncio.gather(*tasks)
+            all_oi_data.extend(oi_data)
+            if i != number_of_calls - 1:
+                logger.info(f"Sleeping for {sleep_time} seconds")
+                await asyncio.sleep(sleep_time)
+        return all_oi_data
+
+    async def filter_oi_supported_pairs(self, connector_name: str, trading_pairs: List, 
+                                       interval: str = "1h", max_test_pairs: int = 50, 
+                                       batch_size: int = 10) -> List[str]:
+        """Filter trading pairs to only those that support OI data."""
+        try:
+            feed = self._get_oi_feed(connector_name)
+            return await feed.filter_supported_pairs(
+                trading_pairs, interval, batch_size=batch_size, max_test_pairs=max_test_pairs
+            )
+        except ValueError:
+            logger.error(f"No OI feed available for connector {connector_name}")
+            return []
 
     @staticmethod
     def convert_interval_to_pandas_freq(interval: str) -> str:
