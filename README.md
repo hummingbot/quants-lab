@@ -36,7 +36,7 @@ conda activate quants-lab
 pip install -e .
 
 # 3. Start databases (optional)
-docker-compose -f docker-compose-db.yml up -d
+docker compose -f docker-compose-db.yml up -d
 
 # 4. Test installation
 python cli.py --help
