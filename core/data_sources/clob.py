@@ -176,68 +176,95 @@ class CLOBDataSource:
                           end_time: int,
                           from_trades: bool = False) -> Candles:
         cache_key = (connector_name, trading_pair, interval)
-
+        
+        # Track what data needs to be fetched
+        ranges_to_fetch = []
+        
         if cache_key in self._candles_cache:
             cached_df = self._candles_cache[cache_key]
             cached_start_time = int(cached_df.index.min().timestamp())
             cached_end_time = int(cached_df.index.max().timestamp())
-
+            
+            # Case 1: All requested data is in cache
             if cached_start_time <= start_time and cached_end_time >= end_time:
                 logger.info(
                     f"Using cached data for {connector_name} {trading_pair} {interval} from {start_time} to {end_time}")
                 return Candles(candles_df=cached_df[(cached_df.index >= pd.to_datetime(start_time, unit='s')) &
                                                     (cached_df.index <= pd.to_datetime(end_time, unit='s'))],
                                connector_name=connector_name, trading_pair=trading_pair, interval=interval)
+            
+            # Case 2: Partial overlap - determine what's missing
+            if start_time < cached_start_time and end_time > cached_end_time:
+                # Need data on both sides
+                ranges_to_fetch.append((start_time, cached_start_time - 1))
+                ranges_to_fetch.append((cached_end_time + 1, end_time))
+            elif start_time < cached_start_time:
+                # Need data before cache
+                ranges_to_fetch.append((start_time, min(cached_start_time - 1, end_time)))
+            elif end_time > cached_end_time:
+                # Need data after cache
+                ranges_to_fetch.append((max(cached_end_time + 1, start_time), end_time))
             else:
-                if start_time < cached_start_time:
-                    new_start_time = start_time
-                    new_end_time = cached_start_time - 1
-                else:
-                    new_start_time = cached_end_time + 1
-                    new_end_time = end_time
+                # Requested range doesn't overlap with cache at all
+                ranges_to_fetch.append((start_time, end_time))
         else:
-            new_start_time = start_time
-            new_end_time = end_time
-
-        try:
-            logger.info(f"Fetching data for {connector_name} {trading_pair} {interval} from {new_start_time} to {new_end_time}")
-            if from_trades:
-                trades = await self.get_trades(connector_name, trading_pair, new_start_time, new_end_time)
-                pandas_interval = self.convert_interval_to_pandas_freq(interval)
-                candles_df = trades.resample(pandas_interval).agg({"price": "ohlc", "volume": "sum"}).ffill()
-                candles_df.columns = candles_df.columns.droplevel(0)
-                candles_df["timestamp"] = pd.to_numeric(candles_df.index) // 1e9
-            else:
-                candle = self.candles_factory.get_candle(CandlesConfig(
-                    connector=connector_name,
-                    trading_pair=trading_pair,
-                    interval=interval
-                ))
-                candles_df = await candle.get_historical_candles(HistoricalCandlesConfig(
-                    connector_name=connector_name,
-                    trading_pair=trading_pair,
-                    start_time=new_start_time,
-                    end_time=new_end_time,
-                    interval=interval
-                ))
-                if candles_df is None:
-                    return Candles(candles_df=pd.DataFrame(), connector_name=connector_name, trading_pair=trading_pair,
-                                   interval=interval)
-                candles_df.index = pd.to_datetime(candles_df.timestamp, unit='s')
-
-            if cache_key in self._candles_cache:
-                self._candles_cache[cache_key] = pd.concat(
-                    [self._candles_cache[cache_key], candles_df]).drop_duplicates(keep='first').sort_index()
-            else:
-                self._candles_cache[cache_key] = candles_df
-
-            return Candles(candles_df=self._candles_cache[cache_key][
+            # No cache, fetch everything
+            ranges_to_fetch.append((start_time, end_time))
+        
+        # Fetch missing data ranges
+        for fetch_start, fetch_end in ranges_to_fetch:
+            try:
+                logger.info(f"Fetching data for {connector_name} {trading_pair} {interval} from {fetch_start} to {fetch_end}")
+                
+                if from_trades:
+                    trades = await self.get_trades(connector_name, trading_pair, fetch_start, fetch_end)
+                    pandas_interval = self.convert_interval_to_pandas_freq(interval)
+                    candles_df = trades.resample(pandas_interval).agg({"price": "ohlc", "volume": "sum"}).ffill()
+                    candles_df.columns = candles_df.columns.droplevel(0)
+                    candles_df["timestamp"] = pd.to_numeric(candles_df.index) // 1e9
+                else:
+                    candle = self.candles_factory.get_candle(CandlesConfig(
+                        connector=connector_name,
+                        trading_pair=trading_pair,
+                        interval=interval
+                    ))
+                    candles_df = await candle.get_historical_candles(HistoricalCandlesConfig(
+                        connector_name=connector_name,
+                        trading_pair=trading_pair,
+                        start_time=fetch_start,
+                        end_time=fetch_end,
+                        interval=interval
+                    ))
+                    if candles_df is None or candles_df.empty:
+                        continue
+                    candles_df.index = pd.to_datetime(candles_df.timestamp, unit='s')
+                
+                # Update cache with new data
+                if cache_key in self._candles_cache:
+                    self._candles_cache[cache_key] = pd.concat(
+                        [self._candles_cache[cache_key], candles_df]).drop_duplicates(keep='first').sort_index()
+                else:
+                    self._candles_cache[cache_key] = candles_df
+                    
+            except Exception as e:
+                logger.error(f"Error fetching candles for {connector_name} {trading_pair} {interval} "
+                           f"from {fetch_start} to {fetch_end}: {type(e).__name__} - {e}")
+                # Continue with partial data if one range fails
+                if cache_key not in self._candles_cache:
+                    raise
+        
+        # Return the requested slice from cache
+        if cache_key in self._candles_cache:
+            result_df = self._candles_cache[cache_key][
                 (self._candles_cache[cache_key].index >= pd.to_datetime(start_time, unit='s')) &
-                (self._candles_cache[cache_key].index <= pd.to_datetime(end_time, unit='s'))],
-                           connector_name=connector_name, trading_pair=trading_pair, interval=interval)
-        except Exception as e:
-            logger.error(f"Error fetching candles for {connector_name} {trading_pair} {interval}: {type(e).__name__} - {e}")
-            raise
+                (self._candles_cache[cache_key].index <= pd.to_datetime(end_time, unit='s'))
+            ]
+            return Candles(candles_df=result_df, connector_name=connector_name, 
+                          trading_pair=trading_pair, interval=interval)
+        else:
+            # No data could be fetched
+            return Candles(candles_df=pd.DataFrame(), connector_name=connector_name, 
+                          trading_pair=trading_pair, interval=interval)
 
     async def get_candles_last_days(self,
                                     connector_name: str,
