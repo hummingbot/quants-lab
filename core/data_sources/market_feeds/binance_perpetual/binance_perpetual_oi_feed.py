@@ -93,8 +93,28 @@ class BinancePerpetualOIFeed(OIFeedBase[BinancePerpetualBase]):
             df["timestamp"] = pd.to_datetime(df["timestamp"], unit="ms")
             df.set_index("timestamp", inplace=True)
             
-            # Convert numeric columns
-            numeric_columns = ["sumOpenInterest", "sumOpenInterestValue", "count"]
+            # Add the original trading pair (convert from BTCUSDT to BTC-USDT format)
+            df["trading_pair"] = trading_pair
+            
+            # Rename columns to snake_case convention (excluding 'symbol' which we'll drop)
+            column_mapping = {
+                "sumOpenInterest": "sum_open_interest",
+                "sumOpenInterestValue": "sum_open_interest_value",
+                "CMCCirculatingSupply": "cmc_circulating_supply",
+                "count": "count"
+            }
+            
+            # Drop the symbol column if it exists (we already have trading_pair)
+            if "symbol" in df.columns:
+                df.drop(columns=["symbol"], inplace=True)
+            
+            # Apply column renaming for columns that exist
+            for old_col, new_col in column_mapping.items():
+                if old_col in df.columns:
+                    df.rename(columns={old_col: new_col}, inplace=True)
+            
+            # Convert numeric columns with new names
+            numeric_columns = ["sum_open_interest", "sum_open_interest_value", "cmc_circulating_supply", "count"]
             for col in numeric_columns:
                 if col in df.columns:
                     df[col] = pd.to_numeric(df[col], errors='coerce')
