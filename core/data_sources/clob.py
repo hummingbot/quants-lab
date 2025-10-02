@@ -60,6 +60,7 @@ class CLOBDataSource:
                            if settings.type in self.CONNECTOR_TYPES and name not in self.EXCLUDED_CONNECTORS and
                            "testnet" not in name}
         self._candles_cache: Dict[Tuple[str, str, str], pd.DataFrame] = {}
+        self._oi_cache: Dict[Tuple[str, str, str], pd.DataFrame] = {}
         
     def _get_trades_feed(self, connector_name: str):
         """Lazy-load trades feed for a specific connector."""
@@ -338,6 +339,22 @@ class CLOBDataSource:
             )
 
         logger.info("Candles cache dumped")
+    
+    def dump_oi_cache(self):
+        # Use centralized data paths for OI
+        oi_path = data_paths.oi_dir
+        oi_path.mkdir(parents=True, exist_ok=True)
+        
+        for key, df in self._oi_cache.items():
+            filename = oi_path / f"{key[0]}|{key[1]}|{key[2]}.parquet"
+            df.to_parquet(
+                filename,
+                engine='pyarrow',
+                compression='snappy',
+                index=True
+            )
+        
+        logger.info(f"OI cache dumped - {len(self._oi_cache)} files")
 
     def load_candles_cache(self):
         # Use centralized data paths
@@ -363,6 +380,25 @@ class CLOBDataSource:
                 self._candles_cache[(connector_name, trading_pair, interval)] = candles
             except Exception as e:
                 logger.error(f"Error loading {file}: {type(e).__name__} - {e}")
+    
+    def load_oi_cache(self):
+        # Load OI cache from disk
+        oi_path = data_paths.oi_dir
+        if not oi_path.exists():
+            logger.warning(f"Path {oi_path} does not exist, skipping OI cache loading.")
+            return
+        
+        all_files = os.listdir(oi_path)
+        for file in all_files:
+            if file == ".gitignore" or not file.endswith(".parquet"):
+                continue
+            try:
+                connector_name, trading_pair, interval = file.split(".")[0].split("|")
+                oi_df = pd.read_parquet(oi_path / file)
+                self._oi_cache[(connector_name, trading_pair, interval)] = oi_df
+                logger.info(f"Loaded OI cache for {connector_name} {trading_pair} {interval}")
+            except Exception as e:
+                logger.error(f"Error loading OI cache {file}: {type(e).__name__} - {e}")
 
     async def get_trades(self, connector_name: str, trading_pair: str, start_time: int, end_time: int,
                          from_id: Optional[int] = None):
@@ -371,9 +407,50 @@ class CLOBDataSource:
 
     async def get_oi(self, connector_name: str, trading_pair: str, interval: str, start_time: int, end_time: int,
                      limit: int = 500):
-        """Get historical open interest data for a trading pair."""
-        feed = self._get_oi_feed(connector_name)
-        return await feed.get_historical_oi(trading_pair, interval, start_time, end_time, limit)
+        """Get historical open interest data for a trading pair with caching."""
+        cache_key = (connector_name, trading_pair, interval)
+        
+        # Check cache first
+        if cache_key in self._oi_cache:
+            cached_df = self._oi_cache[cache_key]
+            if not cached_df.empty:
+                # Filter cached data for requested time range
+                mask = (cached_df.index >= pd.to_datetime(start_time, unit='s')) & \
+                       (cached_df.index <= pd.to_datetime(end_time, unit='s'))
+                filtered_df = cached_df[mask]
+                
+                # If we have some data in the requested range, check if we need more
+                if not filtered_df.empty:
+                    cached_start = int(cached_df.index.min().timestamp())
+                    cached_end = int(cached_df.index.max().timestamp())
+                    
+                    # If all requested data is in cache, return it
+                    if cached_start <= start_time and cached_end >= end_time:
+                        logger.info(f"Using cached OI data for {connector_name} {trading_pair} {interval}")
+                        return filtered_df
+        
+        # Fetch from feed if not in cache or need more data
+        try:
+            feed = self._get_oi_feed(connector_name)
+            oi_df = await feed.get_historical_oi(trading_pair, interval, start_time, end_time, limit)
+            
+            # Update cache
+            if not oi_df.empty:
+                if cache_key in self._oi_cache:
+                    # Merge with existing cache data
+                    self._oi_cache[cache_key] = pd.concat(
+                        [self._oi_cache[cache_key], oi_df]
+                    ).drop_duplicates(keep='first').sort_index()
+                else:
+                    self._oi_cache[cache_key] = oi_df
+                    
+                logger.info(f"Cached {len(oi_df)} OI records for {connector_name} {trading_pair} {interval}")
+            
+            return oi_df
+        except Exception as e:
+            logger.error(f"Error fetching OI data for {connector_name} {trading_pair}: {e}")
+            # Return empty DataFrame on error
+            return pd.DataFrame()
 
     async def get_oi_last_days(self, connector_name: str, trading_pair: str, interval: str, days: int, limit: int = 500):
         """Get open interest data for the last N days."""
