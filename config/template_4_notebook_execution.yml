@@ -24,7 +24,7 @@ tasks:
     
     config:
       notebooks:
-        - path: "market_data_etl/download_specific_candles.ipynb"
+        - path: "data_collection/download_specific_candles.ipynb"
           parameters:
             CONNECTOR_NAME: "binance_perpetual"
             TRADING_PAIRS: ["BTC-USDT", "ETH-USDT", "SOL-USDT"]
