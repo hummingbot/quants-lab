@@ -501,6 +501,316 @@ class CLOBDataSource:
             logger.error(f"No OI feed available for connector {connector_name}")
             return []
 
+    async def get_order_book_snapshot(self, connector_name: str, trading_pair: str, depth: int = 10) -> Dict:
+        """
+        Get order book snapshot for a trading pair.
+
+        Args:
+            connector_name: Name of the connector
+            trading_pair: Trading pair to get order book for
+            depth: Number of bid/ask levels to return (default: 10)
+
+        Returns:
+            Dictionary containing bid and ask data with timestamp
+        """
+        try:
+            connector = self.connectors.get(connector_name)
+            if not connector:
+                raise ValueError(f"Connector {connector_name} not found")
+
+            # Access the order book data source
+            if hasattr(connector, '_orderbook_ds') and connector._orderbook_ds:
+                orderbook_ds = connector._orderbook_ds
+
+                # Get fresh order book using the data source method
+                order_book = await orderbook_ds.get_new_order_book(trading_pair)
+                snapshot = order_book.snapshot
+
+                result = {
+                    "trading_pair": trading_pair,
+                    "bids": snapshot[0].loc[:(depth - 1), ["price", "amount"]].values.tolist(),
+                    "asks": snapshot[1].loc[:(depth - 1), ["price", "amount"]].values.tolist(),
+                    "timestamp": time.time()
+                }
+
+                logger.debug(f"Retrieved order book snapshot for {connector_name}/{trading_pair}")
+                return result
+            else:
+                raise ValueError(f"Order book data source not available for {connector_name}")
+
+        except Exception as e:
+            logger.error(f"Error getting order book snapshot for {connector_name}/{trading_pair}: {e}")
+            raise
+
+    async def get_order_book_price_for_volume(self, connector_name: str, trading_pair: str,
+                                             is_buy: bool, volume: float) -> Dict:
+        """
+        Get the price needed to fill a specific volume.
+
+        Args:
+            connector_name: Name of the connector
+            trading_pair: Trading pair
+            is_buy: True for buy side, False for sell side
+            volume: Volume to query
+
+        Returns:
+            Dictionary with result_price and result_volume
+        """
+        try:
+            connector = self.connectors.get(connector_name)
+            if not connector:
+                raise ValueError(f"Connector {connector_name} not found")
+
+            if hasattr(connector, '_orderbook_ds') and connector._orderbook_ds:
+                orderbook_ds = connector._orderbook_ds
+                order_book = await orderbook_ds.get_new_order_book(trading_pair)
+
+                result = order_book.get_price_for_volume(is_buy, volume)
+
+                return {
+                    "trading_pair": trading_pair,
+                    "is_buy": is_buy,
+                    "query_volume": volume,
+                    "result_price": float(result.result_price) if result.result_price else None,
+                    "result_volume": float(result.result_volume) if result.result_volume else None,
+                    "timestamp": time.time()
+                }
+            else:
+                raise ValueError(f"Order book data source not available for {connector_name}")
+
+        except Exception as e:
+            logger.error(f"Error getting price for volume for {connector_name}/{trading_pair}: {e}")
+            raise
+
+    async def get_order_book_volume_for_price(self, connector_name: str, trading_pair: str,
+                                             is_buy: bool, price: float) -> Dict:
+        """
+        Get the volume available at a specific price.
+
+        Args:
+            connector_name: Name of the connector
+            trading_pair: Trading pair
+            is_buy: True for buy side, False for sell side
+            price: Price to query
+
+        Returns:
+            Dictionary with result_volume and result_price
+        """
+        try:
+            connector = self.connectors.get(connector_name)
+            if not connector:
+                raise ValueError(f"Connector {connector_name} not found")
+
+            if hasattr(connector, '_orderbook_ds') and connector._orderbook_ds:
+                orderbook_ds = connector._orderbook_ds
+                order_book = await orderbook_ds.get_new_order_book(trading_pair)
+
+                result = order_book.get_volume_for_price(is_buy, price)
+
+                return {
+                    "trading_pair": trading_pair,
+                    "is_buy": is_buy,
+                    "query_price": price,
+                    "result_volume": float(result.result_volume) if result.result_volume else None,
+                    "result_price": float(result.result_price) if result.result_price else None,
+                    "timestamp": time.time()
+                }
+            else:
+                raise ValueError(f"Order book data source not available for {connector_name}")
+
+        except Exception as e:
+            logger.error(f"Error getting volume for price for {connector_name}/{trading_pair}: {e}")
+            raise
+
+    async def get_order_book_price_for_quote_volume(self, connector_name: str, trading_pair: str,
+                                                   is_buy: bool, quote_volume: float) -> Dict:
+        """
+        Get the price needed to fill a specific quote volume.
+
+        Args:
+            connector_name: Name of the connector
+            trading_pair: Trading pair
+            is_buy: True for buy side, False for sell side
+            quote_volume: Quote volume to query
+
+        Returns:
+            Dictionary with result_price and result_volume
+        """
+        try:
+            connector = self.connectors.get(connector_name)
+            if not connector:
+                raise ValueError(f"Connector {connector_name} not found")
+
+            if hasattr(connector, '_orderbook_ds') and connector._orderbook_ds:
+                orderbook_ds = connector._orderbook_ds
+                order_book = await orderbook_ds.get_new_order_book(trading_pair)
+
+                result = order_book.get_price_for_quote_volume(is_buy, quote_volume)
+
+                return {
+                    "trading_pair": trading_pair,
+                    "is_buy": is_buy,
+                    "query_quote_volume": quote_volume,
+                    "result_price": float(result.result_price) if result.result_price else None,
+                    "result_volume": float(result.result_volume) if result.result_volume else None,
+                    "timestamp": time.time()
+                }
+            else:
+                raise ValueError(f"Order book data source not available for {connector_name}")
+
+        except Exception as e:
+            logger.error(f"Error getting price for quote volume for {connector_name}/{trading_pair}: {e}")
+            raise
+
+    async def get_order_book_quote_volume_for_price(self, connector_name: str, trading_pair: str,
+                                                   is_buy: bool, quote_price: float) -> Dict:
+        """
+        Get the quote volume available at a specific price.
+
+        Args:
+            connector_name: Name of the connector
+            trading_pair: Trading pair
+            is_buy: True for buy side, False for sell side
+            quote_price: Price to query
+
+        Returns:
+            Dictionary with result_quote_volume and crossed_book indicator
+        """
+        try:
+            connector = self.connectors.get(connector_name)
+            if not connector:
+                raise ValueError(f"Connector {connector_name} not found")
+
+            if hasattr(connector, '_orderbook_ds') and connector._orderbook_ds:
+                orderbook_ds = connector._orderbook_ds
+                order_book = await orderbook_ds.get_new_order_book(trading_pair)
+
+                result = order_book.get_quote_volume_for_price(is_buy, quote_price)
+
+                # Check if quote crosses the book
+                if result.result_volume is None or result.result_price is None:
+                    snapshot = order_book.snapshot
+                    best_bid = float(snapshot[0].iloc[0]["price"]) if not snapshot[0].empty else None
+                    best_ask = float(snapshot[1].iloc[0]["price"]) if not snapshot[1].empty else None
+                    mid_price = (best_bid + best_ask) / 2 if best_bid and best_ask else None
+
+                    crossed_reason = None
+                    suggested_price = None
+
+                    if is_buy:
+                        if best_ask and quote_price > best_ask:
+                            crossed_reason = f"Buy price {quote_price} exceeds best ask {best_ask}"
+                            suggested_price = best_ask
+                        elif best_bid and quote_price < best_bid:
+                            crossed_reason = f"Buy price {quote_price} below best bid {best_bid} - no liquidity available"
+                            suggested_price = best_bid
+                    else:
+                        if best_bid and quote_price < best_bid:
+                            crossed_reason = f"Sell price {quote_price} below best bid {best_bid}"
+                            suggested_price = best_bid
+                        elif best_ask and quote_price > best_ask:
+                            crossed_reason = f"Sell price {quote_price} above best ask {best_ask} - no liquidity available"
+                            suggested_price = best_ask
+
+                    return {
+                        "trading_pair": trading_pair,
+                        "is_buy": is_buy,
+                        "query_price": quote_price,
+                        "result_volume": None,
+                        "result_quote_volume": None,
+                        "crossed_book": True,
+                        "crossed_reason": crossed_reason,
+                        "best_bid": best_bid,
+                        "best_ask": best_ask,
+                        "mid_price": mid_price,
+                        "suggested_price": suggested_price,
+                        "timestamp": time.time()
+                    }
+
+                return {
+                    "trading_pair": trading_pair,
+                    "is_buy": is_buy,
+                    "query_price": quote_price,
+                    "result_quote_volume": float(result.result_volume) if result.result_volume else None,
+                    "crossed_book": False,
+                    "timestamp": time.time()
+                }
+            else:
+                raise ValueError(f"Order book data source not available for {connector_name}")
+
+        except Exception as e:
+            logger.error(f"Error getting quote volume for price for {connector_name}/{trading_pair}: {e}")
+            raise
+
+    async def get_order_book_vwap(self, connector_name: str, trading_pair: str,
+                                 is_buy: bool, volume: float) -> Dict:
+        """
+        Get the VWAP (Volume Weighted Average Price) for a specific volume.
+
+        Args:
+            connector_name: Name of the connector
+            trading_pair: Trading pair
+            is_buy: True for buy side, False for sell side
+            volume: Volume to query
+
+        Returns:
+            Dictionary with average_price and result_volume
+        """
+        try:
+            connector = self.connectors.get(connector_name)
+            if not connector:
+                raise ValueError(f"Connector {connector_name} not found")
+
+            if hasattr(connector, '_orderbook_ds') and connector._orderbook_ds:
+                orderbook_ds = connector._orderbook_ds
+                order_book = await orderbook_ds.get_new_order_book(trading_pair)
+
+                result = order_book.get_vwap_for_volume(is_buy, volume)
+
+                return {
+                    "trading_pair": trading_pair,
+                    "is_buy": is_buy,
+                    "query_volume": volume,
+                    "average_price": float(result.result_price) if result.result_price else None,
+                    "result_volume": float(result.result_volume) if result.result_volume else None,
+                    "timestamp": time.time()
+                }
+            else:
+                raise ValueError(f"Order book data source not available for {connector_name}")
+
+        except Exception as e:
+            logger.error(f"Error getting VWAP for {connector_name}/{trading_pair}: {e}")
+            raise
+
+    async def get_prices(self, connector_name: str, trading_pairs: List[str]) -> Dict[str, float]:
+        """
+        Get current prices for specified trading pairs.
+
+        Args:
+            connector_name: Name of the connector
+            trading_pairs: List of trading pairs to get prices for
+
+        Returns:
+            Dictionary mapping trading pairs to their current prices
+        """
+        try:
+            connector = self.connectors.get(connector_name)
+            if not connector:
+                raise ValueError(f"Connector {connector_name} not found")
+
+            # Get last traded prices
+            prices = await connector.get_last_traded_prices(trading_pairs)
+
+            # Convert Decimal to float for JSON serialization
+            result = {pair: float(price) for pair, price in prices.items()}
+
+            logger.debug(f"Retrieved prices for {connector_name}: {len(result)} pairs")
+            return result
+
+        except Exception as e:
+            logger.error(f"Error getting prices for {connector_name}: {e}")
+            raise
+
     @staticmethod
     def convert_interval_to_pandas_freq(interval: str) -> str:
         """
