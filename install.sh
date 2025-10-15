@@ -101,7 +101,12 @@ setup_conda_environment() {
     fi
     
     log_info "Creating conda environment from environment.yml..."
-    conda env create -f environment.yml
+    if ! conda env create -f environment.yml; then
+        log_error "Failed to create conda environment."
+        log_info "Try running: conda env remove -n quants-lab -y"
+        log_info "Then run the installation again."
+        exit 1
+    fi
     log_success "Conda environment 'quants-lab' created successfully!"
 }
 
@@ -187,16 +192,51 @@ test_installation() {
 # Create .env file if it doesn't exist
 create_env_file() {
     if [ ! -f .env ]; then
-        log_info "Creating .env file with default values..."
-        cat > .env << EOF
+        log_info "Creating .env file with placeholders..."
+        cat > .env << 'EOF'
 # Database Configuration
+# MongoDB connection string (required)
 MONGO_URI=mongodb://admin:admin@localhost:27017/quants_lab?authSource=admin&retryWrites=true&w=majority
 MONGO_DATABASE=quants_lab
 
 # Environment
 ENVIRONMENT=development
+
+# Notifiers Configuration (Optional - uncomment and fill to enable)
+
+# Telegram
+# TELEGRAM_ENABLED=true
+# TELEGRAM_BOT_TOKEN=<your_telegram_bot_token>
+# TELEGRAM_CHAT_ID=<your_telegram_chat_id>
+# TELEGRAM_PARSE_MODE=HTML
+# TELEGRAM_DISABLE_NOTIFICATION=false
+
+# Email
+# EMAIL_ENABLED=true
+# EMAIL_SMTP_SERVER=smtp.gmail.com
+# EMAIL_SMTP_PORT=587
+# EMAIL_USERNAME=<your_email@example.com>
+# EMAIL_PASSWORD=<your_app_specific_password>
+# EMAIL_FROM=<sender_email@example.com>
+# EMAIL_TO=<recipient1@example.com>,<recipient2@example.com>
+
+# Hummingbot API
+# HUMMINGBOT_API_HOST=<your_hummingbot_api_host_ip>
+
+# Discord
+# DISCORD_ENABLED=true
+# DISCORD_WEBHOOK_URL=https://discord.com/api/webhooks/<your_webhook_id>/<your_webhook_token>
+
+# Slack
+# SLACK_ENABLED=true
+# SLACK_WEBHOOK_URL=https://hooks.slack.com/services/<your_webhook_path>
+# SLACK_CHANNEL=#general
 EOF
-        log_success ".env file created!"
+        log_success ".env file created with placeholders!"
+        log_warning "Please update the .env file with your actual configuration values"
+        log_info "  - Update database credentials if using custom MongoDB setup"
+        log_info "  - Configure notification services (Telegram, Email, Discord, Slack) as needed"
+        log_info "  - Set Hummingbot API host if using remote Hummingbot instances"
     else
         log_info ".env file already exists, skipping..."
     fi

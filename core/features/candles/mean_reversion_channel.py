@@ -1,8 +1,17 @@
+"""
+Mean reversion channel using advanced smoothing filters (SuperSmoother, Gaussian, Butterworth, etc.).
+"""
 import numpy as np
 import pandas as pd
 import pandas_ta as ta
+from typing import Optional, TYPE_CHECKING
+import plotly.graph_objects as go
 
 from core.features.feature_base import FeatureBase, FeatureConfig
+from core.features.models import Feature, Signal
+
+if TYPE_CHECKING:
+    from core.data_structures.candles import Candles
 
 
 class MeanReversionChannelConfig(FeatureConfig):
@@ -15,39 +24,49 @@ class MeanReversionChannelConfig(FeatureConfig):
 
 
 class MeanReversionChannel(FeatureBase[MeanReversionChannelConfig]):
-    def calculate(self, candles: pd.DataFrame) -> pd.DataFrame:
+    """
+    Mean reversion channel with advanced smoothing:
+    - SuperSmoother, Gaussian, Butterworth, BandStop filters
+    - Inner and outer bands for mean reversion zones
+    - Condition-based signal detection
+    """
+
+    def calculate(self, data: pd.DataFrame) -> pd.DataFrame:
+        """Calculate mean reversion channel indicators."""
         length = self.config.length
         inner_mult = self.config.inner_mult
         outer_mult = self.config.outer_mult
         source = self.config.source
         filter_type = self.config.filter_type
 
+        df = data.copy()
+
         # Calculate source
         if source == "hlc3":
-            candles["source"] = (candles["high"] + candles["low"] + candles["close"]) / 3
+            df["source"] = (df["high"] + df["low"] + df["close"]) / 3
         else:
-            candles["source"] = candles[source]
+            df["source"] = df[source]
 
         # Calculate mean line
         if filter_type == "SuperSmoother":
-            candles["meanline"] = self.supersmoother(candles["source"], length)
+            df["meanline"] = self.supersmoother(df["source"], length)
         else:
-            candles["meanline"] = self.sak_smoothing(candles["source"], length, filter_type)
+            df["meanline"] = self.sak_smoothing(df["source"], length, filter_type)
 
         # Calculate mean range
-        candles["tr"] = ta.true_range(candles["high"], candles["low"], candles["close"])
-        candles["meanrange"] = self.supersmoother(candles["tr"].dropna(), length)
+        df["tr"] = ta.true_range(df["high"], df["low"], df["close"])
+        df["meanrange"] = self.supersmoother(df["tr"].dropna(), length)
 
         # Calculate bands
-        candles["upband1"] = candles["meanline"] + (candles["meanrange"] * inner_mult * np.pi)
-        candles["loband1"] = candles["meanline"] - (candles["meanrange"] * inner_mult * np.pi)
-        candles["upband2"] = candles["meanline"] + (candles["meanrange"] * outer_mult * np.pi)
-        candles["loband2"] = candles["meanline"] - (candles["meanrange"] * outer_mult * np.pi)
+        df["upband1"] = df["meanline"] + (df["meanrange"] * inner_mult * np.pi)
+        df["loband1"] = df["meanline"] - (df["meanrange"] * inner_mult * np.pi)
+        df["upband2"] = df["meanline"] + (df["meanrange"] * outer_mult * np.pi)
+        df["loband2"] = df["meanline"] - (df["meanrange"] * outer_mult * np.pi)
 
         # Calculate condition
-        candles["condition"] = self.calculate_condition(candles)
+        df["condition"] = self.calculate_condition(df)
 
-        return candles
+        return df
 
     def supersmoother(self, src, length):
         a1 = np.exp(-np.sqrt(2) * np.pi / length)
@@ -132,6 +151,7 @@ class MeanReversionChannel(FeatureBase[MeanReversionChannelConfig]):
         return src.rolling(window=length).apply(smooth)
 
     def calculate_condition(self, df):
+        """Calculate mean reversion conditions based on price position relative to bands."""
         conditions = []
         for _, row in df.iterrows():
             if row["close"] > row["meanline"]:
@@ -163,3 +183,120 @@ class MeanReversionChannel(FeatureBase[MeanReversionChannelConfig]):
             else:
                 conditions.append(0)
         return pd.Series(conditions, index=df.index)
+
+    def create_feature(self, candles: "Candles") -> Feature:
+        """Create Feature object from candles."""
+        df = self.calculate(candles.data)
+
+        return Feature(
+            feature_name="mean_reversion_channel",
+            trading_pair=candles.trading_pair,
+            connector_name=candles.connector_name,
+            value={
+                'meanline': float(df['meanline'].iloc[-1]),
+                'upband1': float(df['upband1'].iloc[-1]),
+                'loband1': float(df['loband1'].iloc[-1]),
+                'upband2': float(df['upband2'].iloc[-1]),
+                'loband2': float(df['loband2'].iloc[-1]),
+                'meanrange': float(df['meanrange'].iloc[-1]),
+                'condition': int(df['condition'].iloc[-1]),
+            },
+            info={
+                'length': self.config.length,
+                'inner_mult': self.config.inner_mult,
+                'outer_mult': self.config.outer_mult,
+                'filter_type': self.config.filter_type,
+                'source': self.config.source,
+                'description': f'Mean reversion channel with {self.config.filter_type} smoothing',
+                'interval': candles.interval
+            }
+        )
+
+    def create_signal(self, candles: "Candles") -> Optional[Signal]:
+        """Create signal based on mean reversion conditions."""
+        df = self.calculate(candles.data)
+        condition = int(df['condition'].iloc[-1])
+
+        # Conditions 1-3 are bearish (price above outer band), -1 to -3 are bullish (price below outer band)
+        if condition in [1, 2, 3]:
+            # Price at or above outer upper band - mean reversion SHORT signal
+            signal_value = -min(abs(condition) / 3.0, 1.0)  # Normalize to -1 to 0
+            return Signal(
+                signal_name=f"mean_reversion_{self.config.length}_{self.config.filter_type}",
+                trading_pair=candles.trading_pair,
+                category='mr',  # mean reversion
+                value=signal_value
+            )
+        elif condition in [-1, -2, -3]:
+            # Price at or below outer lower band - mean reversion LONG signal
+            signal_value = min(abs(condition) / 3.0, 1.0)  # Normalize to 0 to 1
+            return Signal(
+                signal_name=f"mean_reversion_{self.config.length}_{self.config.filter_type}",
+                trading_pair=candles.trading_pair,
+                category='mr',
+                value=signal_value
+            )
+
+        return None
+
+    def add_to_fig(self, fig: go.Figure, candles: "Candles", row: Optional[int] = None, **kwargs) -> go.Figure:
+        """Add mean reversion channel bands to the chart."""
+        df = self.calculate(candles.data)
+
+        # Add meanline
+        trace_mean = go.Scatter(
+            x=df.index,
+            y=df['meanline'],
+            mode='lines',
+            name=f'Mean ({self.config.filter_type})',
+            line=dict(color='blue', width=2),
+            showlegend=True
+        )
+
+        # Add inner bands
+        trace_upper1 = go.Scatter(
+            x=df.index,
+            y=df['upband1'],
+            mode='lines',
+            name='Inner Upper Band',
+            line=dict(color='orange', width=1, dash='dash'),
+            showlegend=True
+        )
+
+        trace_lower1 = go.Scatter(
+            x=df.index,
+            y=df['loband1'],
+            mode='lines',
+            name='Inner Lower Band',
+            line=dict(color='orange', width=1, dash='dash'),
+            showlegend=True
+        )
+
+        # Add outer bands
+        trace_upper2 = go.Scatter(
+            x=df.index,
+            y=df['upband2'],
+            mode='lines',
+            name='Outer Upper Band',
+            line=dict(color='red', width=1, dash='dot'),
+            showlegend=True
+        )
+
+        trace_lower2 = go.Scatter(
+            x=df.index,
+            y=df['loband2'],
+            mode='lines',
+            name='Outer Lower Band',
+            line=dict(color='red', width=1, dash='dot'),
+            showlegend=True
+        )
+
+        traces = [trace_mean, trace_upper1, trace_lower1, trace_upper2, trace_lower2]
+
+        for trace in traces:
+            if row is not None:
+                fig.add_trace(trace, row=row, col=1)
+            else:
+                fig.add_trace(trace)
+
+        return fig

@@ -26,7 +26,6 @@ dependencies:
       - optuna
       - optuna-dashboard
       - pathlib
-      - streamlit
       - pre-commit
       - isort
       - flake8
