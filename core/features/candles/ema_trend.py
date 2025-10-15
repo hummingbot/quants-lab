@@ -17,7 +17,9 @@ class EMATrendConfig(FeatureConfig):
     """Configuration for EMA trend feature"""
     name: str = "ema_trend"
     ema_lengths: List[int] = [20, 200, 500]
-    rolling_window: int = 3000
+    rolling_window: int = 500
+    momentum_window: int = 5  # Window for momentum calculation
+    decay_periods: int = 50  # Periods after crossover before signal decays
 
 
 class EMATrend(FeatureBase[EMATrendConfig]):
@@ -72,16 +74,61 @@ class EMATrend(FeatureBase[EMATrendConfig]):
         df['ema_divergence'] = ema_divergence
         df['ema_divergence_pct'] = ema_divergence.rolling(self.config.rolling_window).rank(pct=True)
 
+        # Factor 1: Momentum - velocidad de cambio de la divergencia
+        df['divergence_momentum'] = ema_divergence.diff(self.config.momentum_window) / self.config.momentum_window
+        df['momentum_normalized'] = df['divergence_momentum'].rolling(self.config.rolling_window).rank(pct=True)
+
+        # Factor 2: Aceleración - segunda derivada de la divergencia
+        df['divergence_acceleration'] = df['divergence_momentum'].diff(self.config.momentum_window)
+        df['acceleration_normalized'] = df['divergence_acceleration'].rolling(self.config.rolling_window).rank(pct=True)
+
+        # Factor 3: Tiempo desde el cruce - detectar cambios recientes de señal
+        df['signal_changed'] = (df['signal'] != df['signal'].shift(1)).astype(int)
+        df['periods_since_cross'] = df.groupby((df['signal_changed'] == 1).cumsum()).cumcount()
+
+        # Decay exponencial: máxima intensidad en el cruce, decae con el tiempo
+        df['freshness_factor'] = pd.Series(1.0, index=df.index)
+        df.loc[df['periods_since_cross'] > 0, 'freshness_factor'] = (
+            1 - (df.loc[df['periods_since_cross'] > 0, 'periods_since_cross'] / self.config.decay_periods)
+        ).clip(lower=0.2)  # Mínimo 0.2 para no eliminar completamente señales antiguas
+
         # Calculate intensity: 0 (neutral) to 1 (maximum strength)
         df['signal_intensity'] = 0.0
 
-        # For long signals: intensity based on how much EMA_short is above the long EMAs
+        # Para señales LONG
         long_mask = df['signal'] == 1
-        df.loc[long_mask, 'signal_intensity'] = df.loc[long_mask, 'ema_divergence_pct']
+        if long_mask.any():
+            # Combinar los 3 factores para señales long
+            magnitude = df.loc[long_mask, 'ema_divergence_pct']
+            momentum = df.loc[long_mask, 'momentum_normalized']
+            acceleration = df.loc[long_mask, 'acceleration_normalized']
+            freshness = df.loc[long_mask, 'freshness_factor']
 
-        # For short signals: intensity based on how much EMA_short is below the long EMAs
+            # Intensidad combinada: ponderación de factores
+            # freshness tiene más peso (40%), momentum (30%), magnitude (20%), acceleration (10%)
+            df.loc[long_mask, 'signal_intensity'] = (
+                0.20 * magnitude +
+                0.30 * momentum +
+                0.10 * acceleration +
+                0.40 * freshness
+            )
+
+        # Para señales SHORT
         short_mask = df['signal'] == -1
-        df.loc[short_mask, 'signal_intensity'] = 1 - df.loc[short_mask, 'ema_divergence_pct']
+        if short_mask.any():
+            # Combinar los 3 factores para señales short (invertir direcciones)
+            magnitude = 1 - df.loc[short_mask, 'ema_divergence_pct']
+            momentum = 1 - df.loc[short_mask, 'momentum_normalized']
+            acceleration = 1 - df.loc[short_mask, 'acceleration_normalized']
+            freshness = df.loc[short_mask, 'freshness_factor']
+
+            # Intensidad combinada
+            df.loc[short_mask, 'signal_intensity'] = (
+                0.20 * magnitude +
+                0.30 * momentum +
+                0.10 * acceleration +
+                0.40 * freshness
+            )
 
         # Calculate price range for potential grid levels
         df['price_range'] = df['high'].rolling(self.config.rolling_window).max() - df['low'].rolling(self.config.rolling_window).min()
