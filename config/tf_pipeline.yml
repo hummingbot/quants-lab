@@ -14,9 +14,10 @@ tasks:
     
     config:
       notebooks:
-        - path: "cohort-12/download_candles_all_pairs.ipynb"
-        - path: "cohort-12/download_oi_all_pairs.ipynb"
-      
+        - path: "data_collection/download_candles_all_pairs.ipynb"
+        - path: "feature_engineering/trend_follower_grid.ipynb"
+#        - path: "bot_orchestration/tf_pipeline.ipynb"
+
       output_dir: "app/outputs/cohort-12"
       save_outputs: true
       extract_results: true
