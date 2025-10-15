@@ -1,39 +1,64 @@
 .ONESHELL:
-.PHONY: uninstall
-.PHONY: install
+.PHONY: help install uninstall build
 
+# Default target
+.DEFAULT_GOAL := help
 
-uninstall:
+# ============================================================================
+# INSTALLATION & SETUP
+# ============================================================================
+
+install:  ## Install QuantsLab (conda env + package + databases)
+	@echo "🚀 Installing QuantsLab..."
+	./install.sh
+
+uninstall:  ## Remove conda environment completely
+	@echo "🗑️  Removing QuantsLab environment..."
 	conda env remove -n quants-lab -y
 
-install:
-	./install.sh   # Run the full installation script
-# Build local image
-build:
+build:  ## Build Docker image locally
+	@echo "🔨 Building Docker image..."
 	docker build -t hummingbot/quants-lab -f Dockerfile .
-# Run db containers
-run-db:
-	docker compose -f docker-compose-db.yml up -d
+# ============================================================================
+# DATABASE MANAGEMENT
+# ============================================================================
 
-# Stop db containers
-stop-db:
+run-db:  ## Start MongoDB and Mongo Express
+	@echo "🗄️  Starting databases..."
+	docker compose -f docker-compose-db.yml up -d
+	@echo "✅ MongoDB: mongodb://admin:admin@localhost:27017/quants_lab"
+	@echo "✅ Mongo Express UI: http://localhost:28081 (admin/changeme)"
+
+stop-db:  ## Stop database containers
+	@echo "🛑 Stopping databases..."
 	docker compose -f docker-compose-db.yml down
 
-# Task Management Commands
-# 
-# Examples:
-#   make run-tasks config=pools_screener_v2.yml              # Run tasks continuously (Docker)
-#   make run-tasks config=pools_screener_v2.yml source=1     # Run tasks continuously (Local)
-#   make trigger-task task=pools_screener config=pools_screener_v2.yml  # Run single task (Docker)
-#   make serve-api config=pools_screener_v2.yml port=8000    # Start API server (Docker)
-#   make list-tasks config=pools_screener_v2.yml             # List available tasks (Docker)
+logs-db:  ## View database logs
+	docker compose -f docker-compose-db.yml logs -f
 
-# Run tasks continuously
-run-tasks:
+clean-db:  ## Stop databases and remove volumes (⚠️  DATA LOSS)
+	@echo "⚠️  WARNING: This will delete all database data!"
+	@read -p "Are you sure? [y/N]: " confirm && [ "$$confirm" = "y" ] || exit 1
+	docker compose -f docker-compose-db.yml down -v
+
+# ============================================================================
+# TASK MANAGEMENT
+# ============================================================================
+# Run tasks in Docker by default, add 'source=1' for local execution
+# Examples:
+#   make run-tasks config=tf_pipeline.yml              # Docker
+#   make run-tasks config=tf_pipeline.yml source=1     # Local
+#   make trigger-task task=data_collection config=tf_pipeline.yml
+# ============================================================================
+
+run-tasks:  ## Run tasks continuously (Docker or local with source=1)
 ifeq ($(source),1)
+	@echo "▶️  Running tasks locally: $(config)"
 	python cli.py run-tasks --config config/$(config)
 else
-	docker run -d --rm \
+	@echo "🐳 Running tasks in Docker: $(config)"
+	@docker run -d --rm \
+		--name quants-lab-$(shell echo $(config) | sed 's/\.yml//') \
 		-v $(shell pwd)/app/outputs:/quants-lab/app/outputs \
 		-v $(shell pwd)/config:/quants-lab/config \
 		-v $(shell pwd)/app:/quants-lab/app \
@@ -42,140 +67,153 @@ else
 		--network host \
 		hummingbot/quants-lab \
 		conda run --no-capture-output -n quants-lab python3 cli.py run-tasks --config config/$(config)
+	@echo "✅ Task runner started in background"
+	@echo "   View logs: make logs-tasks"
+	@echo "   Stop: make stop-tasks"
 endif
 
-# Trigger single task
-trigger-task:
+trigger-task:  ## Run a single task once (Docker or local with source=1)
 ifeq ($(source),1)
+	@echo "⚡ Triggering task locally: $(task)"
 	python cli.py trigger-task --task $(task) --config config/$(config)
 else
+	@echo "🐳 Triggering task in Docker: $(task)"
 	docker run --rm \
 		-v $(shell pwd)/app/outputs:/quants-lab/app/outputs \
 		-v $(shell pwd)/config:/quants-lab/config \
 		-v $(shell pwd)/app:/quants-lab/app \
 		-v $(shell pwd)/research_notebooks:/quants-lab/research_notebooks \
 		--env-file .env \
+		--network host \
 		hummingbot/quants-lab \
 		conda run --no-capture-output -n quants-lab python3 cli.py trigger-task --task $(task) --config config/$(config)
 endif
 
-# Start API server with background tasks
-serve-api:
+serve-api:  ## Start API server with background tasks
 ifeq ($(source),1)
+	@echo "🌐 Starting API server locally on port $(port)"
 	python cli.py serve --config config/$(config) --port $(port)
 else
-	docker run --rm \
+	@echo "🐳 Starting API server in Docker on port $(port)"
+	docker run -d --rm \
+		--name quants-lab-api \
 		-p $(port):$(port) \
 		-v $(shell pwd)/app/outputs:/quants-lab/app/outputs \
 		-v $(shell pwd)/config:/quants-lab/config \
 		-v $(shell pwd)/app:/quants-lab/app \
 		-v $(shell pwd)/research_notebooks:/quants-lab/research_notebooks \
 		--env-file .env \
+		--network host \
 		hummingbot/quants-lab \
 		conda run --no-capture-output -n quants-lab python3 cli.py serve --config config/$(config) --port $(port)
+	@echo "✅ API server started at http://localhost:$(port)"
 endif
 
-# List available tasks
-list-tasks:
+list-tasks:  ## List all tasks from config file
 ifeq ($(source),1)
-	python cli.py list-tasks --config config/$(config)
+	@python cli.py list-tasks --config config/$(config)
 else
-	docker run --rm \
+	@docker run --rm \
 		-v $(shell pwd)/config:/quants-lab/config \
 		--env-file .env \
 		hummingbot/quants-lab \
 		conda run --no-capture-output -n quants-lab python3 cli.py list-tasks --config config/$(config)
 endif
 
-# Validate configuration file
-validate-config:
+validate-config:  ## Validate task configuration file
 ifeq ($(source),1)
-	python cli.py validate-config --config config/$(config)
+	@python cli.py validate-config --config config/$(config)
 else
-	docker run --rm \
+	@docker run --rm \
 		-v $(shell pwd)/config:/quants-lab/config \
 		--env-file .env \
 		hummingbot/quants-lab \
 		conda run --no-capture-output -n quants-lab python3 cli.py validate-config --config config/$(config)
 endif
 
-# Run task with Docker
-run-task:
-	docker run --rm \
-		-v $(shell pwd)/app/outputs:/quants-lab/app/outputs \
-		-v $(shell pwd)/config:/quants-lab/config \
-		-v $(shell pwd)/app:/quants-lab/app \
-		-v $(shell pwd)/research_notebooks:/quants-lab/research_notebooks \
-		--env-file .env \
-		--network host \
-		hummingbot/quants-lab \
-		conda run --no-capture-output -n quants-lab python3 cli.py run-tasks --config config/$(config)
+stop-tasks:  ## Stop all running task containers
+	@echo "🛑 Stopping all task runners..."
+	@docker ps --filter ancestor=hummingbot/quants-lab --format "{{.Names}}" | xargs -r docker stop || true
+	@echo "✅ All task runners stopped"
 
-# Stop task runner (Docker)
-stop-task:
-	docker stop $(shell docker ps -q --filter ancestor=hummingbot/quants-lab) || true
+logs-tasks:  ## View logs from running tasks
+	@docker ps --filter ancestor=hummingbot/quants-lab --format "{{.Names}}" | head -1 | xargs -r docker logs -f
 
-# Launch Optuna Dashboard
-launch-optuna:
+ps-tasks:  ## List running task containers
+	@echo "📋 Running task containers:"
+	@docker ps --filter ancestor=hummingbot/quants-lab --format "table {{.Names}}\t{{.Status}}\t{{.CreatedAt}}"
+
+# ============================================================================
+# OPTIMIZATION & UTILITIES
+# ============================================================================
+
+launch-optuna:  ## Launch Optuna dashboard for hyperparameter optimization
+	@echo "📊 Launching Optuna dashboard..."
 	python -c "from core.backtesting.optimizer import StrategyOptimizer; optimizer = StrategyOptimizer(); optimizer.launch_optuna_dashboard()"
 
-# Kill Optuna Dashboard
-kill-optuna:
+kill-optuna:  ## Stop Optuna dashboard
+	@echo "🛑 Stopping Optuna dashboard..."
 	python -c "from core.backtesting.optimizer import StrategyOptimizer; optimizer = StrategyOptimizer(); optimizer.kill_optuna_dashboard()"
 
-# Clean up stale task states in MongoDB
-cleanup-tasks:
+# ============================================================================
+# MAINTENANCE & CLEANUP
+# ============================================================================
+
+cleanup-tasks:  ## Clean up stale task states in MongoDB
+	@echo "🧹 Cleaning up stale tasks..."
 	python scripts/cleanup_tasks.py
 
-# List current task states
-list-task-states:
-	python scripts/cleanup_tasks.py --list
+list-task-states:  ## List current task states in MongoDB
+	@python scripts/cleanup_tasks.py --list
 
-# Help target
-help:
-	@echo "QuantsLab Task Management Commands:"
+clean:  ## Remove Python cache and build artifacts
+	@echo "🧹 Cleaning Python cache and build artifacts..."
+	@find . -type d -name "__pycache__" -exec rm -rf {} + 2>/dev/null || true
+	@find . -type f -name "*.pyc" -delete 2>/dev/null || true
+	@find . -type f -name "*.pyo" -delete 2>/dev/null || true
+	@find . -type d -name "*.egg-info" -exec rm -rf {} + 2>/dev/null || true
+	@rm -rf build/ dist/ .pytest_cache/ .coverage htmlcov/ 2>/dev/null || true
+	@echo "✅ Cleanup complete"
+
+# ============================================================================
+# HELP
+# ============================================================================
+
+help:  ## Show this help message
+	@echo "════════════════════════════════════════════════════════════════"
+	@echo "  QuantsLab - Quantitative Trading Framework"
+	@echo "════════════════════════════════════════════════════════════════"
 	@echo ""
-	@echo "🚀 Quick Start (Docker by default):"
-	@echo "  make run-db                                     Start database (required first)"
-	@echo "  make run-tasks config=CONFIG.yml               Run tasks continuously"
-	@echo "  make run-notebook                               Run notebook task"
-	@echo "  make stop-task                                  Stop running Docker tasks"
+	@echo "📦 INSTALLATION & SETUP"
+	@grep -E '^install:|^uninstall:|^build:' $(MAKEFILE_LIST) | awk 'BEGIN {FS = ":.*?## "}; {printf "  \033[36m%-20s\033[0m %s\n", $$1, $$2}'
 	@echo ""
-	@echo "💻 Local Development (add source=1):"
-	@echo "  make run-tasks config=CONFIG.yml source=1      Run tasks locally"
-	@echo "  make run-notebook source=1                      Run notebook task locally"
+	@echo "🗄️  DATABASE MANAGEMENT"
+	@grep -E '^run-db:|^stop-db:|^logs-db:|^clean-db:' $(MAKEFILE_LIST) | awk 'BEGIN {FS = ":.*?## "}; {printf "  \033[36m%-20s\033[0m %s\n", $$1, $$2}'
 	@echo ""
-	@echo "📋 Task Commands (Docker by default):"
-	@echo "  make run-tasks config=tasks/CONFIG.yml         Run tasks continuously"
-	@echo "  make trigger-task task=NAME config=tasks/CONFIG.yml  Run single task"
-	@echo "  make serve-api config=tasks/CONFIG.yml port=8000     Start API server"
-	@echo "  make list-tasks config=tasks/CONFIG.yml        List available tasks"
-	@echo "  make validate-config config=tasks/CONFIG.yml   Validate config"
+	@echo "⚡ TASK MANAGEMENT (add 'source=1' for local execution)"
+	@grep -E '^run-tasks:|^trigger-task:|^stop-tasks:|^logs-tasks:|^ps-tasks:' $(MAKEFILE_LIST) | awk 'BEGIN {FS = ":.*?## "}; {printf "  \033[36m%-20s\033[0m %s\n", $$1, $$2}'
 	@echo ""
-	@echo "🗄️ Database Commands:"
-	@echo "  make run-db                                    Start database containers"
-	@echo "  make stop-db                                   Stop database containers"
-	@echo "  make cleanup-tasks                             Clean up stale task states"
-	@echo "  make list-task-states                          List current task states"
+	@echo "📋 CONFIGURATION"
+	@grep -E '^list-tasks:|^validate-config:' $(MAKEFILE_LIST) | awk 'BEGIN {FS = ":.*?## "}; {printf "  \033[36m%-20s\033[0m %s\n", $$1, $$2}'
 	@echo ""
-	@echo "📊 Optimization Commands:"
-	@echo "  make launch-optuna                             Launch Optuna dashboard"
-	@echo "  make kill-optuna                               Kill Optuna dashboard"
+	@echo "📊 OPTIMIZATION & API"
+	@grep -E '^serve-api:|^launch-optuna:|^kill-optuna:' $(MAKEFILE_LIST) | awk 'BEGIN {FS = ":.*?## "}; {printf "  \033[36m%-20s\033[0m %s\n", $$1, $$2}'
 	@echo ""
-	@echo "🔨 Build Commands:"
-	@echo "  make build                                     Build Docker image"
-	@echo "  make install                                   Run the installation script (install.sh)"
-	@echo "  make uninstall                                 Remove conda environment"
+	@echo "🧹 MAINTENANCE"
+	@grep -E '^cleanup-tasks:|^list-task-states:|^clean:' $(MAKEFILE_LIST) | awk 'BEGIN {FS = ":.*?## "}; {printf "  \033[36m%-20s\033[0m %s\n", $$1, $$2}'
 	@echo ""
-	@echo "📚 Examples:"
-	@echo "  make run-tasks config=notebook_tasks.yml       # Docker"
-	@echo "  make run-tasks config=notebook_tasks.yml source=1  # Local"
-	@echo "  make run-notebook                               # Docker"
-	@echo "  make run-notebook source=1                      # Local"
-	@echo "  make trigger-task task=etl_download_candles config=notebook_tasks.yml"
+	@echo "════════════════════════════════════════════════════════════════"
+	@echo "🚀 QUICK START"
+	@echo "════════════════════════════════════════════════════════════════"
+	@echo "  1. make install                    # Install everything"
+	@echo "  2. conda activate quants-lab       # Activate environment"
+	@echo "  3. make run-db                     # Start databases"
+	@echo "  4. make run-tasks config=tf_pipeline.yml  # Run tasks"
 	@echo ""
-	@echo "📁 Directory Structure:"
-	@echo "  app/outputs/        # All task outputs (notebooks, reports, etc.)"
-	@echo "  app/data/           # Application data storage"
-	@echo "  config/             # Task configuration files"
-	@echo "  research_notebooks/ # Jupyter research notebooks"
+	@echo "📚 EXAMPLES"
+	@echo "  make run-tasks config=tf_pipeline.yml          # Docker (background)"
+	@echo "  make run-tasks config=tf_pipeline.yml source=1 # Local execution"
+	@echo "  make trigger-task task=data_collection config=tf_pipeline.yml"
+	@echo "  make logs-tasks                                # View task logs"
+	@echo "  make stop-tasks                                # Stop all tasks"
+	@echo ""
