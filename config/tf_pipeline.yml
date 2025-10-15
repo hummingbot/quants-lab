@@ -18,7 +18,7 @@ tasks:
         - path: "feature_engineering/trend_follower_grid.ipynb"
         - path: "bot_orchestration/tf_pipeline.ipynb"
 
-      output_dir: "app/outputs/cohort-12"
+      output_dir: "app/outputs/tf_pipeline"
       save_outputs: true
       extract_results: true
       kernel_name: "python3"
