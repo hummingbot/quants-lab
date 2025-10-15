@@ -356,7 +356,18 @@ class CLOBDataSource:
         
         logger.info(f"OI cache dumped - {len(self._oi_cache)} files")
 
-    def load_candles_cache(self):
+    def load_candles_cache(self, 
+                          connector_name: Optional[str] = None,
+                          trading_pair: Optional[str] = None, 
+                          interval: Optional[str] = None):
+        """
+        Load candles from cache with optional filtering.
+        
+        Args:
+            connector_name: Optional filter by connector name
+            trading_pair: Optional filter by trading pair
+            interval: Optional filter by interval
+        """
         # Use centralized data paths
         candles_path = data_paths.candles_dir
         if not candles_path.exists():
@@ -364,11 +375,26 @@ class CLOBDataSource:
             return
 
         all_files = os.listdir(candles_path)
+        loaded_count = 0
+        skipped_count = 0
+        
         for file in all_files:
             if file == ".gitignore":
                 continue
             try:
-                connector_name, trading_pair, interval = file.split(".")[0].split("|")
+                file_connector, file_pair, file_interval = file.split(".")[0].split("|")
+                
+                # Apply filters if provided
+                if connector_name and file_connector != connector_name:
+                    skipped_count += 1
+                    continue
+                if trading_pair and file_pair != trading_pair:
+                    skipped_count += 1
+                    continue
+                if interval and file_interval != interval:
+                    skipped_count += 1
+                    continue
+                
                 candles = pd.read_parquet(candles_path / file)
                 candles.index = pd.to_datetime(candles.timestamp, unit='s')
                 candles.index.name = None
@@ -377,28 +403,12 @@ class CLOBDataSource:
                 for column in columns:
                     candles[column] = pd.to_numeric(candles[column])
 
-                self._candles_cache[(connector_name, trading_pair, interval)] = candles
+                self._candles_cache[(file_connector, file_pair, file_interval)] = candles
+                loaded_count += 1
             except Exception as e:
                 logger.error(f"Error loading {file}: {type(e).__name__} - {e}")
-    
-    def load_oi_cache(self):
-        # Load OI cache from disk
-        oi_path = data_paths.oi_dir
-        if not oi_path.exists():
-            logger.warning(f"Path {oi_path} does not exist, skipping OI cache loading.")
-            return
         
-        all_files = os.listdir(oi_path)
-        for file in all_files:
-            if file == ".gitignore" or not file.endswith(".parquet"):
-                continue
-            try:
-                connector_name, trading_pair, interval = file.split(".")[0].split("|")
-                oi_df = pd.read_parquet(oi_path / file)
-                self._oi_cache[(connector_name, trading_pair, interval)] = oi_df
-                logger.info(f"Loaded OI cache for {connector_name} {trading_pair} {interval}")
-            except Exception as e:
-                logger.error(f"Error loading OI cache {file}: {type(e).__name__} - {e}")
+        logger.info(f"Loaded {loaded_count} candles cache files, skipped {skipped_count} files due to filters")
 
     async def get_trades(self, connector_name: str, trading_pair: str, start_time: int, end_time: int,
                          from_id: Optional[int] = None):
