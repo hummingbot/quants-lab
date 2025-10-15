@@ -107,32 +107,9 @@ run-task:
 		-v $(shell pwd)/app:/quants-lab/app \
 		-v $(shell pwd)/research_notebooks:/quants-lab/research_notebooks \
 		--env-file .env \
+		--network host \
 		hummingbot/quants-lab \
 		conda run --no-capture-output -n quants-lab python3 cli.py run-tasks --config config/$(config)
-
-# Run a specific notebook
-run-notebook:
-ifeq ($(source),1)
-	python cli.py run app.tasks.notebook.notebook_task
-else
-	docker run --rm \
-		-v $(shell pwd)/app/outputs:/quants-lab/app/outputs \
-		-v $(shell pwd)/config:/quants-lab/config \
-		-v $(shell pwd)/app:/quants-lab/app \
-		-v $(shell pwd)/research_notebooks:/quants-lab/research_notebooks \
-		--env-file .env \
-		hummingbot/quants-lab \
-		conda run --no-capture-output -n quants-lab python3 cli.py run app.tasks.notebook.notebook_task
-endif
-
-# Legacy commands (deprecated, use source=1 flag instead)
-run-task-local:
-	@echo "⚠️  DEPRECATED: Use 'make run-tasks config=CONFIG source=1' instead"
-	python cli.py run-tasks --config config/$(config)
-
-run-notebook-local:
-	@echo "⚠️  DEPRECATED: Use 'make run-notebook source=1' instead"
-	python cli.py run app.tasks.notebook.notebook_task
 
 # Stop task runner (Docker)
 stop-task:
