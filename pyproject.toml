@@ -28,7 +28,6 @@ dependencies = [
     "plotly",
     "scikit-learn",
     "pydantic",
-    "pandas_ta==0.3.14b",
     "pyyaml",
     "optuna",
     "optuna-dashboard",
