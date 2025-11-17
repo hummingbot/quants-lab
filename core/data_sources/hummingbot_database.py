@@ -5,13 +5,15 @@ import sqlite3
 import pandas as pd
 
 from core.data_structures.controller_performance import ControllerPerformance
+from core.data_paths import data_paths
 from hummingbot.connector.connector_base import TradeType
 
 
 class HummingbotDatabase:
     def __init__(self, db_name: str, root_path: str = "", instance_name: str = None, load_cache_data: bool = False):
-        self.db_path = os.path.join(root_path, "data", "live_bot_databases", db_name)
-        self.root_path = root_path
+        # Use centralized data paths, keeping root_path for backward compatibility
+        self.db_path = str(data_paths.get_live_bot_db_path(db_name))
+        self.root_path = root_path  # Keep for ControllerPerformance compatibility
         self.db_name = db_name
         self.instance_name = instance_name
         self.load_cache_data = load_cache_data
@@ -88,11 +90,14 @@ class HummingbotDatabase:
     def get_executors_data(self, start_date=None, end_date=None) -> pd.DataFrame:
         query = "SELECT * FROM Executors"
         executors = pd.read_sql_query(query, self.connection)
+        executors["custom_info"] = executors["custom_info"].apply(lambda x: json.loads(x) if isinstance(x, str) else x)
+        executors["config"] = executors["config"].apply(lambda x: json.loads(x) if isinstance(x, str) else x)
         return executors
 
     def get_controller_data(self, start_date=None, end_date=None) -> pd.DataFrame:
         query = "SELECT * FROM Controllers"
         controllers = pd.read_sql_query(query, self.connection)
+        controllers["config"] = controllers["config"].apply(lambda x: json.loads(x) if isinstance(x, str) else x)
         return controllers
 
     def get_executors_from_controller_id(self, controller_id: str, start_date=None, end_date=None) -> pd.DataFrame:

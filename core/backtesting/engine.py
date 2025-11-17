@@ -5,6 +5,7 @@ from typing import Dict, Optional
 import pandas as pd
 
 from core.data_structures.backtesting_result import BacktestingResult
+from core.data_paths import data_paths
 from hummingbot.strategy_v2.backtesting.backtesting_engine_base import BacktestingEngineBase
 from hummingbot.strategy_v2.controllers import ControllerConfigBase
 
@@ -14,20 +15,24 @@ logger = logging.getLogger(__name__)
 
 
 class BacktestingEngine:
-    def __init__(self, load_cached_data: bool = True, root_path: str = "", custom_backtester: Optional[BacktestingEngineBase] = None):
+    def __init__(self, load_cached_data: bool = True, custom_backtester: Optional[BacktestingEngineBase] = None):
         self._bt_engine = custom_backtester if custom_backtester is not None else BacktestingEngineBase()
-        self.root_path = root_path
         if load_cached_data:
-            self._load_candles_cache(root_path)
+            self._load_candles_cache()
 
-    def _load_candles_cache(self, root_path: str):
-        all_files = os.listdir(os.path.join(root_path, "data", "candles"))
+    def _load_candles_cache(self):
+        # Use centralized data paths
+        candles_path = data_paths.candles_dir
+        if not candles_path.exists():
+            logger.warning(f"Candles directory {candles_path} does not exist.")
+            return
+        all_files = os.listdir(candles_path)
         for file in all_files:
             if file == ".gitignore":
                 continue
             try:
                 connector_name, trading_pair, interval = file.split(".")[0].split("|")
-                candles = pd.read_parquet(os.path.join(root_path, "data", "candles", file))
+                candles = pd.read_parquet(candles_path / file)
                 candles.index = pd.to_datetime(candles.timestamp, unit='s')
                 candles.index.name = None
                 columns = ['open', 'high', 'low', 'close', 'volume', 'quote_asset_volume',
@@ -44,15 +49,20 @@ class BacktestingEngine:
             except Exception as e:
                 logger.error(f"Error loading {file}: {e}")
 
-    def load_candles_cache_by_connector_pair(self, connector_name: str, trading_pair: str, root_path: str = ""):
-            all_files = os.listdir(os.path.join(root_path, "data", "candles"))
+    def load_candles_cache_by_connector_pair(self, connector_name: str, trading_pair: str):
+            # Use centralized data paths
+            candles_path = data_paths.candles_dir
+            if not candles_path.exists():
+                logger.warning(f"Candles directory {candles_path} does not exist.")
+                return
+            all_files = os.listdir(candles_path)
             for file in all_files:
                 if file == ".gitignore":
                     continue
                 try:
                     if connector_name in file and trading_pair in file:
                         connector_name, trading_pair, interval = file.split(".")[0].split("|")
-                        candles = pd.read_parquet(os.path.join(root_path, "data", "candles", file))
+                        candles = pd.read_parquet(candles_path / file)
                         candles.index = pd.to_datetime(candles.timestamp, unit='s')
                         candles.index.name = None
                         columns = ['open', 'high', 'low', 'close', 'volume', 'quote_asset_volume',

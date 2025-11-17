@@ -1,0 +1,136 @@
+# Template 3: Periodic Balance and Bot Status Reports
+# Sends regular reports via Telegram about portfolio balances and active bot performance
+
+tasks:
+  # Morning Report: Detailed portfolio and bot status
+  morning_hummingbot_report:
+    enabled: true
+    task_class: app.tasks.data_reporting.hummingbot_status_task.HummingbotStatusTask
+    
+    schedule:
+      type: cron
+      cron: "0 8 * * *"  # 8:00 AM UTC daily
+      timezone: UTC
+      
+    max_retries: 3
+    retry_delay_seconds: 120
+    timeout_seconds: 600
+    
+    dependencies: []
+    
+    config:
+      hummingbot_host: "localhost"
+      hummingbot_port: 8000
+      
+      # Telegram notification settings
+      notification:
+        telegram_chat_ids: []  # Use default from .env
+        report_type: "detailed"  # Include all holdings and bot details
+    
+    tags:
+      - reporting
+      - hummingbot
+      - morning_report
+
+  # Evening Summary: Quick P&L and performance summary
+  evening_hummingbot_summary:
+    enabled: true
+    task_class: app.tasks.data_reporting.hummingbot_status_task.HummingbotStatusTask
+    
+    schedule:
+      type: cron
+      cron: "0 20 * * *"  # 8:00 PM UTC daily
+      timezone: UTC
+      
+    max_retries: 3
+    retry_delay_seconds: 120
+    timeout_seconds: 600
+    
+    dependencies: []
+    
+    config:
+      hummingbot_host: "localhost"
+      hummingbot_port: 8000
+      
+      # Telegram notification settings
+      notification:
+        telegram_chat_ids: []  # Use default from .env
+        report_type: "summary"  # Compact summary format
+    
+    tags:
+      - reporting
+      - hummingbot
+      - evening_summary
+
+  # Weekly Performance Report: Comprehensive weekly analysis
+  weekly_performance_report:
+    enabled: true
+    task_class: app.tasks.data_reporting.hummingbot_status_task.HummingbotStatusTask
+    
+    schedule:
+      type: cron
+      cron: "0 9 * * 0"  # 9:00 AM UTC on Sundays
+      timezone: UTC
+      
+    max_retries: 3
+    retry_delay_seconds: 120
+    timeout_seconds: 900  # 15 minutes for comprehensive report
+    
+    dependencies: []
+    
+    config:
+      hummingbot_host: "localhost"
+      hummingbot_port: 8000
+      
+      # Telegram notification settings
+      notification:
+        telegram_chat_ids: []  # Use default from .env
+        report_type: "weekly"  # Include weekly performance trends
+        include_charts: true  # Generate performance charts if available
+    
+    tags:
+      - reporting
+      - hummingbot
+      - weekly_analysis
+
+  # Emergency Alert: Check for stopped bots or low balances
+  bot_health_check:
+    enabled: true
+    task_class: app.tasks.data_reporting.hummingbot_status_task.HummingbotStatusTask
+    
+    schedule:
+      type: frequency
+      frequency_hours: 2.0  # Every 2 hours
+      timezone: UTC
+      
+    max_retries: 2
+    retry_delay_seconds: 60
+    timeout_seconds: 300
+    
+    dependencies: []
+    
+    config:
+      hummingbot_host: "localhost"
+      hummingbot_port: 8000
+      
+      # Alert thresholds
+      alert_config:
+        min_portfolio_value: 1000  # Alert if portfolio < $1000
+        max_negative_pnl: -100     # Alert if any bot P&L < -$100
+        check_stopped_bots: true   # Alert if bots are stopped
+        check_api_connection: true # Alert if API unreachable
+      
+      # Telegram notification settings (only send if alerts triggered)
+      notification:
+        telegram_chat_ids: []  # Use default from .env
+        alert_only: true       # Only send notifications for alerts
+        report_type: "alert"   # Alert format
+    
+    tags:
+      - monitoring
+      - alerts
+      - hummingbot
+
+# Environment variables required
+# - TELEGRAM_BOT_TOKEN (for sending reports)
+# - TELEGRAM_CHAT_ID (for sending reports)

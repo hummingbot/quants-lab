@@ -1,29 +1,32 @@
-version: "3"
 services:
-  timescaledb:
-    container_name: timescaledb
-    image: timescale/timescaledb:latest-pg14
+  mongodb:
+    image: mongo:latest
+    container_name: mongodb
     environment:
-      - POSTGRES_USER={POSTGRES_USER}
-      - POSTGRES_PASSWORD={POSTGRES_PASSWORD}
-      - POSTGRES_DB={POSTGRES_DB}
-    volumes:
-      - timescale-data:/var/lib/postgresql/data
+      MONGO_INITDB_ROOT_USERNAME: admin
+      MONGO_INITDB_ROOT_PASSWORD: admin
+      MONGO_INITDB_DATABASE: quants_lab
     ports:
-      - "5432:5432"
-  optunadb:
-    container_name: optunadb
-    image: postgres:latest
+      - "27017:27017"
+    volumes:
+      - mongodb_data_ql:/data/db
+    restart: unless-stopped
+
+  mongo-express:
+    image: mongo-express:latest
+    container_name: mongo-express
     environment:
-      - POSTGRES_USER={POSTGRES_USER}
-      - POSTGRES_PASSWORD={POSTGRES_PASSWORD}
-      - POSTGRES_DB={POSTGRES_DB}
-    volumes:
-      - optuna-data:/var/lib/postgresql/data
+      ME_CONFIG_MONGODB_SERVER: mongodb
+      ME_CONFIG_MONGODB_PORT: 27017
+      ME_CONFIG_MONGODB_ADMINUSERNAME: admin
+      ME_CONFIG_MONGODB_ADMINPASSWORD: admin
+      ME_CONFIG_BASICAUTH_USERNAME: admin
+      ME_CONFIG_BASICAUTH_PASSWORD: changeme
     ports:
-      - "5433:5432"
+      - "28081:8081"
+    depends_on:
+      - mongodb
+    restart: unless-stopped
+
 volumes:
-  timescale-data:
-    driver: local
-  optuna-data:
-    driver: local
+  mongodb_data_ql:

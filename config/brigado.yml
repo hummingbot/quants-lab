@@ -1,0 +1,40 @@
+# Template 4: Jupyter Notebook Execution Pipeline
+# Runs different notebooks with various frequencies for data analysis and research
+
+tasks:
+  # Daily: Market data ETL notebook
+  brigado_etl:
+    enabled: true
+    task_class: notebook
+    schedule:
+      type: frequency
+      frequency_hours: 0.5
+
+    max_retries: 2
+    retry_delay_seconds: 300
+
+    config:
+      notebooks:
+        - path: "brigado/download_candles.ipynb"
+      output_dir: "app/outputs/brigado/"
+      save_outputs: true
+      extract_results: true
+      kernel_name: "python3"
+      timeout: "30m"
+      execution: "sequential"  # Run notebooks one after another
+
+  account_report:
+    enabled: true
+    task_class: notebook
+    schedule:
+      type: cron # at 9:00 AM and 8:00 PM every day
+      cron: "0 9,11,13,15,17,19,20 * * *"
+    max_retries: 2
+    retry_delay_seconds: 300
+
+    config:
+      notebooks:
+        - path: "brigado/account_report.ipynb"
+        - path: "brigado/market_analysis.ipynb"
+      execution: "sequential"  # Run notebooks one after another
+

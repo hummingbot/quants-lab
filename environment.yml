@@ -1,36 +1,43 @@
 name: quants-lab
 channels:
-  - defaults
   - conda-forge
+  - defaults
 dependencies:
-  - python=3.10
-  - sqlalchemy=1.4
+  - python=3.12
+  - sqlalchemy
   - libcxx
   - pip
   - pip:
       - hummingbot
-      - numpy==1.26.4
-      - plotly
+      - hummingbot-api-client
       - pycoingecko
-      - geckoterminal-py
+      - geckoterminal-py==0.2.5
       - glom
       - defillama
       - statsmodels
-      - pandas_ta==0.3.14b
-      - pyyaml
+      - numpy
+      - pandas
+      - plotly
       - jupyter
+      - scikit-learn
+      - pydantic
+      - pyyaml
       - optuna
       - optuna-dashboard
       - pathlib
-      - pydantic==1.10.4
-      - scikit-learn
       - pre-commit
       - isort
       - flake8
-      - commlib-py
-      - rich
       - python-dotenv
       - asyncpg
       - psycopg2-binary
       - pyarrow
-      - pandas
+      - motor>=3.3.2
+      - fastapi
+      - uvicorn[standard]
+      - croniter
+      - pytz
+      - papermill
+      - nbformat
+      - nbclient
+      - kaleido

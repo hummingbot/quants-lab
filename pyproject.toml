@@ -1,10 +1,67 @@
 [build-system]
-requires = ["setuptools>=42", "wheel"]
+requires = ["setuptools>=68.0", "wheel"]
 build-backend = "setuptools.build_meta"
+
+[project]
+name = "quants-lab"
+version = "2.0.0"
+description = "Quantitative research framework for Hummingbot trading strategies"
+readme = "README.md"
+requires-python = ">=3.12"
+authors = [
+    {name = "QuantsLab Team", email = "team@quantslab.io"},
+]
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Intended Audience :: Financial and Insurance Industry",
+    "Programming Language :: Python :: 3.12",
+]
+dependencies = [
+    "hummingbot",
+    "pycoingecko",
+    "geckoterminal-py==0.2.5",
+    "glom",
+    "defillama",
+    "statsmodels",
+    "numpy",
+    "pandas",
+    "plotly",
+    "scikit-learn",
+    "pydantic",
+    "pyyaml",
+    "optuna",
+    "optuna-dashboard",
+    "streamlit",
+    "python-dotenv",
+    "asyncpg",
+    "psycopg2-binary",
+    "pyarrow",
+    "motor>=3.3.2",
+    "fastapi",
+    "uvicorn[standard]",
+    "croniter",
+    "pytz",
+    "sqlalchemy",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pre-commit",
+    "isort",
+    "flake8",
+    "jupyter",
+]
+
+[project.scripts]
+quants-lab = "cli:main"
+
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["core*", "app*"]
 
 [tool.black]
 line-length = 130
-target-version = ["py38"]
+target-version = ["py312"]
 
 [tool.isort]
 line_length = 130
